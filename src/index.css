@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Print Layout Optimization Styles */
+@media print {
+  /* Hide all unnecessary elements */
+  header,
+  footer,
+  nav,
+  aside,
+  section,
+  form,
+  button,
+  select,
+  .no-print,
+  .alert-box,
+  div[class*="border-b"]:has(select) {
+    display: none !important;
+  }
+
+  /* Make sure background is white and text is high-contrast black */
+  html, body, #root, main {
+    background: white !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Format timetable card for printing */
+  .timetable-card {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Force table grid container to be fully visible */
+  .overflow-x-auto {
+    overflow: visible !important;
+    border: 1px solid #475569 !important;
+    border-radius: 4px !important;
+  }
+
+  /* Ensure colors and text are perfectly legible */
+  .bg-slate-800 {
+    background-color: #1e293b !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-slate-100 {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-amber-600\/10 {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-amber-500\/5 {
+    background-color: #fefcf6 !important;
+    color: #b45309 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-blue-50 {
+    background-color: #eff6ff !important;
+    color: #1e3a8a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .border-slate-400 {
+    border-color: #94a3b8 !important;
+  }
+
+  .text-blue-950 {
+    color: #090d16 !important;
+  }
+
+  .text-blue-900 {
+    color: #1e3a8a !important;
+  }
+
+  .text-slate-500 {
+    color: #64748b !important;
+  }
+}
+

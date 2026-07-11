@@ -1,0 +1,6 @@
+{
+  "name": "College Timetable Generator",
+  "description": "A smart timetable generator with clash prevention and workload constraints for Sir M. Visvesvaraya College of Engineering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
