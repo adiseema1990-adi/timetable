@@ -487,34 +487,38 @@ export default function App() {
     setIsExportingPDF(true);
     showAuthNotice("Generating PDF, please wait...");
     
+    // Create a temporary clone to force desktop size (landscape mode) even on mobile screens
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.id = 'class-roster-timetable-card-clone';
+    clone.style.width = '1120px';
+    clone.style.minWidth = '1120px';
+    clone.style.position = 'absolute';
+    clone.style.top = '-9999px';
+    clone.style.left = '-9999px';
+    
+    const printHeader = clone.querySelector('.print\\:flex');
+    if (printHeader) {
+      printHeader.classList.remove('hidden');
+    }
+    
+    const controls = clone.querySelector('.roster-controls-container');
+    if (controls) {
+      controls.classList.add('hidden');
+    }
+    
+    document.body.appendChild(clone);
+    
     try {
       const currentClassObj = classes.find(c => c.id === selectedClassId);
       const className = currentClassObj ? `${currentClassObj.name}_Sec_${currentClassObj.section}` : 'Roster';
       
-      const printHeader = element.querySelector('.print\\:flex');
-      if (printHeader) {
-        printHeader.classList.remove('hidden');
-      }
-      
-      const controls = element.querySelector('.roster-controls-container');
-      if (controls) {
-        controls.classList.add('hidden');
-      }
-      
-      const imgData = await toPng(element, {
+      const imgData = await toPng(clone, {
         backgroundColor: '#ffffff',
         pixelRatio: 2.5
       });
       
-      if (printHeader) {
-        printHeader.classList.add('hidden');
-      }
-      if (controls) {
-        controls.classList.remove('hidden');
-      }
-      
-      const imgWidth = element.offsetWidth;
-      const imgHeight = element.offsetHeight;
+      const imgWidth = 1120; // Forced cloned width
+      const imgHeight = clone.offsetHeight;
       
       const pdfWidth = 842;
       const pdfHeight = 595;
@@ -544,6 +548,7 @@ export default function App() {
       console.error('PDF generation failed:', error);
       showAuthNotice("PDF generation failed. Please try again.");
     } finally {
+      document.body.removeChild(clone);
       setIsExportingPDF(false);
     }
   };
@@ -555,34 +560,38 @@ export default function App() {
     setIsDownloadingPDF(true);
     showAuthNotice("Preparing local PDF download...");
     
+    // Create a temporary clone to force desktop size (landscape mode) even on mobile screens
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.id = 'class-roster-timetable-card-clone-local';
+    clone.style.width = '1120px';
+    clone.style.minWidth = '1120px';
+    clone.style.position = 'absolute';
+    clone.style.top = '-9999px';
+    clone.style.left = '-9999px';
+    
+    const printHeader = clone.querySelector('.print\\:flex');
+    if (printHeader) {
+      printHeader.classList.remove('hidden');
+    }
+    
+    const controls = clone.querySelector('.roster-controls-container');
+    if (controls) {
+      controls.classList.add('hidden');
+    }
+    
+    document.body.appendChild(clone);
+    
     try {
       const currentClassObj = classes.find(c => c.id === selectedClassId);
       const className = currentClassObj ? `${currentClassObj.name}_Sec_${currentClassObj.section}` : 'Roster';
       
-      const printHeader = element.querySelector('.print\\:flex');
-      if (printHeader) {
-        printHeader.classList.remove('hidden');
-      }
-      
-      const controls = element.querySelector('.roster-controls-container');
-      if (controls) {
-        controls.classList.add('hidden');
-      }
-      
-      const imgData = await toPng(element, {
+      const imgData = await toPng(clone, {
         backgroundColor: '#ffffff',
         pixelRatio: 2.5
       });
       
-      if (printHeader) {
-        printHeader.classList.add('hidden');
-      }
-      if (controls) {
-        controls.classList.remove('hidden');
-      }
-      
-      const imgWidth = element.offsetWidth;
-      const imgHeight = element.offsetHeight;
+      const imgWidth = 1120; // Forced cloned width
+      const imgHeight = clone.offsetHeight;
       
       const pdfWidth = 842;
       const pdfHeight = 595;
@@ -612,6 +621,7 @@ export default function App() {
       console.error('Local PDF download failed:', error);
       showAuthNotice("Failed to download PDF locally.");
     } finally {
+      document.body.removeChild(clone);
       setIsDownloadingPDF(false);
     }
   };
@@ -1416,14 +1426,7 @@ export default function App() {
                         <span>{isDownloadingPDF ? "Downloading..." : "Download PDF"}</span>
                       </button>
 
-                      <button
-                        onClick={handlePrint}
-                        disabled={!selectedClassId || !solverResult?.schedule}
-                        className="p-1.5 text-slate-600 hover:text-slate-900 border border-slate-200 rounded bg-slate-50 hover:bg-slate-100 disabled:opacity-50 cursor-pointer transition shadow-sm flex items-center justify-center"
-                        title="Print this timetable"
-                      >
-                        <Printer className="h-3.5 w-3.5" />
-                      </button>
+
                     </div>
                   </div>
 
