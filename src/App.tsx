@@ -519,7 +519,7 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 1.5
+        pixelRatio: 2.0
       });
       
       const imgWidth = 1120; // Forced width
@@ -620,7 +620,7 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 1.5
+        pixelRatio: 2.0
       });
       
       const imgWidth = 1120; // Forced width
@@ -718,7 +718,7 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 1.5
+        pixelRatio: 2.0
       });
       
       const imgWidth = 1120; // Forced width
