@@ -1471,6 +1471,7 @@ export default function App() {
                         disabled={!selectedClassId || !solverResult?.schedule || isDownloadingPDF}
                         className="px-2.5 py-1.5 text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1 cursor-pointer"
                         title={isDownloadingPDF ? "Downloading..." : "Download PDF file locally"}
+                        style={{ display: 'none' }}
                       >
                         <Download className="h-3.5 w-3.5 text-white" />
                         <span>{isDownloadingPDF ? "Downloading..." : "Download PDF"}</span>
