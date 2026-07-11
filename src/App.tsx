@@ -487,38 +487,38 @@ export default function App() {
     setIsExportingPDF(true);
     showAuthNotice("Generating PDF, please wait...");
     
-    // Create a temporary clone to force desktop size (landscape mode) even on mobile screens
-    const clone = element.cloneNode(true) as HTMLElement;
-    clone.id = 'class-roster-timetable-card-clone';
-    clone.style.width = '1120px';
-    clone.style.minWidth = '1120px';
-    clone.style.position = 'absolute';
-    clone.style.top = '-9999px';
-    clone.style.left = '-9999px';
+    // Save original styles/classes
+    const originalWidth = element.style.width;
+    const originalMinWidth = element.style.minWidth;
     
-    const printHeader = clone.querySelector('.print\\:flex');
+    // Temporarily force desktop size (landscape mode) for high-quality render
+    element.style.width = '1120px';
+    element.style.minWidth = '1120px';
+    
+    const printHeader = element.querySelector('.print\\:flex');
     if (printHeader) {
       printHeader.classList.remove('hidden');
     }
     
-    const controls = clone.querySelector('.roster-controls-container');
+    const controls = element.querySelector('.roster-controls-container');
     if (controls) {
       controls.classList.add('hidden');
     }
     
-    document.body.appendChild(clone);
+    // Allow browser to repaint with the new landscape styles
+    await new Promise(resolve => setTimeout(resolve, 150));
     
     try {
       const currentClassObj = classes.find(c => c.id === selectedClassId);
       const className = currentClassObj ? `${currentClassObj.name}_Sec_${currentClassObj.section}` : 'Roster';
       
-      const imgData = await toPng(clone, {
+      const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
         pixelRatio: 2.5
       });
       
-      const imgWidth = 1120; // Forced cloned width
-      const imgHeight = clone.offsetHeight;
+      const imgWidth = 1120; // Forced width
+      const imgHeight = element.offsetHeight;
       
       const pdfWidth = 842;
       const pdfHeight = 595;
@@ -548,7 +548,16 @@ export default function App() {
       console.error('PDF generation failed:', error);
       showAuthNotice("PDF generation failed. Please try again.");
     } finally {
-      document.body.removeChild(clone);
+      // Restore original style values
+      element.style.width = originalWidth;
+      element.style.minWidth = originalMinWidth;
+      
+      if (printHeader) {
+        printHeader.classList.add('hidden');
+      }
+      if (controls) {
+        controls.classList.remove('hidden');
+      }
       setIsExportingPDF(false);
     }
   };
@@ -560,38 +569,38 @@ export default function App() {
     setIsDownloadingPDF(true);
     showAuthNotice("Preparing local PDF download...");
     
-    // Create a temporary clone to force desktop size (landscape mode) even on mobile screens
-    const clone = element.cloneNode(true) as HTMLElement;
-    clone.id = 'class-roster-timetable-card-clone-local';
-    clone.style.width = '1120px';
-    clone.style.minWidth = '1120px';
-    clone.style.position = 'absolute';
-    clone.style.top = '-9999px';
-    clone.style.left = '-9999px';
+    // Save original styles/classes
+    const originalWidth = element.style.width;
+    const originalMinWidth = element.style.minWidth;
     
-    const printHeader = clone.querySelector('.print\\:flex');
+    // Temporarily force desktop size (landscape mode) for high-quality render
+    element.style.width = '1120px';
+    element.style.minWidth = '1120px';
+    
+    const printHeader = element.querySelector('.print\\:flex');
     if (printHeader) {
       printHeader.classList.remove('hidden');
     }
     
-    const controls = clone.querySelector('.roster-controls-container');
+    const controls = element.querySelector('.roster-controls-container');
     if (controls) {
       controls.classList.add('hidden');
     }
     
-    document.body.appendChild(clone);
+    // Allow browser to repaint with the new landscape styles
+    await new Promise(resolve => setTimeout(resolve, 150));
     
     try {
       const currentClassObj = classes.find(c => c.id === selectedClassId);
       const className = currentClassObj ? `${currentClassObj.name}_Sec_${currentClassObj.section}` : 'Roster';
       
-      const imgData = await toPng(clone, {
+      const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
         pixelRatio: 2.5
       });
       
-      const imgWidth = 1120; // Forced cloned width
-      const imgHeight = clone.offsetHeight;
+      const imgWidth = 1120; // Forced width
+      const imgHeight = element.offsetHeight;
       
       const pdfWidth = 842;
       const pdfHeight = 595;
@@ -621,7 +630,16 @@ export default function App() {
       console.error('Local PDF download failed:', error);
       showAuthNotice("Failed to download PDF locally.");
     } finally {
-      document.body.removeChild(clone);
+      // Restore original style values
+      element.style.width = originalWidth;
+      element.style.minWidth = originalMinWidth;
+      
+      if (printHeader) {
+        printHeader.classList.add('hidden');
+      }
+      if (controls) {
+        controls.classList.remove('hidden');
+      }
       setIsDownloadingPDF(false);
     }
   };
