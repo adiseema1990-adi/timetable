@@ -186,7 +186,8 @@ export default function App() {
   
   // --- App Logic State ---
   const [selectedClassId, setSelectedClassId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'drag_drop' | 'faculties' | 'subjects' | 'assignments' | 'timing'>('dashboard');
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'drag_drop' | 'faculties' | 'subjects' | 'assignments' | 'timing' | 'individual_timetable'>('dashboard');
   const [solverResult, setSolverResult] = useState<SolverResult | null>(null);
   const [customSchedule, setCustomSchedule] = useState<TimetableSchedule | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ day: string; slotIdx: number } | null>(null);
@@ -474,6 +475,106 @@ export default function App() {
     } catch (e) {
       console.error("Print failed:", e);
       showAuthNotice("Print failed. Please open the app in a new tab to print.");
+    }
+  };
+
+  const [isExportingFacultyPDF, setIsExportingFacultyPDF] = useState(false);
+
+  const handleExportFacultyPDF = async () => {
+    const element = document.getElementById('faculty-timetable-card');
+    if (!element) return;
+    
+    setIsExportingFacultyPDF(true);
+    showAuthNotice("Generating Faculty PDF, please wait...");
+    
+    // Save original styles/classes
+    const originalWidth = element.style.width;
+    const originalMinWidth = element.style.minWidth;
+    
+    // Temporarily force desktop size (landscape mode) for high-quality render
+    element.style.width = '1120px';
+    element.style.minWidth = '1120px';
+    
+    const printHeader = element.querySelector('.print\\:flex');
+    if (printHeader) {
+      printHeader.classList.remove('hidden');
+    }
+    
+    const controls = element.querySelector('.roster-controls-container');
+    if (controls) {
+      controls.classList.add('hidden');
+    }
+
+    const infoBoxes = element.querySelectorAll('.timetable-info-box');
+    infoBoxes.forEach(box => {
+      box.classList.add('hidden');
+    });
+    
+    // Allow browser to repaint with the new landscape styles
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    try {
+      const currentFacultyObj = faculties.find(f => f.id === selectedFacultyId);
+      const facultyName = currentFacultyObj ? `${currentFacultyObj.shortName}_Timetable` : 'Faculty_Timetable';
+      
+      const imgData = await toPng(element, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2.5
+      });
+      
+      const imgWidth = 1120; // Forced width
+      const imgHeight = element.offsetHeight;
+      
+      const pdfWidth = 842;
+      const pdfHeight = 595;
+      
+      const ratio = imgWidth / imgHeight;
+      let width = pdfWidth - 40;
+      let height = width / ratio;
+      
+      if (height > (pdfHeight - 40)) {
+        height = pdfHeight - 40;
+        width = height * ratio;
+      }
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'pt',
+        format: 'a4'
+      });
+      
+      const x = (pdfWidth - width) / 2;
+      const y = (pdfHeight - height) / 2;
+      
+      pdf.addImage(imgData, 'PNG', x, y, width, height);
+      
+      // Add timestamp to the bottom right
+      const now = new Date();
+      const timestampText = `Generated on: ${now.toLocaleString()}`;
+      pdf.setFontSize(8);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
+
+      pdf.save(`Timetable_${facultyName}.pdf`);
+      showAuthNotice("Faculty Timetable PDF downloaded successfully!");
+    } catch (error) {
+      console.error('Faculty PDF generation failed:', error);
+      showAuthNotice("PDF generation failed. Please try again.");
+    } finally {
+      // Restore original style values
+      element.style.width = originalWidth;
+      element.style.minWidth = originalMinWidth;
+      
+      if (printHeader) {
+        printHeader.classList.add('hidden');
+      }
+      if (controls) {
+        controls.classList.remove('hidden');
+      }
+      infoBoxes.forEach(box => {
+        box.classList.remove('hidden');
+      });
+      setIsExportingFacultyPDF(false);
     }
   };
 
@@ -1229,6 +1330,7 @@ export default function App() {
               { id: 'subjects', label: 'Subjects List', icon: BookOpen },
               { id: 'assignments', label: 'Class Assignments', icon: GraduationCap },
               { id: 'timing', label: 'Time Configuration', icon: Clock },
+              { id: 'individual_timetable', label: 'Individual Time Table', icon: Calendar },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1633,6 +1735,195 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* ========================================== */}
+          {/* TAB: INDIVIDUAL TIME TABLE                 */}
+          {/* ========================================== */}
+          {activeTab === 'individual_timetable' && (
+            <div className="space-y-4">
+              <div id="faculty-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card">
+                {/* Print-only Header */}
+                {selectedFacultyId && (
+                  <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4">
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
+                    <h1 className="text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
+                      Sir M. Visvesvaraya College of Engineering, Raichur
+                    </h1>
+                    <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mt-2">
+                      Faculty Individual Weekly Timetable
+                    </h2>
+                    <p className="text-[11px] font-bold text-slate-700 mt-0.5">
+                      Faculty Member: {faculties.find(f => f.id === selectedFacultyId)?.name} ({faculties.find(f => f.id === selectedFacultyId)?.shortName})
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3 mb-4 roster-controls-container">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Individual Faculty Timetable</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Select a faculty member to see their specific teaching schedule across all classes.</p>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={selectedFacultyId}
+                      onChange={(e) => setSelectedFacultyId(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 text-slate-800 text-[11px] rounded px-2.5 py-1.5 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                    >
+                      <option value="">-- Select Faculty Member --</option>
+                      {faculties.map((fac) => (
+                        <option key={fac.id} value={fac.id}>
+                          {fac.name} ({fac.shortName})
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedFacultyId && (
+                      <button
+                        onClick={handleExportFacultyPDF}
+                        disabled={isExportingFacultyPDF}
+                        className="px-2.5 py-1.5 text-white bg-[crimson] hover:bg-[#b00f30] disabled:bg-[crimson]/50 disabled:cursor-not-allowed rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1 cursor-pointer"
+                        title={isExportingFacultyPDF ? "Exporting PDF..." : "Export this timetable to PDF"}
+                      >
+                        <Download className="h-3.5 w-3.5 text-white" />
+                        <span>{isExportingFacultyPDF ? "Exporting..." : "Export PDF"}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timetable Grid Container */}
+                <div className="overflow-x-auto border-2 border-slate-500 rounded shadow-md">
+                  {selectedFacultyId ? (
+                    <div className="min-w-[800px] bg-white text-xs">
+                      {/* Schedule Header / Timeslots */}
+                      <div 
+                        className="grid bg-slate-800 text-white font-bold border-b-2 border-slate-600 text-[10px] uppercase tracking-wider"
+                        style={{ gridTemplateColumns: `40px ${timeSlots.map(slot => slot.isBreak ? '40px' : 'minmax(0, 1fr)').join(' ')}` }}
+                      >
+                        <div className="p-1 text-center bg-slate-800 border-r border-slate-600 font-bold flex items-center justify-center text-[9px]">Day</div>
+                        {timeSlots.map((slot) => (
+                          <div 
+                            key={slot.id} 
+                            className={`text-center border-r border-slate-600 last:border-r-0 flex flex-col justify-center ${
+                              slot.isBreak 
+                                ? 'bg-amber-600/10 text-amber-300 [writing-mode:vertical-lr] rotate-180 select-none items-center justify-center p-1 py-3' 
+                                : 'p-2'
+                            }`}
+                          >
+                            {slot.isBreak ? (
+                              <div className="flex flex-col items-center leading-none">
+                                <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
+                                <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{slot.startTime} - {slot.endTime}</span>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
+                                <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{slot.startTime} - {slot.endTime}</span>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Table Body - Rows are Days */}
+                      {days.map((day) => {
+                        let activePeriodCounter = 0;
+
+                        return (
+                          <div 
+                            key={day} 
+                            className="grid border-b border-slate-400 last:border-b-0 hover:bg-slate-50/50 transition"
+                            style={{ gridTemplateColumns: `40px ${timeSlots.map(slot => slot.isBreak ? '40px' : 'minmax(0, 1fr)').join(' ')}` }}
+                          >
+                            {/* Day Name */}
+                            <div className="p-1 font-bold text-slate-800 bg-slate-100 border-r border-slate-400 flex items-center justify-center text-center uppercase text-[10px] tracking-wide [writing-mode:vertical-lr] rotate-180 select-none">
+                              {day}
+                            </div>
+
+                            {/* Periods */}
+                            {timeSlots.map((slot) => {
+                              if (slot.isBreak) {
+                                return (
+                                  <div 
+                                    key={slot.id} 
+                                    className="p-1 border-r border-slate-400 last:border-r-0 flex items-center justify-center bg-amber-500/5 text-amber-800 font-extrabold italic text-center text-[10px] uppercase [writing-mode:vertical-lr] rotate-180 select-none tracking-widest"
+                                  >
+                                    {getCleanBreakLabel(slot.label)}
+                                  </div>
+                                );
+                              }
+
+                              const periodIdx = activePeriodCounter;
+                              activePeriodCounter++;
+
+                              // Find if selected faculty is assigned to any class during this period on this day
+                              let matchDetails = null;
+                              if (solverResult?.schedule) {
+                                for (const cls of classes) {
+                                  const classSched = solverResult.schedule[cls.id];
+                                  if (classSched && classSched[day]) {
+                                    const assignmentId = classSched[day][periodIdx];
+                                    if (assignmentId) {
+                                      const assign = assignments.find(a => a.id === assignmentId);
+                                      if (assign && assign.facultyId === selectedFacultyId) {
+                                        const sub = subjects.find(s => s.id === assign.subjectId);
+                                        matchDetails = { cls, assign, sub };
+                                        break;
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+
+                              const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code) : null;
+
+                              return (
+                                <div 
+                                  key={slot.id} 
+                                  className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
+                                    matchDetails && palette ? `${palette.bg} ${palette.hoverBg}` : 'bg-slate-50/10 hover:bg-slate-50/40'
+                                  }`}
+                                >
+                                  {matchDetails && palette ? (
+                                    <>
+                                      <div>
+                                        <div className={`font-extrabold ${palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={matchDetails.sub?.name}>
+                                          {matchDetails.sub?.name}
+                                        </div>
+                                        <div className={`text-[9px] ${palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
+                                          {matchDetails.sub?.code}
+                                        </div>
+                                      </div>
+                                      <div className={`mt-1.5 pt-1 border-t ${palette.border} flex items-center justify-between`}>
+                                        <span className={`font-bold text-[9px] ${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder} px-1 rounded font-mono truncate max-w-[125px] inline-block align-bottom`} title={`${matchDetails.cls.name} (Sec ${matchDetails.cls.section})`}>
+                                          {matchDetails.cls.name} (Sec {matchDetails.cls.section})
+                                        </span>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-400 bg-slate-50/20 rounded p-1">
+                                      -- Free --
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 text-center py-12 px-4">
+                      <Users className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                      <p className="font-bold text-xs uppercase tracking-wider text-slate-600">No Faculty Selected</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Please select a faculty member from the dropdown above to view their individual timetable.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
