@@ -504,6 +504,11 @@ export default function App() {
     if (controls) {
       controls.classList.add('hidden');
     }
+
+    const infoBoxes = element.querySelectorAll('.timetable-info-box');
+    infoBoxes.forEach(box => {
+      box.classList.add('hidden');
+    });
     
     // Allow browser to repaint with the new landscape styles
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -566,6 +571,9 @@ export default function App() {
       if (controls) {
         controls.classList.remove('hidden');
       }
+      infoBoxes.forEach(box => {
+        box.classList.remove('hidden');
+      });
       setIsExportingPDF(false);
     }
   };
@@ -594,6 +602,11 @@ export default function App() {
     if (controls) {
       controls.classList.add('hidden');
     }
+
+    const infoBoxes = element.querySelectorAll('.timetable-info-box');
+    infoBoxes.forEach(box => {
+      box.classList.add('hidden');
+    });
     
     // Allow browser to repaint with the new landscape styles
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -656,6 +669,9 @@ export default function App() {
       if (controls) {
         controls.classList.remove('hidden');
       }
+      infoBoxes.forEach(box => {
+        box.classList.remove('hidden');
+      });
       setIsDownloadingPDF(false);
     }
   };
@@ -1591,7 +1607,7 @@ export default function App() {
                   </div>
 
                   {selectedClassId && solverResult?.success && (
-                    <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded flex items-start space-x-2 text-[11px] text-emerald-800">
+                    <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded flex items-start space-x-2 text-[11px] text-emerald-800 timetable-info-box">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                       <div>
                         <p className="font-bold uppercase tracking-wider text-[10px]">Solver Verification Complete</p>
@@ -1603,7 +1619,7 @@ export default function App() {
                   )}
 
                   {solverResult && !solverResult.success && (
-                    <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded flex items-start space-x-2 text-[11px] text-amber-800">
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded flex items-start space-x-2 text-[11px] text-amber-800 timetable-info-box">
                       <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
                       <div>
                         <p className="font-bold uppercase tracking-wider text-[10px]">Partial Solutions Applied</p>
