@@ -519,7 +519,7 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 2.5
+        pixelRatio: 1.5
       });
       
       const imgWidth = 1120; // Forced width
@@ -546,7 +546,7 @@ export default function App() {
       const x = (pdfWidth - width) / 2;
       const y = (pdfHeight - height) / 2;
       
-      pdf.addImage(imgData, 'PNG', x, y, width, height);
+      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
       
       // Add timestamp to the bottom right
       const now = new Date();
@@ -620,7 +620,7 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 2.5
+        pixelRatio: 1.5
       });
       
       const imgWidth = 1120; // Forced width
@@ -647,7 +647,7 @@ export default function App() {
       const x = (pdfWidth - width) / 2;
       const y = (pdfHeight - height) / 2;
       
-      pdf.addImage(imgData, 'PNG', x, y, width, height);
+      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
       
       // Add timestamp to the bottom right
       const now = new Date();
@@ -718,7 +718,7 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 2.5
+        pixelRatio: 1.5
       });
       
       const imgWidth = 1120; // Forced width
@@ -745,7 +745,7 @@ export default function App() {
       const x = (pdfWidth - width) / 2;
       const y = (pdfHeight - height) / 2;
       
-      pdf.addImage(imgData, 'PNG', x, y, width, height);
+      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
 
       // Add timestamp to the bottom right
       const now = new Date();
