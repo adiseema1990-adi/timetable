@@ -542,6 +542,14 @@ export default function App() {
       const y = (pdfHeight - height) / 2;
       
       pdf.addImage(imgData, 'PNG', x, y, width, height);
+      
+      // Add timestamp to the bottom right
+      const now = new Date();
+      const timestampText = `Generated on: ${now.toLocaleString()}`;
+      pdf.setFontSize(8);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
+
       pdf.save(`Timetable_${className}.pdf`);
       showAuthNotice("PDF downloaded successfully!");
     } catch (error) {
@@ -624,6 +632,14 @@ export default function App() {
       const y = (pdfHeight - height) / 2;
       
       pdf.addImage(imgData, 'PNG', x, y, width, height);
+
+      // Add timestamp to the bottom right
+      const now = new Date();
+      const timestampText = `Generated on: ${now.toLocaleString()}`;
+      pdf.setFontSize(8);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
+
       pdf.save(`Direct_Timetable_${className}.pdf`);
       showAuthNotice("Timetable PDF downloaded locally!");
     } catch (error) {
