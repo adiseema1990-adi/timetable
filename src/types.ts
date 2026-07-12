@@ -18,6 +18,7 @@ export interface Subject {
   department: string;
   weeklyPeriods: number; // how many periods of this subject per week
   isLab?: boolean;
+  color?: string;
 }
 
 export interface ClassSection {

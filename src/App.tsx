@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, FormEvent } from 'react';
+import React, { useState, useEffect, useMemo, FormEvent, CSSProperties } from 'react';
 import { 
   Plus, 
   Trash2, 
@@ -25,10 +25,12 @@ import {
   Mail,
   Sliders,
   HelpCircle,
-  Save,
-  Undo,
-  Redo,
-  Download
+  Save, 
+  Undo, 
+  Redo, 
+  Download,
+  Palette,
+  X
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -154,7 +156,183 @@ const SUBJECT_PALETTES = [
   }
 ];
 
-const getSubjectPalette = (subjectId: string, subjectCode?: string) => {
+const UNIQUE_BG_COLORS = [
+  '#e0e7ff', // indigo-100
+  '#d1fae5', // emerald-100
+  '#fef3c7', // amber-100
+  '#ffe4e6', // rose-100
+  '#cffafe', // cyan-100
+  '#f3e8ff', // purple-100
+  '#ffedd5', // orange-100
+  '#ccfbf1', // teal-100
+  '#f5f3ff', // violet-100
+  '#fae8ff', // fuchsia-100
+  '#e0f2fe', // sky-100
+  '#ecfccb', // lime-100
+  '#fef08a', // yellow-100
+  '#fed7aa', // orange-200
+  '#fbcfe8', // pink-200
+  '#ddd6fe', // violet-200
+  '#c7d2fe', // indigo-200
+  '#bfdbfe', // blue-200
+  '#a5f3fc', // cyan-200
+  '#99f6e4', // teal-200
+  '#a7f3d0', // emerald-200
+  '#bef264', // lime-200
+  '#fde047', // yellow-300
+];
+
+const COLOR_FAMILIES = [
+  {
+    name: 'Red/Rose',
+    shades: ['#fff1f2', '#ffe4e6', '#fecdd3', '#fda4af', '#f43f5e', '#9f1239']
+  },
+  {
+    name: 'Orange',
+    shades: ['#fff7ed', '#ffedd5', '#fed7aa', '#fdba74', '#f97316', '#c2410c']
+  },
+  {
+    name: 'Yellow/Amber',
+    shades: ['#fefce8', '#fef9c3', '#fef08a', '#fde047', '#eab308', '#a16207']
+  },
+  {
+    name: 'Green/Emerald',
+    shades: ['#f0fdf4', '#d1fae5', '#a7f3d0', '#34d399', '#10b981', '#047857']
+  },
+  {
+    name: 'Cyan/Teal',
+    shades: ['#f0fdfa', '#ccfbf1', '#99f6e4', '#2dd4bf', '#0d9488', '#115e59']
+  },
+  {
+    name: 'Blue/Sky',
+    shades: ['#f0f9ff', '#e0f2fe', '#bae6fd', '#38bdf8', '#3b82f6', '#1d4ed8']
+  },
+  {
+    name: 'Lavender/Purple',
+    shades: ['#faf5ff', '#f3e8ff', '#e9d5ff', '#c084fc', '#a855f7', '#6b21a8']
+  },
+  {
+    name: 'Slate/Grey',
+    shades: ['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1', '#64748b', '#334155']
+  }
+];
+
+const hslToHex = (h: number, s: number, l: number) => {
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+};
+
+const getUniqueUnusedColor = (currentSubjects: Subject[]) => {
+  const takenColors = currentSubjects.map(s => s.color?.toLowerCase()).filter(Boolean);
+  const unusedColor = UNIQUE_BG_COLORS.find(c => !takenColors.includes(c.toLowerCase()));
+  if (unusedColor) return unusedColor;
+  
+  let randomColor = '';
+  let attempts = 0;
+  do {
+    const h = Math.floor(Math.random() * 360);
+    const s = 65 + Math.floor(Math.random() * 15); // 65-80% saturation (pastel)
+    const l = 85 + Math.floor(Math.random() * 10); // 85-95% lightness (pastel)
+    randomColor = hslToHex(h, s, l);
+    attempts++;
+  } while (takenColors.includes(randomColor.toLowerCase()) && attempts < 50);
+  return randomColor;
+};
+
+const getContrastTextColor = (hex: string) => {
+  if (!hex || hex[0] !== '#') return '#0f172a';
+  try {
+    const R = parseInt(hex.substring(1, 3), 16);
+    const G = parseInt(hex.substring(3, 5), 16);
+    const B = parseInt(hex.substring(5, 7), 16);
+    const sRGB = [R, G, B].map(v => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    const L = 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+    return L > 0.45 ? '#0f172a' : '#ffffff';
+  } catch (e) {
+    return '#0f172a';
+  }
+};
+
+const adjustBrightness = (hex: string, percent: number) => {
+  if (!hex || hex[0] !== '#') return hex;
+  try {
+    let R = parseInt(hex.substring(1, 3), 16);
+    let G = parseInt(hex.substring(3, 5), 16);
+    let B = parseInt(hex.substring(5, 7), 16);
+
+    R = Math.max(0, Math.min(255, R + percent));
+    G = Math.max(0, Math.min(255, G + percent));
+    B = Math.max(0, Math.min(255, B + percent));
+
+    const rHex = R.toString(16).padStart(2, '0');
+    const gHex = G.toString(16).padStart(2, '0');
+    const bHex = B.toString(16).padStart(2, '0');
+
+    return `#${rHex}${gHex}${bHex}`;
+  } catch (e) {
+    return hex;
+  }
+};
+
+interface SubjectPalette {
+  bg: string;
+  hoverBg: string;
+  text: string;
+  border: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  isCustom?: boolean;
+  styles?: {
+    bg: string;
+    hoverBg: string;
+    text: string;
+    border: string;
+    badgeBg: string;
+    badgeText: string;
+    badgeBorder: string;
+  };
+}
+
+const getSubjectPalette = (subjectId: string, subjectCode?: string, subjectColor?: string): SubjectPalette => {
+  if (subjectColor) {
+    const text = getContrastTextColor(subjectColor);
+    const hoverBg = adjustBrightness(subjectColor, -10);
+    const border = adjustBrightness(subjectColor, -20);
+    const badgeBg = adjustBrightness(subjectColor, -15);
+    const badgeText = getContrastTextColor(badgeBg);
+    const badgeBorder = adjustBrightness(subjectColor, -30);
+    
+    return {
+      bg: '',
+      hoverBg: '',
+      text: '',
+      border: '',
+      badgeBg: '',
+      badgeText: '',
+      badgeBorder: '',
+      isCustom: true,
+      styles: {
+        bg: subjectColor,
+        hoverBg,
+        text,
+        border,
+        badgeBg,
+        badgeText,
+        badgeBorder,
+      }
+    };
+  }
+
   if (subjectCode?.toUpperCase() === '21MAT51') {
     return {
       bg: 'bg-lime-100',
@@ -220,6 +398,8 @@ export default function App() {
   const [newSubDept, setNewSubDept] = useState('CSE');
   const [newSubPeriods, setNewSubPeriods] = useState(4);
   const [newSubIsLab, setNewSubIsLab] = useState(false);
+  const [newSubColor, setNewSubColor] = useState('');
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [subFormSubmitted, setSubFormSubmitted] = useState(false);
 
   // Class Form
@@ -239,6 +419,7 @@ export default function App() {
   const [newSlotStart, setNewSlotStart] = useState('09:00');
   const [newSlotEnd, setNewSlotEnd] = useState('10:00');
   const [newSlotIsBreak, setNewSlotIsBreak] = useState(false);
+  const [timeFormSubmitted, setTimeFormSubmitted] = useState(false);
 
   // --- Load Initial Sample Data ---
   useEffect(() => {
@@ -254,7 +435,12 @@ export default function App() {
 
     if (savedFaculties && savedSubjects && savedClasses && savedAssignments && savedTimeSlots && savedDays) {
       setFaculties(JSON.parse(savedFaculties));
-      setSubjects(JSON.parse(savedSubjects));
+      const parsedSubjects = JSON.parse(savedSubjects) as Subject[];
+      const subjectsWithColors = parsedSubjects.map((sub, idx) => ({
+        ...sub,
+        color: sub.color || UNIQUE_BG_COLORS[idx % UNIQUE_BG_COLORS.length]
+      }));
+      setSubjects(subjectsWithColors);
       setClasses(JSON.parse(savedClasses));
       setAssignments(JSON.parse(savedAssignments));
       setTimeSlots(JSON.parse(savedTimeSlots));
@@ -334,7 +520,11 @@ export default function App() {
   const loadSampleData = () => {
     const sample = getSampleData();
     setFaculties(sample.faculties);
-    setSubjects(sample.subjects);
+    const subjectsWithColors = sample.subjects.map((sub, idx) => ({
+      ...sub,
+      color: sub.color || UNIQUE_BG_COLORS[idx % UNIQUE_BG_COLORS.length]
+    }));
+    setSubjects(subjectsWithColors);
     setClasses(sample.classes);
     setAssignments(sample.assignments);
     setTimeSlots(sample.timeSlots);
@@ -829,19 +1019,27 @@ export default function App() {
     e.preventDefault();
     setSubFormSubmitted(true);
     if (!newSubCode || !newSubName) return;
+
+    let selectedColor = newSubColor;
+    if (!selectedColor) {
+      selectedColor = getUniqueUnusedColor(subjects);
+    }
+
     const newSub: Subject = {
       id: 's_' + Date.now(),
       code: newSubCode.toUpperCase(),
       name: newSubName,
       department: newSubDept,
       weeklyPeriods: Number(newSubPeriods),
-      isLab: newSubIsLab
+      isLab: newSubIsLab,
+      color: selectedColor
     };
     setSubjects([...subjects, newSub]);
     setNewSubCode('');
     setNewSubName('');
     setNewSubPeriods(4);
     setNewSubIsLab(false);
+    setNewSubColor('');
     setSubFormSubmitted(false);
     showAuthNotice(`Subject ${newSub.code} added.`);
   };
@@ -892,7 +1090,8 @@ export default function App() {
 
   const addTimeSlot = (e: FormEvent) => {
     e.preventDefault();
-    if (!newSlotLabel) return;
+    setTimeFormSubmitted(true);
+    if (!newSlotLabel || !newSlotStart || !newSlotEnd) return;
     const newSlot: TimeSlot = {
       id: 'ts_' + Date.now(),
       label: newSlotLabel,
@@ -905,6 +1104,7 @@ export default function App() {
     setTimeSlots(updated);
     setNewSlotLabel('');
     setNewSlotIsBreak(false);
+    setTimeFormSubmitted(false);
     showAuthNotice("Time slot updated.");
   };
 
@@ -1694,30 +1894,35 @@ export default function App() {
 
                                     activePeriodCounter++;
 
-                                    const palette = assign && sub ? getSubjectPalette(sub.id, sub.code) : null;
+                                    const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color) : null;
 
                                     return (
                                       <div 
                                         key={slot.id} 
                                         className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
-                                          assign && palette ? `${palette.bg} ${palette.hoverBg}` : 'bg-slate-50/10 hover:bg-slate-50/40'
+                                          assign && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
                                         }`}
+                                        style={assign && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
                                       >
                                         {assign && sub && fac && palette ? (
                                           <>
                                             <div>
-                                              <div className={`font-extrabold ${palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
+                                              <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
                                                 {sub.name}
                                               </div>
-                                              <div className={`text-[9px] ${palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
+                                              <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
                                                 {sub.code}
                                               </div>
                                             </div>
-                                            <div className={`mt-1.5 pt-1 border-t ${palette.border} flex items-center justify-between`}>
-                                              <span className={`font-bold text-[9px] ${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder} px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} title={fac.name}>
+                                            <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                              <span 
+                                                style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                                className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
+                                                title={fac.name}
+                                              >
                                                 {fac.name}
                                               </span>
-                                              <span className={`text-[8px] ${palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
+                                              <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
                                                 {fac.department}
                                               </span>
                                             </div>
@@ -1931,27 +2136,32 @@ export default function App() {
                                 }
                               }
 
-                              const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code) : null;
+                              const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code, matchDetails.sub.color) : null;
 
                               return (
                                 <div 
                                   key={slot.id} 
                                   className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
-                                    matchDetails && palette ? `${palette.bg} ${palette.hoverBg}` : 'bg-slate-50/10 hover:bg-slate-50/40'
+                                    matchDetails && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
                                   }`}
+                                  style={matchDetails && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
                                 >
                                   {matchDetails && palette ? (
                                     <>
                                       <div>
-                                        <div className={`font-extrabold ${palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={matchDetails.sub?.name}>
+                                        <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={matchDetails.sub?.name}>
                                           {matchDetails.sub?.name}
                                         </div>
-                                        <div className={`text-[9px] ${palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
+                                        <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
                                           {matchDetails.sub?.code}
                                         </div>
                                       </div>
-                                      <div className={`mt-1.5 pt-1 border-t ${palette.border} flex items-center justify-between`}>
-                                        <span className={`font-bold text-[9px] ${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder} px-1 rounded font-mono truncate max-w-[125px] inline-block align-bottom`} title={`${matchDetails.cls.name} (Sec ${matchDetails.cls.section})`}>
+                                      <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                        <span 
+                                          style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                          className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1 rounded font-mono truncate max-w-[125px] inline-block align-bottom`} 
+                                          title={`${matchDetails.cls.name} (Sec ${matchDetails.cls.section})`}
+                                        >
                                           {matchDetails.cls.name} (Sec {matchDetails.cls.section})
                                         </span>
                                       </div>
@@ -2286,18 +2496,19 @@ export default function App() {
                                           isSelectedForSwap
                                             ? 'bg-blue-100/90 ring-4 ring-blue-500 border-blue-500 z-10 scale-[0.98]'
                                             : assign && sub
-                                              ? `${getSubjectPalette(sub.id, sub.code).bg} ${getSubjectPalette(sub.id, sub.code).hoverBg}`
+                                              ? (getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${getSubjectPalette(sub.id, sub.code, sub.color).bg} ${getSubjectPalette(sub.id, sub.code, sub.color).hoverBg}`)
                                               : 'bg-slate-50/10 hover:bg-slate-50/40'
                                         } ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''}`}
+                                        style={assign && sub && getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? { '--custom-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.bg, '--custom-hover-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.hoverBg, '--custom-text': getSubjectPalette(sub.id, sub.code, sub.color).styles?.text, '--custom-border': getSubjectPalette(sub.id, sub.code, sub.color).styles?.border } as CSSProperties : undefined}
                                       >
                                         {assign && sub && fac ? (
                                           (() => {
-                                            const palette = getSubjectPalette(sub.id, sub.code);
+                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color);
                                             return (
                                               <>
                                                 <div>
                                                   <div className="flex items-center justify-between gap-1">
-                                                    <div className={`font-extrabold ${palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
+                                                    <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
                                                       {sub.name}
                                                     </div>
                                                     {hasCellWarning && (
@@ -2306,15 +2517,19 @@ export default function App() {
                                                       </span>
                                                     )}
                                                   </div>
-                                                  <div className={`text-[9px] ${palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
+                                                  <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
                                                     {sub.code}
                                                   </div>
                                                 </div>
-                                                <div className={`mt-1.5 pt-1 border-t ${palette.border} flex items-center justify-between`}>
-                                                  <span className={`font-bold ${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} title={fac.name}>
+                                                <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                                  <span 
+                                                    style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                                    className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
+                                                    title={fac.name}
+                                                  >
                                                     {fac.name}
                                                   </span>
-                                                  <span className={`text-[8px] ${palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
+                                                  <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
                                                     {fac.department}
                                                   </span>
                                                 </div>
@@ -2577,6 +2792,48 @@ export default function App() {
                     </div>
                   </div>
 
+                  <div className="border-t border-slate-100 pt-3">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
+                      <span>Background Color Accent</span>
+                    </label>
+                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2">
+                      <div className="flex items-center space-x-2">
+                        <div 
+                          className="w-5.5 h-5.5 rounded-full border border-slate-300 shadow-inner flex-shrink-0 transition-all"
+                          style={{ backgroundColor: newSubColor || '#cbd5e1' }}
+                          title={newSubColor || 'Auto-assigned color'}
+                        />
+                        <div>
+                          <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
+                            {newSubColor ? newSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
+                          </p>
+                          <p className="text-[8px] text-slate-400 font-medium">
+                            {newSubColor ? 'Custom color accent' : 'Unique system pastel'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsColorModalOpen(true)}
+                          className="py-1 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
+                        >
+                          <Palette className="h-2.5 w-2.5 text-slate-500" />
+                          <span>Choose Color</span>
+                        </button>
+                        {newSubColor && (
+                          <button
+                            type="button"
+                            onClick={() => setNewSubColor('')}
+                            className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
                     className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
@@ -2604,6 +2861,7 @@ export default function App() {
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[10px] uppercase tracking-wider">
                       <tr>
                         <th className="p-2.5">Subject Code</th>
+                        <th className="p-2.5">Color</th>
                         <th className="p-2.5">Course Title</th>
                         <th className="p-2.5">Department</th>
                         <th className="p-2.5 text-center">Type</th>
@@ -2616,6 +2874,16 @@ export default function App() {
                         subjects.map((sub) => (
                           <tr key={sub.id} className="hover:bg-slate-50/50 transition">
                             <td className="p-2.5 font-mono font-bold text-slate-900">{sub.code}</td>
+                            <td className="p-2.5">
+                              <div className="flex items-center space-x-1.5">
+                                <div 
+                                  className="w-4 h-4 rounded border border-slate-300 shadow-inner flex-shrink-0"
+                                  style={{ backgroundColor: sub.color || '#cbd5e1' }}
+                                  title={sub.color || 'Default color'}
+                                />
+                                <span className="text-[10px] font-mono text-slate-500 font-medium uppercase">{sub.color || '#CBD5E1'}</span>
+                              </div>
+                            </td>
                             <td className="p-2.5 font-bold text-slate-900">{sub.name}</td>
                             <td className="p-2.5 font-semibold text-slate-700">{sub.department}</td>
                             <td className="p-2.5 text-center">
@@ -2647,7 +2915,7 @@ export default function App() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-400 font-medium italic">
+                          <td colSpan={7} className="p-8 text-center text-slate-400 font-medium italic">
                             No subjects registered. Add course details using the form.
                           </td>
                         </tr>
@@ -2940,7 +3208,7 @@ export default function App() {
                 </h3>
                 <p className="text-[11px] text-slate-500 mb-3">Specify durations of lectures or institutional breaks.</p>
 
-                <form onSubmit={addTimeSlot} className="space-y-3">
+                <form onSubmit={addTimeSlot} className="space-y-3" noValidate>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Time Slot Label</label>
                     <input
@@ -2949,7 +3217,9 @@ export default function App() {
                       placeholder="e.g. Period 1, Tea Break, Lunch"
                       value={newSlotLabel}
                       onChange={(e) => setNewSlotLabel(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                      className={`w-full bg-slate-50 border ${
+                        timeFormSubmitted && !newSlotLabel ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                      } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                     />
                   </div>
 
@@ -2961,7 +3231,9 @@ export default function App() {
                         required
                         value={newSlotStart}
                         onChange={(e) => setNewSlotStart(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                        className={`w-full bg-slate-50 border ${
+                          timeFormSubmitted && !newSlotStart ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                       />
                     </div>
                     <div>
@@ -2971,7 +3243,9 @@ export default function App() {
                         required
                         value={newSlotEnd}
                         onChange={(e) => setNewSlotEnd(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                        className={`w-full bg-slate-50 border ${
+                          timeFormSubmitted && !newSlotEnd ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                       />
                     </div>
                   </div>
@@ -3116,6 +3390,118 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* ========================================== */}
+      {/* BACKGROUND COLOR ACCENT SELECTOR MODAL     */}
+      {/* ========================================== */}
+      {isColorModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Palette className="h-4 w-4 text-slate-700" />
+                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Choose Accent Color</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsColorModalOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4 overflow-y-auto">
+              <p className="text-xs text-slate-500">
+                Select a shade below from light to dark. This color accent will highlight the subject card on the timetable schedule.
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2">
+                {COLOR_FAMILIES.map((family) => (
+                  <div key={family.name} className="flex items-center space-x-3 py-1 border-b border-slate-100 last:border-0 last:pb-0">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 w-20 truncate" title={family.name}>
+                      {family.name}
+                    </span>
+                    <div className="flex items-center space-x-1 flex-1 justify-between">
+                      {family.shades.map((shade) => {
+                        const isSelected = newSubColor.toLowerCase() === shade.toLowerCase();
+                        return (
+                          <button
+                            key={shade}
+                            type="button"
+                            onClick={() => setNewSubColor(shade)}
+                            className={`w-5.5 h-5.5 rounded-full border transition-all duration-150 flex items-center justify-center cursor-pointer ${
+                              isSelected 
+                                ? 'ring-2 ring-slate-800 ring-offset-1 scale-110 border-slate-800 shadow-md z-10' 
+                                : 'border-slate-300 hover:scale-105 hover:border-slate-500 hover:shadow-sm'
+                            }`}
+                            style={{ backgroundColor: shade }}
+                            title={`${family.name} shade: ${shade.toUpperCase()}`}
+                          >
+                            {isSelected && (
+                              <span 
+                                className="text-[9px] font-bold leading-none select-none" 
+                                style={{ color: getContrastTextColor(shade) }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="color"
+                    id="modal_custom_color_picker"
+                    value={newSubColor || '#ffffff'}
+                    onChange={(e) => setNewSubColor(e.target.value)}
+                    className="h-8 w-10 rounded border border-slate-300 p-0.5 cursor-pointer bg-white"
+                  />
+                  <label htmlFor="modal_custom_color_picker" className="text-xs font-semibold text-slate-600 cursor-pointer hover:underline">
+                    Custom Color...
+                  </label>
+                </div>
+                {newSubColor && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      {newSubColor.toUpperCase()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setNewSubColor('')}
+                      className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 italic">
+                {newSubColor ? 'Custom color selected' : 'Unique color will be auto-assigned'}
+              </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsColorModalOpen(false)}
+                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
