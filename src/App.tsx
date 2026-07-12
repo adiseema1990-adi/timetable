@@ -509,6 +509,11 @@ export default function App() {
     infoBoxes.forEach(box => {
       box.classList.add('hidden');
     });
+
+    const pdfSignatures = element.querySelector('.pdf-signatures');
+    if (pdfSignatures) {
+      pdfSignatures.classList.remove('hidden');
+    }
     
     // Allow browser to repaint with the new landscape styles
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -574,6 +579,9 @@ export default function App() {
       infoBoxes.forEach(box => {
         box.classList.remove('hidden');
       });
+      if (pdfSignatures) {
+        pdfSignatures.classList.add('hidden');
+      }
       setIsExportingFacultyPDF(false);
     }
   };
@@ -610,6 +618,11 @@ export default function App() {
     infoBoxes.forEach(box => {
       box.classList.add('hidden');
     });
+
+    const pdfSignatures = element.querySelector('.pdf-signatures');
+    if (pdfSignatures) {
+      pdfSignatures.classList.remove('hidden');
+    }
     
     // Allow browser to repaint with the new landscape styles
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -675,6 +688,9 @@ export default function App() {
       infoBoxes.forEach(box => {
         box.classList.remove('hidden');
       });
+      if (pdfSignatures) {
+        pdfSignatures.classList.add('hidden');
+      }
       setIsExportingPDF(false);
     }
   };
@@ -708,6 +724,11 @@ export default function App() {
     infoBoxes.forEach(box => {
       box.classList.add('hidden');
     });
+
+    const pdfSignatures = element.querySelector('.pdf-signatures');
+    if (pdfSignatures) {
+      pdfSignatures.classList.remove('hidden');
+    }
     
     // Allow browser to repaint with the new landscape styles
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -773,6 +794,9 @@ export default function App() {
       infoBoxes.forEach(box => {
         box.classList.remove('hidden');
       });
+      if (pdfSignatures) {
+        pdfSignatures.classList.add('hidden');
+      }
       setIsDownloadingPDF(false);
     }
   };
@@ -1734,7 +1758,7 @@ export default function App() {
                   )}
 
                   {selectedClassId && (
-                    <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none">
+                    <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none pdf-signatures hidden">
                       <div className="flex flex-col items-center">
                         <div className="h-14"></div>
                         <span className="font-bold text-[14pt] text-slate-900 uppercase">Co-ordinator</span>
@@ -1942,7 +1966,7 @@ export default function App() {
                 </div>
 
                 {selectedFacultyId && (
-                  <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none">
+                  <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none pdf-signatures hidden">
                     <div className="flex flex-col items-center">
                       <div className="h-14"></div>
                       <span className="font-bold text-[14pt] text-slate-900 uppercase">Co-ordinator</span>
