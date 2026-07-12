@@ -212,6 +212,7 @@ export default function App() {
   const [newFacShort, setNewFacShort] = useState('');
   const [newFacDept, setNewFacDept] = useState('CSE');
   const [newFacPhone, setNewFacPhone] = useState('');
+  const [facFormSubmitted, setFacFormSubmitted] = useState(false);
   
   // Subject Form
   const [newSubCode, setNewSubCode] = useState('');
@@ -219,16 +220,19 @@ export default function App() {
   const [newSubDept, setNewSubDept] = useState('CSE');
   const [newSubPeriods, setNewSubPeriods] = useState(4);
   const [newSubIsLab, setNewSubIsLab] = useState(false);
+  const [subFormSubmitted, setSubFormSubmitted] = useState(false);
 
   // Class Form
   const [newClassName, setNewClassName] = useState('');
   const [newClassSem, setNewClassSem] = useState('5th');
   const [newClassSec, setNewClassSec] = useState('A');
+  const [classFormSubmitted, setClassFormSubmitted] = useState(false);
 
   // Assignment Form
   const [assignClassId, setAssignClassId] = useState('');
   const [assignSubId, setAssignSubId] = useState('');
   const [assignFacId, setAssignFacId] = useState('');
+  const [assignFormSubmitted, setAssignFormSubmitted] = useState(false);
 
   // Time Slot Form
   const [newSlotLabel, setNewSlotLabel] = useState('');
@@ -804,6 +808,7 @@ export default function App() {
   // --- Form Adders ---
   const addFaculty = (e: FormEvent) => {
     e.preventDefault();
+    setFacFormSubmitted(true);
     if (!newFacName || !newFacShort) return;
     const newFac: Faculty = {
       id: 'f_' + Date.now(),
@@ -816,11 +821,13 @@ export default function App() {
     setNewFacName('');
     setNewFacShort('');
     setNewFacPhone('');
+    setFacFormSubmitted(false);
     showAuthNotice(`Faculty ${newFac.shortName} added successfully.`);
   };
 
   const addSubject = (e: FormEvent) => {
     e.preventDefault();
+    setSubFormSubmitted(true);
     if (!newSubCode || !newSubName) return;
     const newSub: Subject = {
       id: 's_' + Date.now(),
@@ -835,11 +842,13 @@ export default function App() {
     setNewSubName('');
     setNewSubPeriods(4);
     setNewSubIsLab(false);
+    setSubFormSubmitted(false);
     showAuthNotice(`Subject ${newSub.code} added.`);
   };
 
   const addClass = (e: FormEvent) => {
     e.preventDefault();
+    setClassFormSubmitted(true);
     if (!newClassName) return;
     const newCls: ClassSection = {
       id: 'c_' + Date.now(),
@@ -852,11 +861,13 @@ export default function App() {
       setSelectedClassId(newCls.id);
     }
     setNewClassName('');
+    setClassFormSubmitted(false);
     showAuthNotice(`Class ${newCls.name} (Sec ${newCls.section}) created.`);
   };
 
   const addAssignment = (e: FormEvent) => {
     e.preventDefault();
+    setAssignFormSubmitted(true);
     if (!assignClassId || !assignSubId || !assignFacId) return;
     
     // Check if assignment already exists
@@ -875,6 +886,7 @@ export default function App() {
       facultyId: assignFacId
     };
     setAssignments([...assignments, newAssign]);
+    setAssignFormSubmitted(false);
     showAuthNotice("Staff assigned to subject successfully.");
   };
 
@@ -2351,7 +2363,7 @@ export default function App() {
                 </h3>
                 <p className="text-[11px] text-slate-500 mb-3">Add staff members to make them available for assignment.</p>
 
-                <form onSubmit={addFaculty} className="space-y-3">
+                <form onSubmit={addFaculty} className="space-y-3" noValidate>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Full Name</label>
                     <input
@@ -2360,7 +2372,9 @@ export default function App() {
                       placeholder="e.g. Dr. Savitha Murthy"
                       value={newFacName}
                       onChange={(e) => setNewFacName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                      className={`w-full bg-slate-50 border ${
+                        facFormSubmitted && !newFacName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                      } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                     />
                   </div>
 
@@ -2373,7 +2387,9 @@ export default function App() {
                         placeholder="e.g. SKM"
                         value={newFacShort}
                         onChange={(e) => setNewFacShort(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                        className={`w-full bg-slate-50 border ${
+                          facFormSubmitted && !newFacShort ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                       />
                     </div>
                     <div>
@@ -2486,7 +2502,7 @@ export default function App() {
                 </h3>
                 <p className="text-[11px] text-slate-500 mb-3">Add syllabus courses and weekly credit hours requirements.</p>
 
-                <form onSubmit={addSubject} className="space-y-3">
+                <form onSubmit={addSubject} className="space-y-3" noValidate>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Subject Code</label>
@@ -2496,7 +2512,9 @@ export default function App() {
                         placeholder="e.g. 21CS51"
                         value={newSubCode}
                         onChange={(e) => setNewSubCode(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                        className={`w-full bg-slate-50 border ${
+                          subFormSubmitted && !newSubCode ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                       />
                     </div>
                     <div>
@@ -2523,7 +2541,9 @@ export default function App() {
                       placeholder="e.g. Database Management"
                       value={newSubName}
                       onChange={(e) => setNewSubName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                      className={`w-full bg-slate-50 border ${
+                        subFormSubmitted && !newSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                      } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                     />
                   </div>
 
@@ -2654,7 +2674,7 @@ export default function App() {
                   </h3>
                   <p className="text-[11px] text-slate-500 mb-3">Define semesters or branches to schedule tables for.</p>
 
-                  <form onSubmit={addClass} className="space-y-3">
+                  <form onSubmit={addClass} className="space-y-3" noValidate>
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Branch / Subject Group</label>
                       <input
@@ -2663,7 +2683,9 @@ export default function App() {
                         placeholder="e.g. CSE or ECE"
                         value={newClassName}
                         onChange={(e) => setNewClassName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                        className={`w-full bg-slate-50 border ${
+                          classFormSubmitted && !newClassName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                       />
                     </div>
 
@@ -2758,14 +2780,16 @@ export default function App() {
                   </h3>
                   <p className="text-[11px] text-slate-500 mb-3">Bind a teacher to a course subject for a specific class.</p>
 
-                  <form onSubmit={addAssignment} className="space-y-3">
+                  <form onSubmit={addAssignment} className="space-y-3" noValidate>
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Target Class / Section</label>
                       <select
                         required
                         value={assignClassId}
                         onChange={(e) => setAssignClassId(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                        className={`w-full bg-slate-50 border ${
+                          assignFormSubmitted && !assignClassId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                       >
                         <option value="">-- Choose Class --</option>
                         {classes.map(c => (
@@ -2780,7 +2804,9 @@ export default function App() {
                         required
                         value={assignSubId}
                         onChange={(e) => setAssignSubId(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                        className={`w-full bg-slate-50 border ${
+                          assignFormSubmitted && !assignSubId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                       >
                         <option value="">-- Choose Subject --</option>
                         {subjects.map(s => (
@@ -2795,7 +2821,9 @@ export default function App() {
                         required
                         value={assignFacId}
                         onChange={(e) => setAssignFacId(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                        className={`w-full bg-slate-50 border ${
+                          assignFormSubmitted && !assignFacId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                       >
                         <option value="">-- Choose Faculty --</option>
                         {faculties.map(f => (
