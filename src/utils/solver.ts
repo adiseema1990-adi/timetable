@@ -773,14 +773,14 @@ function greedyFallback(
  */
 export function getSampleData() {
   const faculties: Faculty[] = [
-    { id: 'f1', name: 'Dr. B. Raghavendra', shortName: 'BR (HOD)', department: 'CSE', email: 'hod.cse@hkesmvce.ac.in' },
-    { id: 'f2', name: 'Prof. Savitha K.', shortName: 'SK', department: 'CSE', email: 'savitha.k@hkesmvce.ac.in' },
-    { id: 'f3', name: 'Prof. Mallikarjun', shortName: 'MK', department: 'CSE', email: 'mallikarjun@hkesmvce.ac.in' },
-    { id: 'f4', name: 'Prof. Shridevi', shortName: 'SD', department: 'CSE', email: 'shridevi@hkesmvce.ac.in' },
-    { id: 'f5', name: 'Dr. Vijaylaxmi', shortName: 'VL', department: 'ECE', email: 'vijaylaxmi@hkesmvce.ac.in' },
-    { id: 'f6', name: 'Prof. Suresh Kumar', shortName: 'SKM', department: 'ECE', email: 'suresh.m@hkesmvce.ac.in' },
-    { id: 'f7', name: 'Dr. Ramesh Pathak', shortName: 'RP', department: 'Applied Science', email: 'ramesh.physics@hkesmvce.ac.in' },
-    { id: 'f8', name: 'Prof. Geeta', shortName: 'GT', department: 'Applied Science', email: 'geeta.maths@hkesmvce.ac.in' },
+    { id: 'f1', name: 'Dr. B. Raghavendra', shortName: 'BR (HOD)', department: 'CSE', phone: '+91 94481 23456' },
+    { id: 'f2', name: 'Prof. Savitha K.', shortName: 'SK', department: 'CSE', phone: '+91 94481 78901' },
+    { id: 'f3', name: 'Prof. Mallikarjun', shortName: 'MK', department: 'CSE', phone: '+91 94481 23457' },
+    { id: 'f4', name: 'Prof. Shridevi', shortName: 'SD', department: 'CSE', phone: '+91 94481 78902' },
+    { id: 'f5', name: 'Dr. Vijaylaxmi', shortName: 'VL', department: 'ECE', phone: '+91 98450 12345' },
+    { id: 'f6', name: 'Prof. Suresh Kumar', shortName: 'SKM', department: 'ECE', phone: '+91 98450 67890' },
+    { id: 'f7', name: 'Dr. Ramesh Pathak', shortName: 'RP', department: 'Applied Science', phone: '+91 94490 12345' },
+    { id: 'f8', name: 'Prof. Geeta', shortName: 'GT', department: 'Applied Science', phone: '+91 94490 67890' },
   ];
 
   const subjects: Subject[] = [

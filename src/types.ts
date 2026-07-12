@@ -8,7 +8,7 @@ export interface Faculty {
   name: string;
   shortName: string; // e.g., "Dr. A.B.S" or "MVR"
   department: string;
-  email: string;
+  phone: string;
 }
 
 export interface Subject {

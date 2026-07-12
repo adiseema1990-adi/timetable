@@ -211,7 +211,7 @@ export default function App() {
   const [newFacName, setNewFacName] = useState('');
   const [newFacShort, setNewFacShort] = useState('');
   const [newFacDept, setNewFacDept] = useState('CSE');
-  const [newFacEmail, setNewFacEmail] = useState('');
+  const [newFacPhone, setNewFacPhone] = useState('');
   
   // Subject Form
   const [newSubCode, setNewSubCode] = useState('');
@@ -810,12 +810,12 @@ export default function App() {
       name: newFacName,
       shortName: newFacShort.toUpperCase(),
       department: newFacDept,
-      email: newFacEmail || `${newFacShort.toLowerCase()}@hkesmvce.ac.in`
+      phone: newFacPhone || '--'
     };
     setFaculties([...faculties, newFac]);
     setNewFacName('');
     setNewFacShort('');
-    setNewFacEmail('');
+    setNewFacPhone('');
     showAuthNotice(`Faculty ${newFac.shortName} added successfully.`);
   };
 
@@ -1545,7 +1545,7 @@ export default function App() {
               <div className="space-y-4 w-full">
                 
                 {/* Selector Header */}
-                <div id="class-roster-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card">
+                <div id="class-roster-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card transition-all duration-300 hover:shadow-md hover:border-slate-300">
                   {/* Print-only Header */}
                   {currentClassObj && (
                     <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4">
@@ -2393,12 +2393,12 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Email (Optional)</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number (Optional)</label>
                     <input
-                      type="email"
-                      placeholder="e.g. savitha.m@hkesmvce.ac.in"
-                      value={newFacEmail}
-                      onChange={(e) => setNewFacEmail(e.target.value)}
+                      type="tel"
+                      placeholder="e.g. +91 94481 23456"
+                      value={newFacPhone}
+                      onChange={(e) => setNewFacPhone(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
                     />
                   </div>
@@ -2432,7 +2432,7 @@ export default function App() {
                         <th className="p-2.5">Faculty Member</th>
                         <th className="p-2.5 text-center">Short Initials</th>
                         <th className="p-2.5">Department</th>
-                        <th className="p-2.5">Email Address</th>
+                        <th className="p-2.5">Phone Number</th>
                         <th className="p-2.5 text-center">Actions</th>
                       </tr>
                     </thead>
@@ -2447,7 +2447,7 @@ export default function App() {
                               </span>
                             </td>
                             <td className="p-2.5 font-semibold text-slate-700">{fac.department}</td>
-                            <td className="p-2.5 text-slate-500 font-mono text-[10px]">{fac.email || '--'}</td>
+                            <td className="p-2.5 text-slate-500 font-mono text-[10px]">{fac.phone || '--'}</td>
                             <td className="p-2.5 text-center">
                               <button
                                 onClick={() => deleteFaculty(fac.id)}
