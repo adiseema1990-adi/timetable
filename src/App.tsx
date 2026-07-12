@@ -1732,6 +1732,23 @@ export default function App() {
                       </div>
                     </div>
                   )}
+
+                  {selectedClassId && (
+                    <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none">
+                      <div className="flex flex-col items-center">
+                        <div className="h-14"></div>
+                        <span className="font-bold text-[14pt] text-slate-900 uppercase">Co-ordinator</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="h-14"></div>
+                        <span className="font-bold text-[14pt] text-slate-900 uppercase">HOD</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="h-14"></div>
+                        <span className="font-bold text-[14pt] text-slate-900 uppercase">PRINCIPAL</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1923,6 +1940,23 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {selectedFacultyId && (
+                  <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none">
+                    <div className="flex flex-col items-center">
+                      <div className="h-14"></div>
+                      <span className="font-bold text-[14pt] text-slate-900 uppercase">Co-ordinator</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="h-14"></div>
+                      <span className="font-bold text-[14pt] text-slate-900 uppercase">HOD</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="h-14"></div>
+                      <span className="font-bold text-[14pt] text-slate-900 uppercase">PRINCIPAL</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
