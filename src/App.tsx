@@ -39,7 +39,8 @@ import {
   CheckCircle,
   MessageSquare,
   Send,
-  Copy
+  Copy,
+  Lock
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -410,6 +411,12 @@ export default function App() {
   const [inlineSaveAsName, setInlineSaveAsName] = useState('');
   const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
 
+  // --- Clear Workspace Secure Modal States ---
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [clearConfirmStep, setClearConfirmStep] = useState<1 | 2>(1);
+  const [clearAdminPassword, setClearAdminPassword] = useState('');
+  const [clearPasswordError, setClearPasswordError] = useState<string | null>(null);
+
   // --- WhatsApp Sharing States ---
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [whatsAppFacultyId, setWhatsAppFacultyId] = useState<string | null>(null);
@@ -700,6 +707,17 @@ export default function App() {
     localStorage.clear();
     localStorage.setItem('mvce_is_cleared', 'true');
     showAuthNotice("Workspace cleared. You can now build from scratch.");
+  };
+
+  const handleClearSubmit = () => {
+    if (clearAdminPassword === 'rampuresir') {
+      clearAllData();
+      setShowClearConfirmModal(false);
+      setClearAdminPassword('');
+      setClearPasswordError(null);
+    } else {
+      setClearPasswordError('Incorrect password. Access denied.');
+    }
   };
 
   const showAuthNotice = (msg: string) => {
@@ -1929,38 +1947,20 @@ export default function App() {
                 <span className={`w-2 h-2 rounded-full ${isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
               </button>
 
-              {confirmFirebaseClear ? (
-                <div className="flex items-center space-x-1.5 bg-red-50 border border-red-200 px-2 py-1 rounded-lg animate-fadeIn">
-                  <span className="text-[10px] font-bold text-red-850 select-none">Sure?</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearAllData();
-                      setConfirmFirebaseClear(false);
-                    }}
-                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer"
-                  >
-                    Yes, Clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmFirebaseClear(false)}
-                    className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmFirebaseClear(true)}
-                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
-                  title="Clear loaded timetable, sample data, and empty workspace"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Clear Workspace</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setClearConfirmStep(1);
+                  setClearAdminPassword('');
+                  setClearPasswordError(null);
+                  setShowClearConfirmModal(true);
+                }}
+                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
+                title="Clear loaded timetable, sample data, and empty workspace"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Clear Workspace</span>
+              </button>
 
               <button
                 type="button"
@@ -4276,6 +4276,139 @@ service cloud.firestore {
                 </a>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* CLEAR WORKSPACE CONFIRMATION & SECURE MODAL */}
+      {/* ========================================== */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col animate-fade-in">
+            
+            {/* Modal Header */}
+            <div className="px-4 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-red-700">
+                <AlertTriangle className="h-5 w-5" />
+                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">
+                  {clearConfirmStep === 1 ? 'Clear Workspace' : 'Security Verification'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClearConfirmModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              {clearConfirmStep === 1 ? (
+                // STEP 1: Confirmation Question
+                <div className="space-y-3">
+                  <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg text-xs text-red-800 flex items-start space-x-2.5">
+                    <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
+                    <div>
+                      <p className="font-bold">This is a highly destructive action!</p>
+                      <p className="text-slate-600 mt-0.5">
+                        Clearing the workspace will instantly delete all registered faculties, course subjects, class schedules, and configurations.
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-slate-700 text-xs leading-relaxed">
+                    Are you absolutely sure you want to clear the entire workspace and build from scratch?
+                  </p>
+                </div>
+              ) : (
+                // STEP 2: Password Prompt
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-start space-x-2.5">
+                    <Lock className="h-5 w-5 shrink-0 text-slate-500" />
+                    <div>
+                      <p className="font-semibold text-slate-850">Security Verification Required</p>
+                      <p className="text-slate-500 mt-0.5">
+                        Please enter the system administrator password to verify authorization.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      System Password
+                    </label>
+                    <input
+                      type="password"
+                      value={clearAdminPassword}
+                      onChange={(e) => {
+                        setClearAdminPassword(e.target.value);
+                        setClearPasswordError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleClearSubmit();
+                        }
+                      }}
+                      placeholder="Enter password..."
+                      className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 placeholder-slate-400"
+                      autoFocus
+                    />
+                    {clearPasswordError && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1 animate-pulse flex items-center space-x-1">
+                        <span>● {clearPasswordError}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2">
+              {clearConfirmStep === 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirmModal(false)}
+                    className="px-3 py-1.5 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                  >
+                    No, Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClearConfirmStep(2)}
+                    className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+                  >
+                    Yes, Proceed
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClearConfirmStep(1);
+                      setClearAdminPassword('');
+                      setClearPasswordError(null);
+                    }}
+                    className="px-3 py-1.5 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearSubmit}
+                    className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+                  >
+                    Confirm & Clear
+                  </button>
+                </>
+              )}
+            </div>
+
           </div>
         </div>
       )}
