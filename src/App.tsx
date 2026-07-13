@@ -36,7 +36,10 @@ import {
   Settings,
   Loader2,
   RefreshCw,
-  CheckCircle
+  CheckCircle,
+  MessageSquare,
+  Send,
+  Copy
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -406,6 +409,12 @@ export default function App() {
   const [showInlineSaveAs, setShowInlineSaveAs] = useState(false);
   const [inlineSaveAsName, setInlineSaveAsName] = useState('');
   const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
+
+  // --- WhatsApp Sharing States ---
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppFacultyId, setWhatsAppFacultyId] = useState<string | null>(null);
+  const [whatsAppPhoneInput, setWhatsAppPhoneInput] = useState('');
+  const [isCopiedWhatsApp, setIsCopiedWhatsApp] = useState(false);
 
   // --- Form States ---
   // Faculty Form
@@ -861,6 +870,90 @@ export default function App() {
       console.error("Print failed:", e);
       showAuthNotice("Print failed. Please open the app in a new tab to print.");
     }
+  };
+
+  // --- WhatsApp Sharing Helper Functions ---
+  const getFacultyWhatsAppMessage = (facId: string) => {
+    const fac = faculties.find(f => f.id === facId);
+    if (!fac) return '';
+
+    let text = `*Sir M. Visvesvaraya College of Engineering, Raichur*\n`;
+    text += `*FACULTY TIMETABLE: ${fac.name.toUpperCase()} (${fac.shortName})*\n`;
+    text += `Department: ${fac.department}\n`;
+    text += `==================================\n\n`;
+
+    let hasAnyClass = false;
+
+    days.forEach((day) => {
+      let activePeriodCounter = 0;
+      const daySlots: string[] = [];
+      let dayHasClasses = false;
+
+      timeSlots.forEach((slot) => {
+        if (slot.isBreak) {
+          daySlots.push(`• *${slot.startTime} - ${slot.endTime}*: _${slot.label}_`);
+          return;
+        }
+
+        const periodIdx = activePeriodCounter;
+        activePeriodCounter++;
+
+        if (solverResult?.schedule) {
+          for (const cls of classes) {
+            const classSched = solverResult.schedule[cls.id];
+            if (classSched && classSched[day]) {
+              const assignmentId = classSched[day][periodIdx];
+              if (assignmentId) {
+                const assign = assignments.find(a => a.id === assignmentId);
+                if (assign && assign.facultyId === facId) {
+                  const sub = subjects.find(s => s.id === assign.subjectId);
+                  daySlots.push(`• *${slot.startTime} - ${slot.endTime}* (${slot.label}): ${cls.name} (Sec ${cls.section}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
+                  dayHasClasses = true;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (dayHasClasses) {
+        hasAnyClass = true;
+        text += `*${day.toUpperCase()}*\n`;
+        daySlots.forEach(line => {
+          text += `${line}\n`;
+        });
+        text += `\n`;
+      }
+    });
+
+    if (!hasAnyClass) {
+      text += `_No teaching assignments scheduled._\n\n`;
+    }
+
+    text += `Generated on ${new Date().toLocaleDateString()} via College Scheduling System.`;
+    return text;
+  };
+
+  const handleOpenWhatsAppModal = (facId: string) => {
+    const fac = faculties.find(f => f.id === facId);
+    if (!fac) return;
+    setWhatsAppFacultyId(facId);
+    setWhatsAppPhoneInput(fac.phone === '--' ? '' : fac.phone);
+    setIsCopiedWhatsApp(false);
+    setShowWhatsAppModal(true);
+  };
+
+  const handleCopyWhatsAppMessage = (textToCopy: string) => {
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => {
+        setIsCopiedWhatsApp(true);
+        showAuthNotice("WhatsApp timetable message copied to clipboard!");
+        setTimeout(() => setIsCopiedWhatsApp(false), 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy text: ', err);
+        showAuthNotice("Failed to copy to clipboard.");
+      });
   };
 
   const [isExportingFacultyPDF, setIsExportingFacultyPDF] = useState(false);
@@ -2403,15 +2496,26 @@ service cloud.firestore {
                     </select>
 
                     {selectedFacultyId && (
-                      <button
-                        onClick={handleExportFacultyPDF}
-                        disabled={isExportingFacultyPDF}
-                        className="px-2.5 py-1.5 text-white bg-[crimson] hover:bg-[#b00f30] disabled:bg-[crimson]/50 disabled:cursor-not-allowed rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1 cursor-pointer"
-                        title={isExportingFacultyPDF ? "Exporting PDF..." : "Export this timetable to PDF"}
-                      >
-                        <Download className="h-3.5 w-3.5 text-white" />
-                        <span>{isExportingFacultyPDF ? "Exporting..." : "Export PDF"}</span>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={handleExportFacultyPDF}
+                          disabled={isExportingFacultyPDF}
+                          className="px-2.5 py-1.5 text-white bg-[crimson] hover:bg-[#b00f30] disabled:bg-[crimson]/50 disabled:cursor-not-allowed rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1 cursor-pointer"
+                          title={isExportingFacultyPDF ? "Exporting PDF..." : "Export this timetable to PDF"}
+                        >
+                          <Download className="h-3.5 w-3.5 text-white" />
+                          <span>{isExportingFacultyPDF ? "Exporting..." : "Export PDF"}</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenWhatsAppModal(selectedFacultyId)}
+                          className="px-2.5 py-1.5 text-white bg-emerald-600 hover:bg-emerald-700 rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1.5 cursor-pointer animate-fade-in"
+                          title="Send this timetable on WhatsApp"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-white" />
+                          <span>Send on WhatsApp</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3746,7 +3850,7 @@ service cloud.firestore {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div>
             <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">Sir M. Visvesvaraya College of Engineering, Raichur</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">HKE Society's campus, Yeramarus Camp, Raichur, Karnataka, India.</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Yeramarus Camp, Raichur, Karnataka, India.</p>
           </div>
           <div className="text-center md:text-right text-[10px] text-slate-500 font-medium">
             <p>© 2026 College Scheduling System. All rights reserved.</p>
@@ -4043,6 +4147,134 @@ service cloud.firestore {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* WHATSAPP SHARING MODAL                      */}
+      {/* ========================================== */}
+      {showWhatsAppModal && whatsAppFacultyId && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="h-4 w-4 text-emerald-600" />
+                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Share via WhatsApp</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWhatsAppModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3 text-xs text-slate-700">
+                <p className="font-semibold text-emerald-800">
+                  Direct WhatsApp Integration
+                </p>
+                <p className="text-slate-600 mt-1">
+                  This tool formats the complete, conflict-free timetable of the selected faculty member as a clean text template and pre-fills it in WhatsApp.
+                </p>
+              </div>
+
+              {/* Faculty Info */}
+              {(() => {
+                const fac = faculties.find(f => f.id === whatsAppFacultyId);
+                if (!fac) return null;
+                return (
+                  <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/50 space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Faculty Member:</span>
+                      <span className="font-bold text-slate-800">{fac.name} ({fac.shortName})</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Department:</span>
+                      <span className="font-semibold text-slate-700">{fac.department}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Phone Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Recipient Phone Number
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={whatsAppPhoneInput}
+                    onChange={(e) => setWhatsAppPhoneInput(e.target.value)}
+                    placeholder="Enter phone number (e.g. 919876543210)"
+                    className="flex-1 bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder-slate-400"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Provide the phone number with country code (e.g., 91 for India) and no spaces, plus (+) signs, or dashes. If empty, it opens a WhatsApp contact selector.
+                </p>
+              </div>
+
+              {/* Text Preview */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Message Preview
+                </label>
+                <textarea
+                  readOnly
+                  rows={8}
+                  value={getFacultyWhatsAppMessage(whatsAppFacultyId)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-3 text-[10.5px] font-mono text-slate-700 focus:outline-none select-all whitespace-pre"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => handleCopyWhatsAppMessage(getFacultyWhatsAppMessage(whatsAppFacultyId))}
+                className="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider rounded transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                {isCopiedWhatsApp ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Copy Message</span>
+                  </>
+                )}
+              </button>
+
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowWhatsAppModal(false)}
+                  className="px-3 py-1.5 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <a
+                  href={`https://wa.me/${whatsAppPhoneInput.replace(/\D/g, '') || ''}?text=${encodeURIComponent(getFacultyWhatsAppMessage(whatsAppFacultyId))}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setShowWhatsAppModal(false)}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Send className="h-3.5 w-3.5 text-white" />
+                  <span>Send via WhatsApp</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
