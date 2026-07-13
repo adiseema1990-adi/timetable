@@ -30,12 +30,20 @@ import {
   Redo, 
   Download,
   Palette,
-  X
+  X,
+  Cloud,
+  Database,
+  Settings,
+  Loader2,
+  RefreshCw,
+  CheckCircle
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, TimetableSchedule } from './types';
-import { generateTimetable, getSampleData, preValidateConstraints, SolverResult } from './utils/solver';
+import { generateTimetable, preValidateConstraints, SolverResult } from './utils/solver';
+import { db } from './firebase';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc } from 'firebase/firestore';
 
 const getCleanBreakLabel = (label: string): string => {
   const lower = label.toLowerCase();
@@ -371,7 +379,6 @@ export default function App() {
   const [selectedCell, setSelectedCell] = useState<{ day: string; slotIdx: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDataStale, setIsDataStale] = useState(false);
-  const [confirmClear, setConfirmClear] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [undoStack, setUndoStack] = useState<TimetableSchedule[]>([]);
   const [redoStack, setRedoStack] = useState<TimetableSchedule[]>([]);
@@ -383,6 +390,22 @@ export default function App() {
 
   // --- Mock Auth Notification ---
   const [authNotification, setAuthNotification] = useState<string | null>(null);
+
+  // --- Firebase Integration States ---
+  const [firebaseTimetables, setFirebaseTimetables] = useState<string[]>([]);
+  const [activeTimetableName, setActiveTimetableName] = useState<string>('Main Timetable');
+  const [isCloudSaving, setIsCloudSaving] = useState(false);
+  const [isCloudLoading, setIsCloudLoading] = useState(false);
+  const [isCloudFetchingList, setIsCloudFetchingList] = useState(false);
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(false);
+  const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
+  const [newTimetableNameInput, setNewTimetableNameInput] = useState('');
+  const [showFirebaseModal, setShowFirebaseModal] = useState(false);
+  const [firebaseError, setFirebaseError] = useState<string | null>(null);
+  const [confirmFirebaseClear, setConfirmFirebaseClear] = useState(false);
+  const [showInlineSaveAs, setShowInlineSaveAs] = useState(false);
+  const [inlineSaveAsName, setInlineSaveAsName] = useState('');
+  const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
 
   // --- Form States ---
   // Faculty Form
@@ -423,6 +446,13 @@ export default function App() {
 
   // --- Load Initial Sample Data ---
   useEffect(() => {
+    // Check if the user deliberately cleared the workspace
+    const isCleared = localStorage.getItem('mvce_is_cleared');
+    if (isCleared === 'true') {
+      setIsInitialized(true);
+      return;
+    }
+
     // Check if local storage has data
     const savedFaculties = localStorage.getItem('mvce_faculties');
     const savedSubjects = localStorage.getItem('mvce_subjects');
@@ -463,13 +493,48 @@ export default function App() {
         });
       }
     } else {
-      loadSampleData();
+      const defaultSlots: TimeSlot[] = [
+        { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
+        { id: 'ts2', label: 'Period 2', startTime: '10:00', endTime: '11:00', isBreak: false },
+        { id: 'ts3', label: 'Tea Break', startTime: '11:00', endTime: '11:15', isBreak: true },
+        { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
+        { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
+        { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:15', isBreak: true },
+        { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
+        { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
+      ];
+      const defaultDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      setFaculties([]);
+      setSubjects([]);
+      setClasses([]);
+      setAssignments([]);
+      setTimeSlots(defaultSlots);
+      setDays(defaultDays);
+      setSelectedClassId('');
+      setSolverResult(null);
+      setCustomSchedule(null);
     }
     setIsInitialized(true);
   }, []);
 
   // Save to LocalStorage whenever state changes
   useEffect(() => {
+    if (!isInitialized) return;
+
+    const isCleared = localStorage.getItem('mvce_is_cleared');
+    if (isCleared === 'true') {
+      // Keep everything empty/cleared in local storage
+      localStorage.setItem('mvce_faculties', JSON.stringify([]));
+      localStorage.setItem('mvce_subjects', JSON.stringify([]));
+      localStorage.setItem('mvce_classes', JSON.stringify([]));
+      localStorage.setItem('mvce_assignments', JSON.stringify([]));
+      localStorage.setItem('mvce_timeSlots', JSON.stringify(timeSlots));
+      localStorage.setItem('mvce_days', JSON.stringify(days));
+      localStorage.removeItem('mvce_customSchedule');
+      localStorage.removeItem('mvce_solverResult');
+      return;
+    }
+
     if (faculties.length > 0) {
       localStorage.setItem('mvce_faculties', JSON.stringify(faculties));
       localStorage.setItem('mvce_subjects', JSON.stringify(subjects));
@@ -479,13 +544,17 @@ export default function App() {
       localStorage.setItem('mvce_days', JSON.stringify(days));
       if (customSchedule) {
         localStorage.setItem('mvce_customSchedule', JSON.stringify(customSchedule));
+      } else {
+        localStorage.removeItem('mvce_customSchedule');
       }
       if (solverResult) {
         localStorage.setItem('mvce_solverResult', JSON.stringify(solverResult));
+      } else {
+        localStorage.removeItem('mvce_solverResult');
       }
       setIsDataStale(true);
     }
-  }, [faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult]);
+  }, [isInitialized, faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult]);
 
   // Run Solver
   const handleGenerate = () => {
@@ -516,39 +585,6 @@ export default function App() {
       }
     }
   }, [isInitialized, faculties.length, subjects.length, classes.length, assignments.length]);
-
-  const loadSampleData = () => {
-    const sample = getSampleData();
-    setFaculties(sample.faculties);
-    const subjectsWithColors = sample.subjects.map((sub, idx) => ({
-      ...sub,
-      color: sub.color || UNIQUE_BG_COLORS[idx % UNIQUE_BG_COLORS.length]
-    }));
-    setSubjects(subjectsWithColors);
-    setClasses(sample.classes);
-    setAssignments(sample.assignments);
-    setTimeSlots(sample.timeSlots);
-    setDays(sample.days);
-    if (sample.classes.length > 0) {
-      setSelectedClassId(sample.classes[0].id);
-    }
-    
-    // Automatically solve
-    const result = generateTimetable(
-      sample.faculties, 
-      sample.subjects, 
-      sample.classes, 
-      sample.assignments, 
-      sample.timeSlots, 
-      sample.days
-    );
-    setSolverResult(result);
-    setCustomSchedule(result.schedule);
-    setIsDataStale(false);
-    setUndoStack([]);
-    setRedoStack([]);
-    showAuthNotice("Default college sample data loaded successfully.");
-  };
 
   const handleSaveAdjustedSchedule = () => {
     if (!customSchedule) {
@@ -632,6 +668,7 @@ export default function App() {
   };
 
   const clearAllData = () => {
+    setIsAutoSyncEnabled(false);
     setFaculties([]);
     setSubjects([]);
     setClasses([]);
@@ -650,7 +687,9 @@ export default function App() {
     setUndoStack([]);
     setRedoStack([]);
     setIsDataStale(false);
+    setActiveTimetableName('Main Timetable');
     localStorage.clear();
+    localStorage.setItem('mvce_is_cleared', 'true');
     showAuthNotice("Workspace cleared. You can now build from scratch.");
   };
 
@@ -658,6 +697,158 @@ export default function App() {
     setAuthNotification(msg);
     setTimeout(() => setAuthNotification(null), 4000);
   };
+
+  // --- Firebase Integration Helper Functions ---
+
+  // Fetch available timetables from Firebase Firestore
+  const fetchFirebaseTimetablesList = async (silent = false) => {
+    if (!silent) setIsCloudFetchingList(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, "mvce_timetables"));
+      const names: string[] = [];
+      querySnapshot.forEach((doc) => {
+        names.push(doc.id);
+      });
+      setFirebaseTimetables(names);
+      setFirebaseError(null); // Clear errors on successful fetch
+    } catch (error: any) {
+      console.error("Error fetching timetables from Firestore:", error);
+      setFirebaseError(error?.message || String(error));
+    } finally {
+      if (!silent) setIsCloudFetchingList(false);
+    }
+  };
+
+  // Save current timetable to Firestore
+  const saveTimetableToFirebase = async (nameToSave: string, isAuto = false) => {
+    if (!nameToSave || !nameToSave.trim()) {
+      showAuthNotice("Please enter a valid name for the timetable.");
+      return;
+    }
+    if (!isAuto) setIsCloudSaving(true);
+    try {
+      const timetableData = {
+        name: nameToSave,
+        updatedAt: new Date().toISOString(),
+        faculties,
+        subjects,
+        classes,
+        assignments,
+        timeSlots,
+        days,
+        customSchedule: customSchedule || null,
+        solverResult: solverResult || null
+      };
+      
+      await setDoc(doc(db, "mvce_timetables", nameToSave), timetableData);
+      
+      // Update local states
+      setActiveTimetableName(nameToSave);
+      localStorage.setItem('mvce_firebase_active_timetable', nameToSave);
+      setLastSyncedTime(new Date().toLocaleTimeString());
+      setFirebaseError(null); // Clear errors on success
+      
+      // Refresh list
+      await fetchFirebaseTimetablesList(true);
+      
+      if (!isAuto) {
+        showAuthNotice(`Timetable "${nameToSave}" successfully saved to Firebase Cloud!`);
+      }
+    } catch (error: any) {
+      console.error("Error saving to Firestore:", error);
+      setFirebaseError(error?.message || String(error));
+      showAuthNotice(`Failed to save to Firebase: ${error?.message || error}`);
+    } finally {
+      if (!isAuto) setIsCloudSaving(false);
+    }
+  };
+
+  // Load timetable from Firestore
+  const loadTimetableFromFirebase = async (nameToLoad: string) => {
+    if (!nameToLoad) return;
+    setIsCloudLoading(true);
+    try {
+      const docRef = doc(db, "mvce_timetables", nameToLoad);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        
+        // Load states
+        if (data.faculties) setFaculties(data.faculties);
+        if (data.subjects) setSubjects(data.subjects);
+        if (data.classes) {
+          setClasses(data.classes);
+          if (data.classes.length > 0) {
+            setSelectedClassId(data.classes[0].id);
+          }
+        }
+        if (data.assignments) setAssignments(data.assignments);
+        if (data.timeSlots) setTimeSlots(data.timeSlots);
+        if (data.days) setDays(data.days);
+        if (data.customSchedule) setCustomSchedule(data.customSchedule);
+        if (data.solverResult) setSolverResult(data.solverResult);
+        
+        setActiveTimetableName(nameToLoad);
+        localStorage.setItem('mvce_firebase_active_timetable', nameToLoad);
+        setLastSyncedTime(new Date().toLocaleTimeString());
+        setFirebaseError(null); // Clear errors on success
+        
+        showAuthNotice(`Timetable "${nameToLoad}" successfully loaded from Firebase Cloud!`);
+      } else {
+        showAuthNotice(`Timetable "${nameToLoad}" not found in Firebase Cloud.`);
+      }
+    } catch (error: any) {
+      console.error("Error loading from Firestore:", error);
+      setFirebaseError(error?.message || String(error));
+      showAuthNotice(`Failed to load: ${error?.message || error}`);
+    } finally {
+      setIsCloudLoading(false);
+    }
+  };
+
+  // Delete timetable from Firestore
+  const deleteTimetableFromFirebase = async (nameToDelete: string) => {
+    if (!nameToDelete) return;
+    
+    try {
+      await deleteDoc(doc(db, "mvce_timetables", nameToDelete));
+      showAuthNotice(`Timetable "${nameToDelete}" deleted from Firebase Cloud.`);
+      setFirebaseError(null); // Clear errors on success
+      
+      // If deleted active one, reset name
+      if (activeTimetableName === nameToDelete) {
+        setActiveTimetableName('Main Timetable');
+        localStorage.removeItem('mvce_firebase_active_timetable');
+      }
+      
+      await fetchFirebaseTimetablesList(true);
+    } catch (error: any) {
+      console.error("Error deleting from Firestore:", error);
+      setFirebaseError(error?.message || String(error));
+      showAuthNotice(`Failed to delete: ${error?.message || error}`);
+    }
+  };
+
+  // Initialize Firebase and fetch list on mount, load last active timetable if exists
+  useEffect(() => {
+    fetchFirebaseTimetablesList(true);
+    const lastActive = localStorage.getItem('mvce_firebase_active_timetable');
+    if (lastActive) {
+      setActiveTimetableName(lastActive);
+      loadTimetableFromFirebase(lastActive);
+    }
+  }, []);
+
+  // Auto-Sync to Firebase when data changes (debounced)
+  useEffect(() => {
+    if (isAutoSyncEnabled && activeTimetableName && isInitialized && faculties.length > 0) {
+      const delayDebounce = setTimeout(() => {
+        saveTimetableToFirebase(activeTimetableName, true);
+      }, 1500); // 1.5-second debounce
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult, isAutoSyncEnabled, activeTimetableName, isInitialized]);
 
   const handlePrint = () => {
     const isIframe = window.self !== window.top;
@@ -1494,67 +1685,240 @@ export default function App() {
       )}
 
       {/* ========================================== */}
-      {/* HERO / INFORMATION BAR                     */}
-      {/* ========================================== */}
-      <section className="bg-slate-900 text-white py-3 px-6 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400/10 text-amber-400 border border-amber-400/20 uppercase tracking-wider">
-                Roster Solver
-              </span>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-100">Smart Timetable Management Suite</h2>
-            </div>
-            <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-              Generate conflict-free, optimized class rosters. Specify faculty workloads, course hours, and scheduling limits. 
-              The engine automatically handles teacher availability and restricts continuous classes for faculty members handling multiple courses.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 flex-shrink-0">
-            <button
-              onClick={loadSampleData}
-              className="px-2.5 py-1.5 text-[11px] font-semibold rounded bg-white text-slate-900 hover:bg-slate-100 transition shadow-sm flex items-center space-x-1"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span>Reset Sample Data</span>
-            </button>
-            {confirmClear ? (
-              <div className="flex items-center space-x-1.5 bg-red-950/20 border border-red-900/30 p-1 rounded animate-fade-in">
-                <span className="text-[10px] font-bold text-red-200 px-1 select-none">Sure?</span>
-                <button
-                  onClick={() => {
-                    clearAllData();
-                    setConfirmClear(false);
-                  }}
-                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-red-600 hover:bg-red-700 text-white transition flex items-center space-x-1 cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Clear</span>
-                </button>
-                <button
-                  onClick={() => setConfirmClear(false)}
-                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
-                >
-                  <span>Cancel</span>
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmClear(true)}
-                className="px-2.5 py-1.5 text-[11px] font-semibold rounded bg-red-950/40 text-red-200 border border-red-800/50 hover:bg-red-950/60 transition flex items-center space-x-1 cursor-pointer"
-              >
-                <Trash2 className="h-3 w-3" />
-                <span>Clear Workspace</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================== */}
       {/* MAIN CONTENT AREA                          */}
       {/* ========================================== */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col">
+        
+        {/* ========================================== */}
+        {/* FIREBASE CLOUD PERSISTENCE PANEL           */}
+        {/* ========================================== */}
+        <div className="bg-white border border-slate-200/95 shadow-sm rounded-xl p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-t-4 border-t-blue-600">
+          <div className="flex items-center space-x-3.5">
+            <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 flex-shrink-0">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Cloud Storage</h3>
+                {isAutoSyncEnabled ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest animate-pulse">
+                    Live Auto-Sync On
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
+                    Manual Sync
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5 flex items-center flex-wrap gap-2">
+                <span>Active Timetable:</span>
+                <span className="font-mono font-bold text-blue-950 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                  {activeTimetableName}
+                </span>
+                {lastSyncedTime && (
+                  <span className="text-slate-400 text-[10px] font-medium">
+                    (Last synced: {lastSyncedTime})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Timetable Selector dropdown */}
+            <div className="flex items-center space-x-1.5">
+              <label htmlFor="firebase_timetable_select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Switch:
+              </label>
+              <select
+                id="firebase_timetable_select"
+                value={activeTimetableName}
+                onChange={(e) => loadTimetableFromFirebase(e.target.value)}
+                disabled={isCloudLoading || firebaseTimetables.length === 0}
+                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded px-2.5 py-1.5 font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+              >
+                {firebaseTimetables.length === 0 ? (
+                  <option value="">No Cloud Timetables Found</option>
+                ) : (
+                  firebaseTimetables.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            {/* Sync actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => saveTimetableToFirebase(activeTimetableName)}
+                disabled={isCloudSaving || isCloudLoading}
+                className="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm hover:shadow disabled:opacity-50"
+                title={`Save state to cloud document: "${activeTimetableName}"`}
+              >
+                {isCloudSaving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Cloud className="h-3 w-3" />
+                )}
+                <span>Save to Cloud</span>
+              </button>
+
+              {showInlineSaveAs ? (
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg animate-fadeIn">
+                  <input
+                    type="text"
+                    placeholder="New name"
+                    value={inlineSaveAsName}
+                    onChange={(e) => setInlineSaveAsName(e.target.value)}
+                    className="text-xs px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-[120px] font-medium"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inlineSaveAsName.trim()) {
+                        saveTimetableToFirebase(inlineSaveAsName.trim());
+                        setShowInlineSaveAs(false);
+                        setInlineSaveAsName('');
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (inlineSaveAsName.trim()) {
+                        await saveTimetableToFirebase(inlineSaveAsName.trim());
+                        setShowInlineSaveAs(false);
+                        setInlineSaveAsName('');
+                      }
+                    }}
+                    disabled={!inlineSaveAsName.trim()}
+                    className="px-2 py-1 bg-blue-800 text-white rounded text-[10px] font-bold uppercase hover:bg-blue-900 disabled:opacity-40 cursor-pointer"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInlineSaveAs(false);
+                      setInlineSaveAsName('');
+                    }}
+                    className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase hover:bg-slate-300 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInlineSaveAsName(activeTimetableName + " Copy");
+                    setShowInlineSaveAs(true);
+                  }}
+                  disabled={isCloudSaving || isCloudLoading}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+                  title="Save this configuration as a new Firestore document"
+                >
+                  <span>Save As...</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsAutoSyncEnabled(!isAutoSyncEnabled)}
+                className={`px-3 py-1.5 border font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm ${
+                  isAutoSyncEnabled
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Toggle live auto-saving to Firestore on every update"
+              >
+                <span>Auto-Sync</span>
+                <span className={`w-2 h-2 rounded-full ${isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+              </button>
+
+              {confirmFirebaseClear ? (
+                <div className="flex items-center space-x-1.5 bg-red-50 border border-red-200 px-2 py-1 rounded-lg animate-fadeIn">
+                  <span className="text-[10px] font-bold text-red-850 select-none">Sure?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAllData();
+                      setConfirmFirebaseClear(false);
+                    }}
+                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer"
+                  >
+                    Yes, Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmFirebaseClear(false)}
+                    className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmFirebaseClear(true)}
+                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
+                  title="Clear loaded timetable, sample data, and empty workspace"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Clear Workspace</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowFirebaseModal(true)}
+                className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-700 rounded transition cursor-pointer"
+                title="Manage Cloud Database & documents"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {firebaseError && (
+          <div className="bg-amber-50 border border-amber-200 shadow-sm rounded-xl p-4 mb-4 text-xs text-amber-900 space-y-3 border-l-4 border-l-amber-500 animate-fadeIn">
+            <div className="flex items-start space-x-3">
+              <span className="text-lg leading-none mt-0.5">⚠️</span>
+              <div className="space-y-1.5">
+                <p className="font-bold text-amber-950 text-sm">Firestore Database Authorization Notice</p>
+                <p className="text-amber-800 leading-relaxed">
+                  The application encountered a database permission issue with your Firebase project <span className="font-mono bg-amber-100/80 px-1.5 py-0.5 rounded text-amber-950 font-bold">time-table-smvce</span>: <span className="font-mono italic font-bold text-red-700">{firebaseError}</span>.
+                </p>
+                <p className="text-amber-800 leading-relaxed">
+                  Since you are using your own private Firebase project, you must configure security rules to allow read/write access. Go to your <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-950">Firebase Console</a>, select your project, navigate to <strong>Firestore Database</strong> &rarr; <strong>Rules</strong> tab, and publish the following configuration:
+                </p>
+              </div>
+            </div>
+            <pre className="bg-slate-900 text-slate-100 p-3 rounded-lg font-mono text-[11px] overflow-x-auto leading-relaxed border border-slate-800 select-all shadow-inner">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /mvce_timetables/{document} {
+      allow read, write: if true;
+    }
+  }
+}`}
+            </pre>
+            <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+              <p className="text-[10px] text-amber-700 font-medium italic">
+                Note: Local storage continues to function perfectly! All of your active schedules are safe.
+              </p>
+              <button
+                type="button"
+                onClick={() => fetchFirebaseTimetablesList(false)}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer shadow-sm hover:shadow"
+              >
+                Retry Connection
+              </button>
+            </div>
+          </div>
+        )}
         
         {/* Navigation Tabs */}
         <div className="border-b border-slate-200 mb-4 flex flex-wrap items-center justify-between gap-4 bg-white p-1 rounded-t-lg shadow-sm border-t border-x">
@@ -3386,7 +3750,6 @@ export default function App() {
           </div>
           <div className="text-center md:text-right text-[10px] text-slate-500 font-medium">
             <p>© 2026 College Scheduling System. All rights reserved.</p>
-            <p className="mt-0.5 font-mono">Constraint Satisfaction Engine v2.4 (Clash & Continuity Restrictors Active)</p>
           </div>
         </div>
       </footer>
@@ -3498,6 +3861,188 @@ export default function App() {
                   Done
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* FIREBASE SETTINGS & MANAGER MODAL          */}
+      {/* ========================================== */}
+      {showFirebaseModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Database className="h-4 w-4 text-blue-800" />
+                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Cloud Storage Manager</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFirebaseModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5 overflow-y-auto">
+              {/* Cloud Information */}
+              <div className="bg-slate-50 border border-slate-200/60 rounded-lg p-3 text-xs text-slate-600 space-y-1.5">
+                <p className="font-semibold text-slate-800 flex items-center space-x-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                  <span>Firestore Connection Active</span>
+                </p>
+                <p className="font-mono text-[10px] text-slate-500">
+                  Project ID: <span className="text-slate-800 font-bold">time-table-smvce</span><br />
+                  Storage: <span className="text-slate-800 font-bold">Cloud Firestore</span>
+                </p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  All timetables are stored as persistent JSON payloads in your Firebase Firestore database. This enables multi-device support, team collaboration, and immune backup against browser cache resets.
+                </p>
+              </div>
+
+              {/* Create/Save As section */}
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Save Current State as New Timetable</h4>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Even Semester 2026, CSE-B"
+                    value={newTimetableNameInput}
+                    onChange={(e) => setNewTimetableNameInput(e.target.value)}
+                    className="flex-1 text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!newTimetableNameInput.trim()) {
+                        showAuthNotice("Please enter a name for the new timetable.");
+                        return;
+                      }
+                      await saveTimetableToFirebase(newTimetableNameInput.trim());
+                      setNewTimetableNameInput('');
+                    }}
+                    disabled={isCloudSaving || !newTimetableNameInput.trim()}
+                    className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-semibold text-xs rounded-lg transition shadow-sm cursor-pointer disabled:opacity-40"
+                  >
+                    Save As
+                  </button>
+                </div>
+              </div>
+
+              {/* Saved Timetables List */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Saved Timetables in Firestore ({firebaseTimetables.length})</h4>
+                  <button
+                    type="button"
+                    onClick={() => fetchFirebaseTimetablesList()}
+                    disabled={isCloudFetchingList}
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center space-x-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`h-2.5 w-2.5 ${isCloudFetchingList ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+
+                <div className="border border-slate-200 rounded-lg overflow-hidden bg-white max-h-[220px] overflow-y-auto">
+                  {isCloudFetchingList && firebaseTimetables.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-500 flex flex-col items-center justify-center space-y-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                      <span>Fetching cloud documents...</span>
+                    </div>
+                  ) : firebaseTimetables.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 italic">
+                      No saved timetables found in Firestore. Save your first version above!
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {firebaseTimetables.map((name) => {
+                        const isActive = activeTimetableName === name;
+                        return (
+                          <div key={name} className={`px-3 py-2.5 flex items-center justify-between gap-4 transition-colors ${isActive ? 'bg-blue-50/40' : 'hover:bg-slate-50'}`}>
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-xs font-bold truncate ${isActive ? 'text-blue-900' : 'text-slate-700'}`}>
+                                {name}
+                              </p>
+                              {isActive && (
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 mt-0.5 flex items-center space-x-1">
+                                  <span>● Active Session</span>
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 flex-shrink-0">
+                              {deletingTimetableName === name ? (
+                                <div className="flex items-center space-x-1 bg-red-50 border border-red-200 px-1.5 py-1 rounded animate-fadeIn">
+                                  <span className="text-[9px] font-bold text-red-700">Sure?</span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await deleteTimetableFromFirebase(name);
+                                      setDeletingTimetableName(null);
+                                    }}
+                                    className="px-1.5 py-0.5 bg-red-600 text-white font-bold text-[9px] uppercase rounded hover:bg-red-700 cursor-pointer"
+                                  >
+                                    Delete
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeletingTimetableName(null)}
+                                    className="px-1.5 py-0.5 bg-slate-200 text-slate-700 font-bold text-[9px] uppercase rounded hover:bg-slate-300 cursor-pointer"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      loadTimetableFromFirebase(name);
+                                      setShowFirebaseModal(false);
+                                    }}
+                                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border transition cursor-pointer ${
+                                      isActive
+                                        ? 'bg-blue-100 border-blue-200 text-blue-800 hover:bg-blue-200'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    Load
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeletingTimetableName(name)}
+                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                                    title="Delete from cloud"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center space-x-1">
+                <span>Auth Status:</span>
+                <span className="text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[9px]">Guest/Universal Mode</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFirebaseModal(false)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

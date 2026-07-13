@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "timetable": {
+      "title": "Timetable",
+      "description": "A saved timetable document representing the full university schedule and metadata",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique name of the timetable document"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when this timetable was last synchronized with Firestore"
+        },
+        "faculties": {
+          "type": "array",
+          "description": "Array of faculties"
+        },
+        "subjects": {
+          "type": "array",
+          "description": "Array of subjects"
+        },
+        "classes": {
+          "type": "array",
+          "description": "Array of class definitions"
+        },
+        "assignments": {
+          "type": "array",
+          "description": "Array of assignments"
+        },
+        "timeSlots": {
+          "type": "array",
+          "description": "Array of time slots"
+        },
+        "days": {
+          "type": "array",
+          "description": "Array of active days"
+        },
+        "customSchedule": {
+          "type": "object",
+          "description": "Manual swaps and slot adjustments"
+        },
+        "solverResult": {
+          "type": "object",
+          "description": "Generated and optimized schedule"
+        }
+      },
+      "required": ["name", "updatedAt", "faculties", "subjects", "classes", "assignments", "timeSlots", "days"]
+    }
+  },
+  "firestore": {
+    "mvce_timetables/{timetableId}": {
+      "schema": "timetable",
+      "description": "Persistent timetables saved by guest and administrator users of the college portal."
+    }
+  }
+}

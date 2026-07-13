@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if ID is valid (alphanumeric, dash, underscore, spaces, and brackets allowed)
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 100 && id.matches('^[a-zA-Z0-9_\\-\\s\\(\\)\\[\\]\\.,]+$');
+    }
+
+    // Entity validation blueprint for timetable
+    function isValidTimetable(data) {
+      return data.name is string 
+        && data.name.size() > 0 
+        && data.name.size() <= 100
+        && data.updatedAt is string
+        && data.faculties is list
+        && data.subjects is list
+        && data.classes is list
+        && data.assignments is list
+        && data.timeSlots is list
+        && data.days is list;
+    }
+
+    match /mvce_timetables/{timetableId} {
+      allow read: if true;
+      allow create, update: if isValidId(timetableId) 
+                            && isValidTimetable(request.resource.data);
+      allow delete: if isValidId(timetableId);
+    }
+  }
+}

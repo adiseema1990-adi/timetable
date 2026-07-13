@@ -772,52 +772,10 @@ function greedyFallback(
  * Generates initial sample data representing HKE Society's Sir M. Visvesvaraya College of Engineering, Raichur.
  */
 export function getSampleData() {
-  const faculties: Faculty[] = [
-    { id: 'f1', name: 'Dr. B. Raghavendra', shortName: 'BR (HOD)', department: 'CSE', phone: '+91 94481 23456' },
-    { id: 'f2', name: 'Prof. Savitha K.', shortName: 'SK', department: 'CSE', phone: '+91 94481 78901' },
-    { id: 'f3', name: 'Prof. Mallikarjun', shortName: 'MK', department: 'CSE', phone: '+91 94481 23457' },
-    { id: 'f4', name: 'Prof. Shridevi', shortName: 'SD', department: 'CSE', phone: '+91 94481 78902' },
-    { id: 'f5', name: 'Dr. Vijaylaxmi', shortName: 'VL', department: 'ECE', phone: '+91 98450 12345' },
-    { id: 'f6', name: 'Prof. Suresh Kumar', shortName: 'SKM', department: 'ECE', phone: '+91 98450 67890' },
-    { id: 'f7', name: 'Dr. Ramesh Pathak', shortName: 'RP', department: 'Applied Science', phone: '+91 94490 12345' },
-    { id: 'f8', name: 'Prof. Geeta', shortName: 'GT', department: 'Applied Science', phone: '+91 94490 67890' },
-  ];
-
-  const subjects: Subject[] = [
-    // CSE V Sem
-    { id: 's1', code: '21CS51', name: 'Automata Theory & Computability', department: 'CSE', weeklyPeriods: 4 },
-    { id: 's2', code: '21CS52', name: 'Computer Networks', department: 'CSE', weeklyPeriods: 4 },
-    { id: 's3', code: '21CS53', name: 'Database Management Systems', department: 'CSE', weeklyPeriods: 4 },
-    { id: 's4', code: '21CS54', name: 'Artificial Intelligence & Machine Learning', department: 'CSE', weeklyPeriods: 3 },
-    { id: 's5', code: '21CSL58', name: 'Web Technology Laboratory', department: 'CSE', weeklyPeriods: 3, isLab: true },
-    // ECE V Sem
-    { id: 's6', code: '21EC51', name: 'Digital Signal Processing', department: 'ECE', weeklyPeriods: 4 },
-    { id: 's7', code: '21EC52', name: 'Digital Communication', department: 'ECE', weeklyPeriods: 4 },
-    { id: 's8', code: '21EC53', name: 'Microwave & Antennas', department: 'ECE', weeklyPeriods: 3 },
-    // Common / Mathematics
-    { id: 's9', code: '21MAT51', name: 'Technological Mathematics', department: 'Applied Science', weeklyPeriods: 4 },
-  ];
-
-  const classes: ClassSection[] = [
-    { id: 'c1', name: 'V Sem CSE', semester: '5th', section: 'A' },
-    { id: 'c2', name: 'V Sem ECE', semester: '5th', section: 'B' },
-  ];
-
-  const assignments: Assignment[] = [
-    // V Sem CSE
-    { id: 'a1', classId: 'c1', subjectId: 's1', facultyId: 'f1' }, // Automata -> Dr. B. Raghavendra
-    { id: 'a2', classId: 'c1', subjectId: 's2', facultyId: 'f3' }, // Networks -> Prof. Mallikarjun
-    { id: 'a3', classId: 'c1', subjectId: 's3', facultyId: 'f2' }, // DBMS -> Prof. Savitha K. (Subject 1)
-    { id: 'a4', classId: 'c1', subjectId: 's5', facultyId: 'f2' }, // Web Tech Lab -> Prof. Savitha K. (Subject 2 - continuous class constraint triggered!)
-    { id: 'a5', classId: 'c1', subjectId: 's4', facultyId: 'f4' }, // AI/ML -> Prof. Shridevi
-    { id: 'a6', classId: 'c1', subjectId: 's9', facultyId: 'f8' }, // Maths -> Prof. Geeta
-
-    // V Sem ECE
-    { id: 'a7', classId: 'c2', subjectId: 's6', facultyId: 'f5' }, // DSP -> Dr. Vijaylaxmi
-    { id: 'a8', classId: 'c2', subjectId: 's7', facultyId: 'f6' }, // Comm -> Prof. Suresh Kumar
-    { id: 'a9', classId: 'c2', subjectId: 's8', facultyId: 'f6' }, // Microwave -> Prof. Suresh Kumar (Subject 2 - continuous class constraint triggered!)
-    { id: 'a10', classId: 'c2', subjectId: 's9', facultyId: 'f8' }, // Maths -> Prof. Geeta (Overlap test! Faculty GT teaches maths in CSE and ECE)
-  ];
+  const faculties: Faculty[] = [];
+  const subjects: Subject[] = [];
+  const classes: ClassSection[] = [];
+  const assignments: Assignment[] = [];
 
   const timeSlots: TimeSlot[] = [
     { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
