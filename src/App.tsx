@@ -517,13 +517,32 @@ export default function App() {
   const [newSlotIsBreak, setNewSlotIsBreak] = useState(false);
   const [timeFormSubmitted, setTimeFormSubmitted] = useState(false);
 
+  const AUTHORIZED_EMAILS = [
+    'adiseema1990@gmail.com',
+    'sachinadi88@gmail.com',
+    'another.teacher@gmail.com'
+  ];
+
   // --- Firebase Google Auth State Listener ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        const email = user.email;
+        const normalizedEmail = email ? email.trim().toLowerCase() : '';
+        const isAuthorized = AUTHORIZED_EMAILS.some(e => e.trim().toLowerCase() === normalizedEmail);
+
+        if (!email || !isAuthorized) {
+          console.warn(`Unauthorized login attempt by ${email}`);
+          await signOut(auth);
+          setCurrentUser(null);
+          setAuthCheckError(`Access Denied: Your Google account is not on the authorized list of teachers or superusers\n\n(Attempted account: ${email || 'No Email'})`);
+          setAuthLoading(false);
+          return;
+        }
+
         try {
           // Verify Firestore access (enforcing rules given in Firestore)
-          const isSuper = user.email === 'sachinadi88@gmail.com';
+          const isSuper = normalizedEmail === 'sachinadi88@gmail.com';
           const q = isSuper 
             ? collection(db, "mvce_timetables")
             : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
@@ -534,7 +553,7 @@ export default function App() {
           console.error("Auth state change permission check failed:", err);
           await signOut(auth);
           setCurrentUser(null);
-          setAuthCheckError(`Access Denied: Your Google account (${user.email}) is not authorized under the Firestore security rules.`);
+          setAuthCheckError(`Access Denied: Your Google account is not on the authorized list of teachers or superusers\n\n(Attempted account: ${user.email})`);
         }
       } else {
         setCurrentUser(null);
@@ -550,10 +569,22 @@ export default function App() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+      const email = user.email;
+      const normalizedEmail = email ? email.trim().toLowerCase() : '';
+      const isAuthorized = AUTHORIZED_EMAILS.some(e => e.trim().toLowerCase() === normalizedEmail);
+
+      if (!email || !isAuthorized) {
+        console.warn(`Unauthorized login attempt by ${email}`);
+        await signOut(auth);
+        setCurrentUser(null);
+        setAuthCheckError(`Access Denied: Your Google account is not on the authorized list of teachers or superusers\n\n(Attempted account: ${email || 'No Email'})`);
+        setIsLoggingIn(false);
+        return;
+      }
       
       // Test firestore read immediately to verify they are authorized under the Firestore rules
       try {
-        const isSuper = user.email === 'sachinadi88@gmail.com';
+        const isSuper = normalizedEmail === 'sachinadi88@gmail.com';
         const q = isSuper 
           ? collection(db, "mvce_timetables")
           : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
@@ -566,7 +597,7 @@ export default function App() {
         // Sign out immediately because they are not allowed
         await signOut(auth);
         setCurrentUser(null);
-        setAuthCheckError(`Access Denied: Your Google account (${user.email}) is not authorized to access this database. Please ensure your Gmail ID is added to the Firestore security rules.`);
+        setAuthCheckError(`Access Denied: Your Google account is not on the authorized list of teachers or superusers\n\n(Attempted account: ${user.email})`);
       }
     } catch (error: any) {
       console.error("Google login failed:", error);
@@ -2371,9 +2402,18 @@ service cloud.firestore {
     function isSuperuser() {
       return request.auth != null && request.auth.token.email == "sachinadi88@gmail.com";
     }
+    function isAuthorizedMember() {
+      return request.auth != null 
+        && request.auth.token.email_verified == true 
+        && request.auth.token.email in [
+             'adiseema1990@gmail.com', 
+             'sachinadi88@gmail.com', 
+             'another.teacher@gmail.com'
+           ];
+    }
     match /mvce_timetables/{document} {
-      allow read: if request.auth != null && (isSuperuser() || resource == null || resource.data.userId == request.auth.uid);
-      allow write: if request.auth != null && (isSuperuser() || request.resource.data.userId == request.auth.uid);
+      allow read: if isAuthorizedMember() && (isSuperuser() || resource == null || resource.data.userId == request.auth.uid);
+      allow write: if isAuthorizedMember() && (isSuperuser() || request.resource.data.userId == request.auth.uid);
     }
   }
 }`}
