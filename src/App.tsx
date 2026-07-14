@@ -1140,7 +1140,13 @@ export default function App() {
       
       // Add timestamp to the bottom right
       const now = new Date();
-      const timestampText = `Generated on: ${now.toLocaleString()}`;
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timestampText = `Generated on: ${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
       pdf.setFontSize(8);
       pdf.setTextColor(0, 0, 0);
       pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
@@ -1249,7 +1255,13 @@ export default function App() {
       
       // Add timestamp to the bottom right
       const now = new Date();
-      const timestampText = `Generated on: ${now.toLocaleString()}`;
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timestampText = `Generated on: ${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
       pdf.setFontSize(8);
       pdf.setTextColor(0, 0, 0);
       pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
@@ -1355,7 +1367,13 @@ export default function App() {
 
       // Add timestamp to the bottom right
       const now = new Date();
-      const timestampText = `Generated on: ${now.toLocaleString()}`;
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timestampText = `Generated on: ${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
       pdf.setFontSize(8);
       pdf.setTextColor(0, 0, 0);
       pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
@@ -1849,10 +1867,10 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 font-sans text-slate-100">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans text-slate-800">
         <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
-          <p className="text-sm font-semibold tracking-wider text-slate-400 uppercase">Verifying Security Session...</p>
+          <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+          <p className="text-sm font-semibold tracking-wider text-slate-500 uppercase">Verifying Security Session...</p>
         </div>
       </div>
     );
@@ -1860,15 +1878,15 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-between p-6 font-sans text-slate-100 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex flex-col justify-between p-6 font-sans text-slate-800 relative overflow-hidden">
         {/* Decorative Grid Background */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950 z-0 pointer-events-none" />
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/40 via-white to-slate-100/50 z-0 pointer-events-none" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/10 to-transparent pointer-events-none" />
 
         <div className="flex-1 flex flex-col items-center justify-center z-10 py-12">
           {/* Main Card */}
-          <div className="bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-2xl max-w-lg w-full p-8 md:p-10 shadow-2xl space-y-8 animate-fade-in relative">
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-blue-600 h-24 w-24 rounded-full flex items-center justify-center border-4 border-slate-950 shadow-xl shadow-blue-500/10">
+          <div className="bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl max-w-lg w-full p-8 md:p-10 shadow-2xl space-y-8 animate-fade-in relative">
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-blue-600 h-24 w-24 rounded-full flex items-center justify-center border-4 border-slate-900 shadow-xl shadow-blue-500/10">
               <Lock className="h-10 w-10 text-white" />
             </div>
 
@@ -1879,7 +1897,7 @@ export default function App() {
                 Sir M. Visvesvaraya College of Engineering, Raichur
               </h2>
               <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full mt-4" />
-              <p className="text-xs text-slate-400 font-medium pt-1 uppercase tracking-wider font-sans">
+              <p className="text-xs text-amber-400 font-extrabold pt-1 uppercase tracking-widest font-mono">
                 College Timetable Portal
               </p>
             </div>
@@ -1947,7 +1965,7 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <div className="z-10 text-center py-4 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
+        <div className="z-10 text-center py-4 text-[10px] text-slate-400 uppercase tracking-widest font-mono">
           © {new Date().getFullYear()} SMVCE Raichur • SECURE DATABASE PERSISTENCE
         </div>
       </div>
@@ -3889,80 +3907,116 @@ service cloud.firestore {
           {activeTab === 'timing' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               
-              {/* Left Form: Add Time Slot */}
-              <div className="bg-white border border-slate-200 rounded p-4 shadow-sm self-start">
-                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                  <Clock className="h-4 w-4 text-blue-900" />
-                  <span>Configure Hour / Break</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mb-3">Specify durations of lectures or institutional breaks.</p>
+              {/* Left Column: Configure Hour/Break & Days configuration */}
+              <div className="space-y-4 self-start">
+                {/* Left Form: Add Time Slot */}
+                <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
+                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
+                    <Clock className="h-4 w-4 text-blue-900" />
+                    <span>Configure Hour / Break</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mb-3">Specify durations of lectures or institutional breaks.</p>
 
-                <form onSubmit={addTimeSlot} className="space-y-3" noValidate>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Time Slot Label</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Period 1, Tea Break, Lunch"
-                      value={newSlotLabel}
-                      onChange={(e) => setNewSlotLabel(e.target.value)}
-                      className={`w-full bg-slate-50 border ${
-                        timeFormSubmitted && !newSlotLabel ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                      } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
+                  <form onSubmit={addTimeSlot} className="space-y-3" noValidate>
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Start Time</label>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Time Slot Label</label>
                       <input
-                        type="time"
+                        type="text"
                         required
-                        value={newSlotStart}
-                        onChange={(e) => setNewSlotStart(e.target.value)}
+                        placeholder="e.g. Period 1, Tea Break, Lunch"
+                        value={newSlotLabel}
+                        onChange={(e) => setNewSlotLabel(e.target.value)}
                         className={`w-full bg-slate-50 border ${
-                          timeFormSubmitted && !newSlotStart ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          timeFormSubmitted && !newSlotLabel ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                       />
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">End Time</label>
-                      <input
-                        type="time"
-                        required
-                        value={newSlotEnd}
-                        onChange={(e) => setNewSlotEnd(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          timeFormSubmitted && !newSlotEnd ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
-                      />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Start Time</label>
+                        <input
+                          type="time"
+                          required
+                          value={newSlotStart}
+                          onChange={(e) => setNewSlotStart(e.target.value)}
+                          className={`w-full bg-slate-50 border ${
+                            timeFormSubmitted && !newSlotStart ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                          } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">End Time</label>
+                        <input
+                          type="time"
+                          required
+                          value={newSlotEnd}
+                          onChange={(e) => setNewSlotEnd(e.target.value)}
+                          className={`w-full bg-slate-50 border ${
+                            timeFormSubmitted && !newSlotEnd ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                          } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                        />
+                      </div>
                     </div>
+
+                    <div className="flex items-center space-x-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="isBreak"
+                        checked={newSlotIsBreak}
+                        onChange={(e) => setNewSlotIsBreak(e.target.checked)}
+                        className="rounded text-blue-900 focus:ring-blue-900 h-3.5 w-3.5 cursor-pointer"
+                      />
+                      <label htmlFor="isBreak" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
+                        Is this a recess / break?
+                      </label>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-amber-300" />
+                      <span>Save Slot</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* Days Configuration Card */}
+                <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
+                  <div className="border-b border-slate-100 pb-2 mb-3">
+                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Working Week Config</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Select days of the week included in the scheduling solver.</p>
                   </div>
 
-                  <div className="flex items-center space-x-2 pt-1">
-                    <input
-                      type="checkbox"
-                      id="isBreak"
-                      checked={newSlotIsBreak}
-                      onChange={(e) => setNewSlotIsBreak(e.target.checked)}
-                      className="rounded text-blue-900 focus:ring-blue-900 h-3.5 w-3.5 cursor-pointer"
-                    />
-                    <label htmlFor="isBreak" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
-                      Is this a recess / break?
-                    </label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                      const isActive = days.includes(day as DayOfWeek);
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            if (isActive) {
+                              setDays(days.filter(d => d !== day));
+                            } else {
+                              setDays([...days, day as DayOfWeek]);
+                            }
+                          }}
+                          className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition cursor-pointer border ${
+                            isActive
+                              ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {day.substring(0, 3)}
+                        </button>
+                      );
+                    })}
                   </div>
-
-                  <button
-                    type="submit"
-                    className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-amber-300" />
-                    <span>Save Slot</span>
-                  </button>
-                </form>
+                </div>
               </div>
 
-              {/* Right: Active Slots List & Days configuration */}
+              {/* Right: Active Slots List */}
               <div className="lg:col-span-2 space-y-4">
                 
                 {/* Time Slots Table */}
@@ -4020,39 +4074,6 @@ service cloud.firestore {
                         })}
                       </tbody>
                     </table>
-                  </div>
-                </div>
-
-                {/* Days Configuration Card */}
-                <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <div className="border-b border-slate-100 pb-2 mb-3">
-                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Working Week Config</h3>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Select days of the week included in the scheduling solver.</p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
-                      const isActive = days.includes(day as DayOfWeek);
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => {
-                            if (isActive) {
-                              setDays(days.filter(d => d !== day));
-                            } else {
-                              setDays([...days, day as DayOfWeek]);
-                            }
-                          }}
-                          className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition cursor-pointer border ${
-                            isActive
-                              ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
-                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {day.substring(0, 3)}
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
 
