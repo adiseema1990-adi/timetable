@@ -48,7 +48,54 @@ import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, Timeta
 import { generateTimetable, preValidateConstraints, SolverResult } from './utils/solver';
 import { db, auth, googleProvider } from './firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
-import { collection, doc, setDoc, getDoc, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where } from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 const getCleanBreakLabel = (label: string): string => {
   const lower = label.toLowerCase();
@@ -373,7 +420,7 @@ export default function App() {
   const [classes, setClasses] = useState<ClassSection[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [days, setDays] = useState<DayOfWeek[]>([]);
+  const [days, setDays] = useState<DayOfWeek[]>(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
   
   // --- App Logic State ---
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -406,6 +453,8 @@ export default function App() {
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
   const [newTimetableNameInput, setNewTimetableNameInput] = useState('');
   const [showFirebaseModal, setShowFirebaseModal] = useState(false);
+  const [showNewTemplateConfirmModal, setShowNewTemplateConfirmModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('New Timetable');
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
   const [confirmFirebaseClear, setConfirmFirebaseClear] = useState(false);
   const [showInlineSaveAs, setShowInlineSaveAs] = useState(false);
@@ -474,7 +523,11 @@ export default function App() {
       if (user) {
         try {
           // Verify Firestore access (enforcing rules given in Firestore)
-          await getDocs(collection(db, "mvce_timetables"));
+          const isSuper = user.email === 'sachinadi88@gmail.com';
+          const q = isSuper 
+            ? collection(db, "mvce_timetables")
+            : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
+          await getDocs(q);
           setCurrentUser(user);
           setAuthCheckError(null);
         } catch (err: any) {
@@ -500,7 +553,11 @@ export default function App() {
       
       // Test firestore read immediately to verify they are authorized under the Firestore rules
       try {
-        await getDocs(collection(db, "mvce_timetables"));
+        const isSuper = user.email === 'sachinadi88@gmail.com';
+        const q = isSuper 
+          ? collection(db, "mvce_timetables")
+          : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
+        await getDocs(q);
         // Success!
         setCurrentUser(user);
         showAuthNotice(`Welcome, ${user.displayName || user.email}!`);
@@ -605,7 +662,7 @@ export default function App() {
         { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
         { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
       ];
-      const defaultDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const defaultDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
       setFaculties([]);
       setSubjects([]);
       setClasses([]);
@@ -796,6 +853,43 @@ export default function App() {
     showAuthNotice("Workspace cleared. You can now build from scratch.");
   };
 
+  const createNewTimetableTemplate = (name: string) => {
+    setIsAutoSyncEnabled(false);
+    const defaultSlots: TimeSlot[] = [
+      { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
+      { id: 'ts2', label: 'Period 2', startTime: '10:00', endTime: '11:00', isBreak: false },
+      { id: 'ts3', label: 'Tea Break', startTime: '11:00', endTime: '11:15', isBreak: true },
+      { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
+      { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
+      { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:15', isBreak: true },
+      { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
+      { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
+    ];
+    setFaculties([]);
+    setSubjects([]);
+    setClasses([]);
+    setAssignments([]);
+    setTimeSlots(defaultSlots);
+    setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+    setSelectedClassId('');
+    setSolverResult(null);
+    setCustomSchedule(null);
+    setUndoStack([]);
+    setRedoStack([]);
+    setIsDataStale(false);
+    
+    const finalName = name.trim() || 'New Timetable';
+    setActiveTimetableName(finalName);
+    
+    localStorage.clear();
+    localStorage.setItem('mvce_is_cleared', 'true');
+    localStorage.setItem('mvce_timeSlots', JSON.stringify(defaultSlots));
+    localStorage.setItem('mvce_days', JSON.stringify(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']));
+    localStorage.setItem('mvce_firebase_active_timetable', finalName);
+    
+    showAuthNotice(`Created a fresh timetable: "${finalName}".`);
+  };
+
   const handleClearSubmit = () => {
     if (clearAdminPassword === 'rampuresir') {
       clearAllData();
@@ -818,7 +912,21 @@ export default function App() {
   const fetchFirebaseTimetablesList = async (silent = false) => {
     if (!silent) setIsCloudFetchingList(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "mvce_timetables"));
+      const user = auth.currentUser;
+      if (!user) {
+        setFirebaseTimetables([]);
+        return;
+      }
+      const isSuper = user.email === 'sachinadi88@gmail.com';
+      const q = isSuper 
+        ? collection(db, "mvce_timetables")
+        : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, "mvce_timetables");
+      }
       const names: string[] = [];
       querySnapshot.forEach((doc) => {
         names.push(doc.id);
@@ -841,9 +949,14 @@ export default function App() {
     }
     if (!isAuto) setIsCloudSaving(true);
     try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("No authenticated user found.");
+      }
       const timetableData = {
         name: nameToSave,
         updatedAt: new Date().toISOString(),
+        userId: user.uid,
         faculties,
         subjects,
         classes,
@@ -854,7 +967,11 @@ export default function App() {
         solverResult: solverResult || null
       };
       
-      await setDoc(doc(db, "mvce_timetables", nameToSave), timetableData);
+      try {
+        await setDoc(doc(db, "mvce_timetables", nameToSave), timetableData);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `mvce_timetables/${nameToSave}`);
+      }
       
       // Update local states
       setActiveTimetableName(nameToSave);
@@ -883,9 +1000,14 @@ export default function App() {
     setIsCloudLoading(true);
     try {
       const docRef = doc(db, "mvce_timetables", nameToLoad);
-      const docSnap = await getDoc(docRef);
+      let docSnap;
+      try {
+        docSnap = await getDoc(docRef);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `mvce_timetables/${nameToLoad}`);
+      }
       
-      if (docSnap.exists()) {
+      if (docSnap && docSnap.exists()) {
         const data = docSnap.data();
         
         // Load states
@@ -926,7 +1048,11 @@ export default function App() {
     if (!nameToDelete) return;
     
     try {
-      await deleteDoc(doc(db, "mvce_timetables", nameToDelete));
+      try {
+        await deleteDoc(doc(db, "mvce_timetables", nameToDelete));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `mvce_timetables/${nameToDelete}`);
+      }
       showAuthNotice(`Timetable "${nameToDelete}" deleted from Firebase Cloud.`);
       setFirebaseError(null); // Clear errors on success
       
@@ -2097,6 +2223,17 @@ export default function App() {
                   ))
                 )}
               </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTemplateName('New Timetable');
+                  setShowNewTemplateConfirmModal(true);
+                }}
+                className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded transition cursor-pointer flex items-center justify-center font-bold shadow-sm"
+                title="Create a fresh timetable template"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
 
             {/* Sync actions */}
@@ -2231,8 +2368,12 @@ export default function App() {
 {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSuperuser() {
+      return request.auth != null && request.auth.token.email == "sachinadi88@gmail.com";
+    }
     match /mvce_timetables/{document} {
-      allow read, write: if true;
+      allow read: if request.auth != null && (isSuperuser() || resource == null || resource.data.userId == request.auth.uid);
+      allow write: if request.auth != null && (isSuperuser() || request.resource.data.userId == request.auth.uid);
     }
   }
 }`}
@@ -4649,6 +4790,90 @@ service cloud.firestore {
                   </button>
                 </>
               )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* FRESH TEMPLATE CONFIRMATION MODAL          */}
+      {/* ========================================== */}
+      {showNewTemplateConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col animate-fade-in text-left">
+            
+            {/* Modal Header */}
+            <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-blue-800">
+                <Plus className="h-5 w-5" />
+                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">
+                  Create Fresh Timetable
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewTemplateConfirmModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg text-xs text-blue-800 flex items-start space-x-2.5">
+                <AlertCircle className="h-5 w-5 shrink-0 text-blue-600" />
+                <div>
+                  <p className="font-bold">Are you sure you want to open a fresh template?</p>
+                  <p className="text-slate-600 mt-0.5">
+                    This will clear the current workspace configuration (faculties, subjects, classes, and schedules) from your active session. Any unsaved modifications on your current active timetable will be lost.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  New Timetable Name
+                </label>
+                <input
+                  type="text"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  placeholder="e.g. Odd Semester 2026"
+                  className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-xs text-slate-850 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newTemplateName.trim()) {
+                      createNewTimetableTemplate(newTemplateName);
+                      setShowNewTemplateConfirmModal(false);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowNewTemplateConfirmModal(false)}
+                className="px-3 py-1.5 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  createNewTimetableTemplate(newTemplateName);
+                  setShowNewTemplateConfirmModal(false);
+                }}
+                disabled={!newTemplateName.trim()}
+                className="px-4 py-1.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer disabled:opacity-40"
+              >
+                Create Fresh Template
+              </button>
             </div>
 
           </div>

@@ -158,6 +158,14 @@ export function generateTimetable(
     return isP1 || isP2 || isP3 || isP4;
   };
 
+  // Helper to check if an active slot corresponds to Period 1
+  const isPeriod1 = (pIdx: number): boolean => {
+    const slot = activeSlots[pIdx];
+    if (!slot) return false;
+    const labelLower = slot.label.toLowerCase();
+    return labelLower.includes('period 1') || labelLower.includes('1st') || pIdx === 0;
+  };
+
   if (classes.length === 0) {
     return { success: false, schedule: {}, message: 'No classes/semesters defined.' };
   }
@@ -420,6 +428,22 @@ export function generateTimetable(
           if (currentCountOnDay >= maxOccurrencesPerDay) continue;
         }
 
+        // 3. One subject has to be allotted only once for Period 1 in a week.
+        const occupiesPeriod1 = duration === 2 ? (isPeriod1(pIdx) || isPeriod1(pIdx + 1)) : isPeriod1(pIdx);
+        if (occupiesPeriod1) {
+          let alreadyAllotted = false;
+          for (const d of days) {
+            for (let p = 0; p < totalPeriods; p++) {
+              if (isPeriod1(p) && getSubjectAt(classId, d, p) === subjectId) {
+                alreadyAllotted = true;
+                break;
+              }
+            }
+            if (alreadyAllotted) break;
+          }
+          if (alreadyAllotted) continue;
+        }
+
         candidates.push({ day, periodIdx: pIdx });
       }
     }
@@ -556,6 +580,13 @@ function greedyFallback(
     const isP3 = labelLower.includes('period 3') || labelLower.includes('3rd') || pIdx === 2;
     const isP4 = labelLower.includes('period 4') || labelLower.includes('4th') || pIdx === 3;
     return isP1 || isP2 || isP3 || isP4;
+  };
+
+  const isPeriod1 = (pIdx: number): boolean => {
+    const slot = activeSlots[pIdx];
+    if (!slot) return false;
+    const labelLower = slot.label.toLowerCase();
+    return labelLower.includes('period 1') || labelLower.includes('1st') || pIdx === 0;
   };
 
   const schedule: TimetableSchedule = {};
@@ -734,6 +765,22 @@ function greedyFallback(
       } else {
         const maxOccurrencesPerDay = (weeklyPeriods > days.length) ? Math.ceil(weeklyPeriods / days.length) : 1;
         if (currentCountOnDay >= maxOccurrencesPerDay) continue;
+      }
+
+      // 3. One subject has to be allotted only once for Period 1 in a week.
+      const occupiesPeriod1 = duration === 2 ? (isPeriod1(pIdx) || isPeriod1(pIdx + 1)) : isPeriod1(pIdx);
+      if (occupiesPeriod1) {
+        let alreadyAllotted = false;
+        for (const d of days) {
+          for (let p = 0; p < totalPeriods; p++) {
+            if (isPeriod1(p) && getSubjectAt(classId, d, p) === subjectId) {
+              alreadyAllotted = true;
+              break;
+            }
+          }
+          if (alreadyAllotted) break;
+        }
+        if (alreadyAllotted) continue;
       }
 
       // Place

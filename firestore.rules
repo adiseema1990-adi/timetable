@@ -13,6 +13,8 @@ service cloud.firestore {
         && data.name.size() > 0 
         && data.name.size() <= 100
         && data.updatedAt is string
+        && data.userId is string
+        && data.userId.size() > 0
         && data.faculties is list
         && data.subjects is list
         && data.classes is list
@@ -21,11 +23,23 @@ service cloud.firestore {
         && data.days is list;
     }
 
+    function isSuperuser() {
+      return request.auth != null && request.auth.token.email == "sachinadi88@gmail.com";
+    }
+
     match /mvce_timetables/{timetableId} {
-      allow read: if true;
-      allow create, update: if isValidId(timetableId) 
-                            && isValidTimetable(request.resource.data);
-      allow delete: if isValidId(timetableId);
+      allow read: if request.auth != null && (isSuperuser() || resource == null || resource.data.userId == request.auth.uid);
+      allow create: if request.auth != null
+                    && isValidId(timetableId) 
+                    && isValidTimetable(request.resource.data)
+                    && (isSuperuser() || request.resource.data.userId == request.auth.uid);
+      allow update: if request.auth != null
+                    && isValidId(timetableId) 
+                    && isValidTimetable(request.resource.data)
+                    && (isSuperuser() || (request.resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId));
+      allow delete: if request.auth != null
+                    && isValidId(timetableId)
+                    && (isSuperuser() || resource.data.userId == request.auth.uid);
     }
   }
 }
