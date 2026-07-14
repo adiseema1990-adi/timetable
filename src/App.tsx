@@ -46,7 +46,8 @@ import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, TimetableSchedule } from './types';
 import { generateTimetable, preValidateConstraints, SolverResult } from './utils/solver';
-import { db } from './firebase';
+import { db, auth, googleProvider } from './firebase';
+import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc, getDocs, deleteDoc } from 'firebase/firestore';
 
 const getCleanBreakLabel = (label: string): string => {
@@ -411,6 +412,13 @@ export default function App() {
   const [inlineSaveAsName, setInlineSaveAsName] = useState('');
   const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
 
+  // --- Firebase Google Auth States ---
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authCheckError, setAuthCheckError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+
   // --- Clear Workspace Secure Modal States ---
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [clearConfirmStep, setClearConfirmStep] = useState<1 | 2>(1);
@@ -460,8 +468,86 @@ export default function App() {
   const [newSlotIsBreak, setNewSlotIsBreak] = useState(false);
   const [timeFormSubmitted, setTimeFormSubmitted] = useState(false);
 
+  // --- Firebase Google Auth State Listener ---
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // Verify Firestore access (enforcing rules given in Firestore)
+          await getDocs(collection(db, "mvce_timetables"));
+          setCurrentUser(user);
+          setAuthCheckError(null);
+        } catch (err: any) {
+          console.error("Auth state change permission check failed:", err);
+          await signOut(auth);
+          setCurrentUser(null);
+          setAuthCheckError(`Access Denied: Your Google account (${user.email}) is not authorized under the Firestore security rules.`);
+        }
+      } else {
+        setCurrentUser(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setAuthCheckError(null);
+    setIsLoggingIn(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Test firestore read immediately to verify they are authorized under the Firestore rules
+      try {
+        await getDocs(collection(db, "mvce_timetables"));
+        // Success!
+        setCurrentUser(user);
+        showAuthNotice(`Welcome, ${user.displayName || user.email}!`);
+      } catch (err: any) {
+        console.error("Firestore permission check failed for user login:", err);
+        // Sign out immediately because they are not allowed
+        await signOut(auth);
+        setCurrentUser(null);
+        setAuthCheckError(`Access Denied: Your Google account (${user.email}) is not authorized to access this database. Please ensure your Gmail ID is added to the Firestore security rules.`);
+      }
+    } catch (error: any) {
+      console.error("Google login failed:", error);
+      if (error?.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, ignore or show brief notice
+      } else if (error?.code === 'auth/unauthorized-domain' || (error?.message && error.message.includes('unauthorized-domain'))) {
+        const hostname = window.location.hostname;
+        setAuthCheckError(
+          `Unauthorized Domain: The domain "${hostname}" is not authorized for Google Sign-In in your Firebase Project.\n\n` +
+          `To fix this:\n` +
+          `1. Go to the Firebase Console (console.firebase.google.com)\n` +
+          `2. Navigate to "Authentication" > "Settings" tab > "Authorized domains"\n` +
+          `3. Click "Add domain" and enter:\n   • ${hostname}\n` +
+          `   • ${hostname.replace('ais-dev-', 'ais-pre-')} (optionally for shared URL)\n` +
+          `4. Save the settings and try logging in again.`
+        );
+      } else {
+        setAuthCheckError(error?.message || "Failed to sign in with Google.");
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      setCurrentUser(null);
+      setAuthCheckError(null);
+      showAuthNotice("Signed out successfully.");
+    } catch (error: any) {
+      showAuthNotice(`Sign out failed: ${error?.message || error}`);
+    }
+  };
+
   // --- Load Initial Sample Data ---
   useEffect(() => {
+    if (!currentUser) return;
     // Check if the user deliberately cleared the workspace
     const isCleared = localStorage.getItem('mvce_is_cleared');
     if (isCleared === 'true') {
@@ -535,6 +621,7 @@ export default function App() {
 
   // Save to LocalStorage whenever state changes
   useEffect(() => {
+    if (!currentUser) return;
     if (!isInitialized) return;
 
     const isCleared = localStorage.getItem('mvce_is_cleared');
@@ -859,13 +946,15 @@ export default function App() {
 
   // Initialize Firebase and fetch list on mount, load last active timetable if exists
   useEffect(() => {
-    fetchFirebaseTimetablesList(true);
-    const lastActive = localStorage.getItem('mvce_firebase_active_timetable');
-    if (lastActive) {
-      setActiveTimetableName(lastActive);
-      loadTimetableFromFirebase(lastActive);
+    if (currentUser) {
+      fetchFirebaseTimetablesList(true);
+      const lastActive = localStorage.getItem('mvce_firebase_active_timetable');
+      if (lastActive) {
+        setActiveTimetableName(lastActive);
+        loadTimetableFromFirebase(lastActive);
+      }
     }
-  }, []);
+  }, [currentUser]);
 
   // Auto-Sync to Firebase when data changes (debounced)
   useEffect(() => {
@@ -1758,6 +1847,113 @@ export default function App() {
     return classes.some(c => checkPeriod1To4FreePeriod(c.id, solverResult?.schedule));
   }, [classes, solverResult, timeSlots, days]);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 font-sans text-slate-100">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+          <p className="text-sm font-semibold tracking-wider text-slate-400 uppercase">Verifying Security Session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-between p-6 font-sans text-slate-100 relative overflow-hidden">
+        {/* Decorative Grid Background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950 z-0 pointer-events-none" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent pointer-events-none" />
+
+        <div className="flex-1 flex flex-col items-center justify-center z-10 py-12">
+          {/* Main Card */}
+          <div className="bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-2xl max-w-lg w-full p-8 md:p-10 shadow-2xl space-y-8 animate-fade-in relative">
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-blue-600 h-24 w-24 rounded-full flex items-center justify-center border-4 border-slate-950 shadow-xl shadow-blue-500/10">
+              <Lock className="h-10 w-10 text-white" />
+            </div>
+
+            {/* Title / Institution */}
+            <div className="text-center pt-8 space-y-2">
+              <p className="text-[10px] font-extrabold tracking-widest text-blue-400 uppercase leading-none font-sans">HKE Society's</p>
+              <h2 className="text-lg md:text-xl font-black tracking-tight text-white uppercase leading-snug font-sans">
+                Sir M. Visvesvaraya College of Engineering, Raichur
+              </h2>
+              <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full mt-4" />
+              <p className="text-xs text-slate-400 font-medium pt-1 uppercase tracking-wider font-sans">
+                College Timetable Portal
+              </p>
+            </div>
+
+            {/* Error Message if unauthorized */}
+            {authCheckError && (
+              <div className="bg-rose-950/50 border border-rose-800/80 rounded-xl p-4 text-xs text-rose-200 space-y-2.5 animate-fadeIn text-left">
+                <div className="flex items-center space-x-2 text-rose-400 font-bold font-sans">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Access Authorization Notice</span>
+                </div>
+                <p className="leading-relaxed text-rose-300 font-sans whitespace-pre-wrap font-medium">
+                  {authCheckError}
+                </p>
+                <p className="text-[10px] text-rose-400/60 italic leading-normal font-sans border-t border-rose-900/40 pt-2">
+                  Note: Firestore security rules restrict read/write access exclusively to authorized admin Gmail accounts. Please ensure your logged-in Google account is whitelisted.
+                </p>
+              </div>
+            )}
+
+            {/* Sign-In Instructions */}
+            <div className="space-y-4">
+              <p className="text-slate-400 text-xs text-center leading-relaxed font-sans">
+                This portal is secure and reserved for authorized faculty administrators. Sign in using your official Google Workspace / personal Gmail account to access, edit, and synchronize timetables.
+              </p>
+
+              {/* Google Sign In Button */}
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isLoggingIn}
+                className="w-full flex items-center justify-center space-x-3 bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs uppercase tracking-wider py-3.5 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+              >
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="h-4 w-4 text-slate-900 animate-spin" />
+                    <span>Signing in with Google...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69a5.74 5.74 0 0 1-2.49 3.77v3.12h4.01c2.34-2.16 3.69-5.32 3.69-8.74Z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-4.01-3.12c-1.12.75-2.54 1.19-3.95 1.19-3.05 0-5.63-2.06-6.55-4.83H1.31v3.22A12 12 0 0 0 12 24Z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.45 14.33a7.14 7.14 0 0 1 0-4.66V6.45H1.31a12 12 0 0 0 0 11.1l4.14-3.22Z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42A12 12 0 0 0 1.31 6.45l4.14 3.22c.92-2.77 3.5-4.83 6.55-4.83Z"
+                      />
+                    </svg>
+                    <span>Sign In with Google</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="z-10 text-center py-4 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
+          © {new Date().getFullYear()} SMVCE Raichur • SECURE DATABASE PERSISTENCE
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-800">
       
@@ -1772,10 +1968,35 @@ export default function App() {
           </h1>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-3">
+          {currentUser && (
+            <div className="flex items-center space-x-2 border-r border-slate-200 pr-3 mr-1">
+              {currentUser.photoURL ? (
+                <img 
+                  src={currentUser.photoURL} 
+                  alt={currentUser.displayName || "User"} 
+                  className="h-7 w-7 rounded-full border border-slate-200"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="h-7 w-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200">
+                  {currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
+                </div>
+              )}
+              <div className="flex flex-col text-left leading-none">
+                <span className="text-xs font-bold text-slate-800 hidden sm:inline-block">
+                  {currentUser.displayName || 'Authorized User'}
+                </span>
+                <span className="text-[10px] text-slate-500 hidden sm:inline-block mt-0.5 font-mono">
+                  {currentUser.email}
+                </span>
+              </div>
+            </div>
+          )}
+
           <button 
             id="btn-signout"
-            onClick={() => showAuthNotice("Sign-Out button clicked. Active session will be cleared upon database integration.")}
+            onClick={() => setShowSignOutModal(true)}
             className="p-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg bg-white transition shadow-sm cursor-pointer flex items-center justify-center"
             title="Sign Out"
             aria-label="Sign Out"
@@ -4407,6 +4628,87 @@ service cloud.firestore {
                   </button>
                 </>
               )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* SIGN OUT CONFIRMATION MODAL                */}
+      {/* ========================================== */}
+      {showSignOutModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-sm w-full shadow-2xl overflow-hidden flex flex-col animate-fade-in text-left">
+            
+            {/* Modal Header */}
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-slate-700">
+                <LogOut className="h-4 w-4 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                  Confirm Sign Out
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSignOutModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-3">
+              <p className="text-slate-700 text-xs leading-relaxed">
+                Are you sure you want to log out of your session? Any unsaved edits will be lost.
+              </p>
+              {currentUser && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center space-x-2.5">
+                  {currentUser.photoURL ? (
+                    <img 
+                      src={currentUser.photoURL} 
+                      alt={currentUser.displayName || "User"} 
+                      className="h-8 w-8 rounded-full border border-slate-200"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200">
+                      {currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
+                    </div>
+                  )}
+                  <div className="flex flex-col leading-none">
+                    <span className="text-xs font-bold text-slate-800">
+                      {currentUser.displayName || 'Authorized User'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                      {currentUser.email}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowSignOutModal(false)}
+                className="px-3 py-1.5 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSignOutModal(false);
+                  handleSignOut();
+                }}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+              >
+                Sign Out
+              </button>
             </div>
 
           </div>
