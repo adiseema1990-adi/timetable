@@ -503,6 +503,7 @@ export default function App() {
   const [newSubDept, setNewSubDept] = useState('CSE');
   const [newSubPeriods, setNewSubPeriods] = useState(4);
   const [newSubIsLab, setNewSubIsLab] = useState(false);
+  const [newSubIsProject, setNewSubIsProject] = useState(false);
   const [newSubColor, setNewSubColor] = useState('');
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [subFormSubmitted, setSubFormSubmitted] = useState(false);
@@ -514,6 +515,7 @@ export default function App() {
   const [editSubDept, setEditSubDept] = useState('CSE');
   const [editSubPeriods, setEditSubPeriods] = useState(4);
   const [editSubIsLab, setEditSubIsLab] = useState(false);
+  const [editSubIsProject, setEditSubIsProject] = useState(false);
   const [editSubColor, setEditSubColor] = useState('');
   const [editSubFormSubmitted, setEditSubFormSubmitted] = useState(false);
 
@@ -1629,6 +1631,7 @@ export default function App() {
       department: newSubDept,
       weeklyPeriods: Number(newSubPeriods),
       isLab: newSubIsLab,
+      isProject: newSubIsProject,
       color: selectedColor
     };
     setSubjects([...subjects, newSub]);
@@ -1636,6 +1639,7 @@ export default function App() {
     setNewSubName('');
     setNewSubPeriods(4);
     setNewSubIsLab(false);
+    setNewSubIsProject(false);
     setNewSubColor('');
     setSubFormSubmitted(false);
     showAuthNotice(`Subject ${newSub.code} added.`);
@@ -1766,6 +1770,7 @@ export default function App() {
     setEditSubDept(sub.department);
     setEditSubPeriods(sub.weeklyPeriods);
     setEditSubIsLab(!!sub.isLab);
+    setEditSubIsProject(!!sub.isProject);
     setEditSubColor(sub.color || '');
     setEditSubFormSubmitted(false);
   };
@@ -1777,6 +1782,7 @@ export default function App() {
     setEditSubDept('CSE');
     setEditSubPeriods(4);
     setEditSubIsLab(false);
+    setEditSubIsProject(false);
     setEditSubColor('');
     setEditSubFormSubmitted(false);
   };
@@ -1795,6 +1801,7 @@ export default function App() {
           department: editSubDept,
           weeklyPeriods: Number(editSubPeriods),
           isLab: editSubIsLab,
+          isProject: editSubIsProject,
           color: editSubColor || getUniqueUnusedColor(subjects.filter(item => item.id !== editingSubjectId))
         };
       }
@@ -4029,6 +4036,18 @@ service cloud.firestore {
                         </div>
                       </div>
 
+                      <div className="pt-1 pb-2">
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={editSubIsProject}
+                            onChange={(e) => setEditSubIsProject(e.target.checked)}
+                            className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-slate-700">Is Project/Seminar/Internship ?</span>
+                        </label>
+                      </div>
+
                       <div className="border-t border-slate-100 pt-3">
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
                           <span>Background Color Accent</span>
@@ -4172,6 +4191,18 @@ service cloud.firestore {
                         </div>
                       </div>
 
+                      <div className="pt-1 pb-2">
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={newSubIsProject}
+                            onChange={(e) => setNewSubIsProject(e.target.checked)}
+                            className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-blue-900 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-slate-700">Is Project/Seminar/Internship ?</span>
+                        </label>
+                      </div>
+
                       <div className="border-t border-slate-100 pt-3">
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
                           <span>Background Color Accent</span>
@@ -4274,7 +4305,11 @@ service cloud.firestore {
                             <td className="p-2.5 font-bold text-slate-900">{sub.name}</td>
                             <td className="p-2.5 font-semibold text-slate-700">{sub.department}</td>
                             <td className="p-2.5 text-center">
-                              {sub.isLab ? (
+                              {sub.isProject ? (
+                                <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                  Project / Sem / Intern
+                                </span>
+                              ) : sub.isLab ? (
                                 <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
                                   Lab / Practical
                                 </span>
