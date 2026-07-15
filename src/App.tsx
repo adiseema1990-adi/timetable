@@ -46,7 +46,7 @@ import {
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, TimetableSchedule } from './types';
-import { generateTimetable, preValidateConstraints, SolverResult } from './utils/solver';
+import { generateTimetable, preValidateConstraints, SolverResult, areSiblingBatches, getClassGroupInfo } from './utils/solver';
 import { db, auth, googleProvider } from './firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where } from 'firebase/firestore';
@@ -506,6 +506,16 @@ export default function App() {
   const [newSubColor, setNewSubColor] = useState('');
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [subFormSubmitted, setSubFormSubmitted] = useState(false);
+
+  // Subject Editing State
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [editSubCode, setEditSubCode] = useState('');
+  const [editSubName, setEditSubName] = useState('');
+  const [editSubDept, setEditSubDept] = useState('CSE');
+  const [editSubPeriods, setEditSubPeriods] = useState(4);
+  const [editSubIsLab, setEditSubIsLab] = useState(false);
+  const [editSubColor, setEditSubColor] = useState('');
+  const [editSubFormSubmitted, setEditSubFormSubmitted] = useState(false);
 
   // Class Form
   const [newClassName, setNewClassName] = useState('');
@@ -1744,6 +1754,55 @@ export default function App() {
   const deleteSubject = (id: string) => {
     setSubjects(subjects.filter(s => s.id !== id));
     setAssignments(assignments.filter(a => a.subjectId !== id));
+    if (editingSubjectId === id) {
+      cancelEditingSubject();
+    }
+  };
+
+  const startEditingSubject = (sub: Subject) => {
+    setEditingSubjectId(sub.id);
+    setEditSubCode(sub.code);
+    setEditSubName(sub.name);
+    setEditSubDept(sub.department);
+    setEditSubPeriods(sub.weeklyPeriods);
+    setEditSubIsLab(!!sub.isLab);
+    setEditSubColor(sub.color || '');
+    setEditSubFormSubmitted(false);
+  };
+
+  const cancelEditingSubject = () => {
+    setEditingSubjectId(null);
+    setEditSubCode('');
+    setEditSubName('');
+    setEditSubDept('CSE');
+    setEditSubPeriods(4);
+    setEditSubIsLab(false);
+    setEditSubColor('');
+    setEditSubFormSubmitted(false);
+  };
+
+  const updateSubject = (e: FormEvent) => {
+    e.preventDefault();
+    setEditSubFormSubmitted(true);
+    if (!editingSubjectId || !editSubCode || !editSubName) return;
+
+    setSubjects(prevSubs => prevSubs.map(s => {
+      if (s.id === editingSubjectId) {
+        return {
+          ...s,
+          code: editSubCode.toUpperCase(),
+          name: editSubName,
+          department: editSubDept,
+          weeklyPeriods: Number(editSubPeriods),
+          isLab: editSubIsLab,
+          color: editSubColor || getUniqueUnusedColor(subjects.filter(item => item.id !== editingSubjectId))
+        };
+      }
+      return s;
+    }));
+
+    showAuthNotice(`Subject details updated successfully.`);
+    cancelEditingSubject();
   };
 
   const deleteClass = (id: string) => {
@@ -1780,7 +1839,7 @@ export default function App() {
       day: string;
       pIdx?: number;
       message: string;
-      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap';
+      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision';
     }[] = [];
 
     const activeSlots = timeSlots.filter(s => !s.isBreak);
@@ -1839,6 +1898,61 @@ export default function App() {
             message: `Teacher ${facName} is scheduled in multiple classes at the same time: ${classNames.join(', ')}`,
             type: 'clash'
           });
+        }
+      }
+    }
+
+    // 1b. Sibling Batch Collisions ('batch-collision')
+    // Check if sibling batches (like A1 and A2, B1 and B2) are assigned a lab simultaneously with the same faculty.
+    for (const cls1 of classes) {
+      const classSched1 = customSchedule[cls1.id];
+      if (!classSched1) continue;
+      for (const cls2 of classes) {
+        // Only check sibling pairs once to avoid duplicate warnings
+        if (cls1.id >= cls2.id) continue;
+        if (!areSiblingBatches(cls1, cls2)) continue;
+
+        const classSched2 = customSchedule[cls2.id];
+        if (!classSched2) continue;
+
+        for (const day of days) {
+          const slots1 = classSched1[day] || [];
+          const slots2 = classSched2[day] || [];
+          for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+            const a1Id = slots1[pIdx];
+            const a2Id = slots2[pIdx];
+
+            if (a1Id && a2Id) {
+              const assign1 = assignments.find(a => a.id === a1Id);
+              const assign2 = assignments.find(a => a.id === a2Id);
+              if (assign1 && assign2 && assign1.facultyId === assign2.facultyId) {
+                // Check if they are lab subjects
+                const sub1 = subjects.find(s => s.id === assign1.subjectId);
+                const sub2 = subjects.find(s => s.id === assign2.subjectId);
+                if (sub1 && sub1.isLab && sub2 && sub2.isLab) {
+                  const fac = faculties.find(f => f.id === assign1.facultyId);
+                  const facName = fac ? fac.shortName : 'Faculty';
+                  const labName = sub1.code === sub2.code ? sub1.code : `${sub1.code}/${sub2.code}`;
+
+                  warningsList.push({
+                    classId: cls1.id,
+                    day,
+                    pIdx,
+                    message: `Batch collision: Sibling batch ${cls2.name} (Sec ${cls2.section}) is assigned lab ${labName} simultaneously with faculty ${facName}.`,
+                    type: 'batch-collision'
+                  });
+
+                  warningsList.push({
+                    classId: cls2.id,
+                    day,
+                    pIdx,
+                    message: `Batch collision: Sibling batch ${cls1.name} (Sec ${cls1.section}) is assigned lab ${labName} simultaneously with faculty ${facName}.`,
+                    type: 'batch-collision'
+                  });
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -2835,14 +2949,38 @@ service cloud.firestore {
 
                                     const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color) : null;
 
+                                    const currentClass = classes.find(c => c.id === selectedClassId);
+                                    const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
+                                    const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null;
+
                                     return (
                                       <div 
                                         key={slot.id} 
                                         className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
                                           assign && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
-                                        }`}
+                                        } ${batchStr ? 'pl-3.5' : ''}`}
                                         style={assign && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
                                       >
+                                        {batchStr && assign && (
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                                            batchStr === 'A1' ? 'bg-amber-500' :
+                                            batchStr === 'A2' ? 'bg-blue-500' :
+                                            batchStr === 'B1' ? 'bg-emerald-500' :
+                                            batchStr === 'B2' ? 'bg-indigo-500' :
+                                            'bg-slate-500'
+                                          }`} />
+                                        )}
+                                        {batchStr && assign && (
+                                          <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1 py-0.2 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 ${
+                                            batchStr === 'A1' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                            batchStr === 'A2' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                            batchStr === 'B1' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                            batchStr === 'B2' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                            'bg-slate-100 text-slate-800 border-slate-300'
+                                          }`}>
+                                            {batchStr}
+                                          </span>
+                                        )}
                                         {assign && sub && fac && palette ? (
                                           <>
                                             <div>
@@ -3087,15 +3225,38 @@ service cloud.firestore {
                               }
 
                               const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code, matchDetails.sub.color) : null;
+                              const currentClass = matchDetails?.cls;
+                              const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
+                              const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null;
 
                               return (
                                 <div 
                                   key={slot.id} 
                                   className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
                                     matchDetails && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
-                                  }`}
+                                  } ${batchStr ? 'pl-3.5' : ''}`}
                                   style={matchDetails && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
                                 >
+                                  {batchStr && matchDetails && (
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                                      batchStr === 'A1' ? 'bg-amber-500' :
+                                      batchStr === 'A2' ? 'bg-blue-500' :
+                                      batchStr === 'B1' ? 'bg-emerald-500' :
+                                      batchStr === 'B2' ? 'bg-indigo-500' :
+                                      'bg-slate-500'
+                                    }`} />
+                                  )}
+                                  {batchStr && matchDetails && (
+                                    <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1 py-0.2 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 ${
+                                      batchStr === 'A1' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                      batchStr === 'A2' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                      batchStr === 'B1' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                      batchStr === 'B2' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                      'bg-slate-100 text-slate-800 border-slate-300'
+                                    }`}>
+                                      {batchStr}
+                                    </span>
+                                  )}
                                   {matchDetails && palette ? (
                                     <>
                                       <div>
@@ -3384,6 +3545,10 @@ service cloud.firestore {
                                     const isClash = cellWarnings.some(w => w.type === 'clash');
                                     const isSelectedForSwap = selectedCell && selectedCell.day === day && selectedCell.slotIdx === currentActiveIdx;
 
+                                    const currentClass = classes.find(c => c.id === selectedClassId);
+                                    const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
+                                    const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null;
+
                                     return (
                                       <div 
                                         key={slot.id} 
@@ -3448,9 +3613,29 @@ service cloud.firestore {
                                             : assign && sub
                                               ? (getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${getSubjectPalette(sub.id, sub.code, sub.color).bg} ${getSubjectPalette(sub.id, sub.code, sub.color).hoverBg}`)
                                               : 'bg-slate-50/10 hover:bg-slate-50/40'
-                                        } ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''}`}
+                                        } ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''} ${batchStr ? 'pl-3.5' : ''}`}
                                         style={assign && sub && getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? { '--custom-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.bg, '--custom-hover-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.hoverBg, '--custom-text': getSubjectPalette(sub.id, sub.code, sub.color).styles?.text, '--custom-border': getSubjectPalette(sub.id, sub.code, sub.color).styles?.border } as CSSProperties : undefined}
                                       >
+                                        {batchStr && assign && (
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                                            batchStr === 'A1' ? 'bg-amber-500' :
+                                            batchStr === 'A2' ? 'bg-blue-500' :
+                                            batchStr === 'B1' ? 'bg-emerald-500' :
+                                            batchStr === 'B2' ? 'bg-indigo-500' :
+                                            'bg-slate-500'
+                                          }`} />
+                                        )}
+                                        {batchStr && assign && (
+                                          <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1 py-0.2 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 ${
+                                            batchStr === 'A1' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                            batchStr === 'A2' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                            batchStr === 'B1' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                            batchStr === 'B2' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                            'bg-slate-100 text-slate-800 border-slate-300'
+                                          }`}>
+                                            {batchStr}
+                                          </span>
+                                        )}
                                         {assign && sub && fac ? (
                                           (() => {
                                             const palette = getSubjectPalette(sub.id, sub.code, sub.color);
@@ -3759,139 +3944,286 @@ service cloud.firestore {
           {/* ========================================== */}
           {activeTab === 'subjects' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Left Form: Add Subject */}
+              {/* Left Form: Add / Edit Subject */}
               <div className="bg-white border border-slate-200 rounded p-4 shadow-sm self-start">
-                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                  <BookOpen className="h-4 w-4 text-blue-900" />
-                  <span>Register Subject</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mb-3">Add syllabus courses and weekly credit hours requirements.</p>
+                {editingSubjectId ? (
+                  <>
+                    <h3 className="font-bold text-amber-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-amber-100 pb-2 mb-3">
+                      <Pencil className="h-4 w-4 text-amber-600" />
+                      <span>Edit Subject Details</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-3">Update this course's syllabus configuration and periods.</p>
 
-                <form onSubmit={addSubject} className="space-y-3" noValidate>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Subject Code</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. 21CS51"
-                        value={newSubCode}
-                        onChange={(e) => setNewSubCode(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          subFormSubmitted && !newSubCode ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Department</label>
-                      <select
-                        value={newSubDept}
-                        onChange={(e) => setNewSubDept(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
-                      >
-                        <option value="CSE">CSE</option>
-                        <option value="ECE">ECE</option>
-                        <option value="Applied Science">Applied Science</option>
-                        <option value="Civil">Civil</option>
-                        <option value="Mechanical">Mechanical</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Database Management"
-                      value={newSubName}
-                      onChange={(e) => setNewSubName(e.target.value)}
-                      className={`w-full bg-slate-50 border ${
-                        subFormSubmitted && !newSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                      } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Weekly Periods</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="number"
-                          required
-                          min={1}
-                          max={10}
-                          value={newSubPeriods}
-                          onChange={(e) => setNewSubPeriods(Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
-                        />
-                        <span className="text-[11px] text-slate-500 font-semibold flex-shrink-0">/ week</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-end pb-1.5">
-                      <label className="flex items-center space-x-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={newSubIsLab}
-                          onChange={(e) => setNewSubIsLab(e.target.checked)}
-                          className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-blue-900 cursor-pointer"
-                        />
-                        <span className="text-xs font-bold text-slate-700">Is Lab / Pract.?</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-3">
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
-                      <span>Background Color Accent</span>
-                    </label>
-                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2">
-                      <div className="flex items-center space-x-2">
-                        <div 
-                          className="w-5.5 h-5.5 rounded-full border border-slate-300 shadow-inner flex-shrink-0 transition-all"
-                          style={{ backgroundColor: newSubColor || '#cbd5e1' }}
-                          title={newSubColor || 'Auto-assigned color'}
-                        />
+                    <form onSubmit={updateSubject} className="space-y-3" noValidate>
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
-                            {newSubColor ? newSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
-                          </p>
-                          <p className="text-[8px] text-slate-400 font-medium">
-                            {newSubColor ? 'Custom color accent' : 'Unique system pastel'}
-                          </p>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Subject Code</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. 21CS51"
+                            value={editSubCode}
+                            onChange={(e) => setEditSubCode(e.target.value)}
+                            className={`w-full bg-amber-50/10 border ${
+                              editSubFormSubmitted && !editSubCode ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Department</label>
+                          <select
+                            value={editSubDept}
+                            onChange={(e) => setEditSubDept(e.target.value)}
+                            className="w-full bg-amber-50/10 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                          >
+                            <option value="CSE">CSE</option>
+                            <option value="ECE">ECE</option>
+                            <option value="Applied Science">Applied Science</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Mechanical">Mechanical</option>
+                          </select>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-1.5">
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Database Management"
+                          value={editSubName}
+                          onChange={(e) => setEditSubName(e.target.value)}
+                          className={`w-full bg-amber-50/10 border ${
+                            editSubFormSubmitted && !editSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Weekly Periods</label>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              required
+                              min={1}
+                              max={10}
+                              value={editSubPeriods}
+                              onChange={(e) => setEditSubPeriods(Number(e.target.value))}
+                              className="w-full bg-amber-50/10 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                            />
+                            <span className="text-[11px] text-slate-500 font-semibold flex-shrink-0">/ week</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-end pb-1.5">
+                          <label className="flex items-center space-x-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={editSubIsLab}
+                              onChange={(e) => setEditSubIsLab(e.target.checked)}
+                              className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                            />
+                            <span className="text-xs font-bold text-slate-700">Is Lab / Pract.?</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
+                          <span>Background Color Accent</span>
+                        </label>
+                        <div className="flex items-center justify-between bg-amber-50/10 border border-slate-200 rounded p-2">
+                          <div className="flex items-center space-x-2">
+                            <div 
+                              className="w-5.5 h-5.5 rounded-full border border-slate-300 shadow-inner flex-shrink-0 transition-all"
+                              style={{ backgroundColor: editSubColor || '#cbd5e1' }}
+                              title={editSubColor || 'Auto-assigned color'}
+                            />
+                            <div>
+                              <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
+                                {editSubColor ? editSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
+                              </p>
+                              <p className="text-[8px] text-slate-400 font-medium">
+                                {editSubColor ? 'Custom color accent' : 'Unique system pastel'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setIsColorModalOpen(true)}
+                              className="py-1 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
+                            >
+                              <Palette className="h-2.5 w-2.5 text-slate-500" />
+                              <span>Choose Color</span>
+                            </button>
+                            {editSubColor && (
+                              <button
+                                type="button"
+                                onClick={() => setEditSubColor('')}
+                                className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex space-x-2 pt-2">
                         <button
                           type="button"
-                          onClick={() => setIsColorModalOpen(true)}
-                          className="py-1 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
+                          onClick={cancelEditingSubject}
+                          className="flex-1 py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] uppercase tracking-wider rounded transition cursor-pointer text-center"
                         >
-                          <Palette className="h-2.5 w-2.5 text-slate-500" />
-                          <span>Choose Color</span>
+                          Cancel
                         </button>
-                        {newSubColor && (
-                          <button
-                            type="button"
-                            onClick={() => setNewSubColor('')}
-                            className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
-                          >
-                            Reset
-                          </button>
-                        )}
+                        <button
+                          type="submit"
+                          className="flex-1 py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1 cursor-pointer text-center"
+                        >
+                          <Check className="h-3 w-3 text-white" />
+                          <span>Save Changes</span>
+                        </button>
                       </div>
-                    </div>
-                  </div>
+                    </form>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
+                      <BookOpen className="h-4 w-4 text-blue-900" />
+                      <span>Register Subject</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-3">Add syllabus courses and weekly credit hours requirements.</p>
 
-                  <button
-                    type="submit"
-                    className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-amber-300" />
-                    <span>Register Subject</span>
-                  </button>
-                </form>
+                    <form onSubmit={addSubject} className="space-y-3" noValidate>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Subject Code</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. 21CS51"
+                            value={newSubCode}
+                            onChange={(e) => setNewSubCode(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              subFormSubmitted && !newSubCode ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                            } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Department</label>
+                          <select
+                            value={newSubDept}
+                            onChange={(e) => setNewSubDept(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                          >
+                            <option value="CSE">CSE</option>
+                            <option value="ECE">ECE</option>
+                            <option value="Applied Science">Applied Science</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Mechanical">Mechanical</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Database Management"
+                          value={newSubName}
+                          onChange={(e) => setNewSubName(e.target.value)}
+                          className={`w-full bg-slate-50 border ${
+                            subFormSubmitted && !newSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Weekly Periods</label>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              required
+                              min={1}
+                              max={10}
+                              value={newSubPeriods}
+                              onChange={(e) => setNewSubPeriods(Number(e.target.value))}
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                            />
+                            <span className="text-[11px] text-slate-500 font-semibold flex-shrink-0">/ week</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-end pb-1.5">
+                          <label className="flex items-center space-x-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={newSubIsLab}
+                              onChange={(e) => setNewSubIsLab(e.target.checked)}
+                              className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-blue-900 cursor-pointer"
+                            />
+                            <span className="text-xs font-bold text-slate-700">Is Lab / Pract.?</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
+                          <span>Background Color Accent</span>
+                        </label>
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2">
+                          <div className="flex items-center space-x-2">
+                            <div 
+                              className="w-5.5 h-5.5 rounded-full border border-slate-300 shadow-inner flex-shrink-0 transition-all"
+                              style={{ backgroundColor: newSubColor || '#cbd5e1' }}
+                              title={newSubColor || 'Auto-assigned color'}
+                            />
+                            <div>
+                              <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
+                                {newSubColor ? newSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
+                              </p>
+                              <p className="text-[8px] text-slate-400 font-medium">
+                                {newSubColor ? 'Custom color accent' : 'Unique system pastel'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setIsColorModalOpen(true)}
+                              className="py-1 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
+                            >
+                              <Palette className="h-2.5 w-2.5 text-slate-500" />
+                              <span>Choose Color</span>
+                            </button>
+                            {newSubColor && (
+                              <button
+                                type="button"
+                                onClick={() => setNewSubColor('')}
+                                className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5 text-amber-300" />
+                        <span>Register Subject</span>
+                      </button>
+                    </form>
+                  </>
+                )}
               </div>
 
               {/* Right List: Subjects */}
@@ -3922,7 +4254,12 @@ service cloud.firestore {
                     <tbody className="divide-y divide-slate-100">
                       {subjects.length > 0 ? (
                         subjects.map((sub) => (
-                          <tr key={sub.id} className="hover:bg-slate-50/50 transition">
+                          <tr 
+                            key={sub.id} 
+                            className={`transition ${
+                              editingSubjectId === sub.id ? 'bg-amber-50/30 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'
+                            }`}
+                          >
                             <td className="p-2.5 font-mono font-bold text-slate-900">{sub.code}</td>
                             <td className="p-2.5">
                               <div className="flex items-center space-x-1.5">
@@ -3952,7 +4289,16 @@ service cloud.firestore {
                                 {sub.weeklyPeriods} periods
                               </span>
                             </td>
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 text-center flex items-center justify-center space-x-2">
+                              <button
+                                onClick={() => startEditingSubject(sub)}
+                                className={`p-1 transition cursor-pointer ${
+                                  editingSubjectId === sub.id ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-blue-900'
+                                }`}
+                                title="Edit subject details"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
                               <button
                                 onClick={() => deleteSubject(sub.id)}
                                 className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
@@ -4446,114 +4792,118 @@ service cloud.firestore {
       {/* ========================================== */}
       {/* BACKGROUND COLOR ACCENT SELECTOR MODAL     */}
       {/* ========================================== */}
-      {isColorModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Palette className="h-4 w-4 text-slate-700" />
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Choose Accent Color</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsColorModalOpen(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                title="Close modal"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4 overflow-y-auto">
-              <p className="text-xs text-slate-500">
-                Select a shade below from light to dark. This color accent will highlight the subject card on the timetable schedule.
-              </p>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2">
-                {COLOR_FAMILIES.map((family) => (
-                  <div key={family.name} className="flex items-center space-x-3 py-1 border-b border-slate-100 last:border-0 last:pb-0">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 w-20 truncate" title={family.name}>
-                      {family.name}
-                    </span>
-                    <div className="flex items-center space-x-1 flex-1 justify-between">
-                      {family.shades.map((shade) => {
-                        const isSelected = newSubColor.toLowerCase() === shade.toLowerCase();
-                        return (
-                          <button
-                            key={shade}
-                            type="button"
-                            onClick={() => setNewSubColor(shade)}
-                            className={`w-5.5 h-5.5 rounded-full border transition-all duration-150 flex items-center justify-center cursor-pointer ${
-                              isSelected 
-                                ? 'ring-2 ring-slate-800 ring-offset-1 scale-110 border-slate-800 shadow-md z-10' 
-                                : 'border-slate-300 hover:scale-105 hover:border-slate-500 hover:shadow-sm'
-                            }`}
-                            style={{ backgroundColor: shade }}
-                            title={`${family.name} shade: ${shade.toUpperCase()}`}
-                          >
-                            {isSelected && (
-                              <span 
-                                className="text-[9px] font-bold leading-none select-none" 
-                                style={{ color: getContrastTextColor(shade) }}
-                              >
-                                ✓
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+      {isColorModalOpen && (() => {
+        const activeColor = editingSubjectId ? editSubColor : newSubColor;
+        const setActiveColor = editingSubjectId ? setEditSubColor : setNewSubColor;
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="color"
-                    id="modal_custom_color_picker"
-                    value={newSubColor || '#ffffff'}
-                    onChange={(e) => setNewSubColor(e.target.value)}
-                    className="h-8 w-10 rounded border border-slate-300 p-0.5 cursor-pointer bg-white"
-                  />
-                  <label htmlFor="modal_custom_color_picker" className="text-xs font-semibold text-slate-600 cursor-pointer hover:underline">
-                    Custom Color...
-                  </label>
+                  <Palette className="h-4 w-4 text-slate-700" />
+                  <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Choose Accent Color</h3>
                 </div>
-                {newSubColor && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      {newSubColor.toUpperCase()}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setNewSubColor('')}
-                      className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 italic">
-                {newSubColor ? 'Custom color selected' : 'Unique color will be auto-assigned'}
-              </span>
-              <div className="flex items-center space-x-2">
                 <button
                   type="button"
                   onClick={() => setIsColorModalOpen(false)}
-                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  title="Close modal"
                 >
-                  Done
+                  <X className="h-4 w-4" />
                 </button>
+              </div>
+              
+              <div className="p-4 space-y-4 overflow-y-auto">
+                <p className="text-xs text-slate-500">
+                  Select a shade below from light to dark. This color accent will highlight the subject card on the timetable schedule.
+                </p>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2">
+                  {COLOR_FAMILIES.map((family) => (
+                    <div key={family.name} className="flex items-center space-x-3 py-1 border-b border-slate-100 last:border-0 last:pb-0">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 w-20 truncate" title={family.name}>
+                        {family.name}
+                      </span>
+                      <div className="flex items-center space-x-1 flex-1 justify-between">
+                        {family.shades.map((shade) => {
+                          const isSelected = activeColor.toLowerCase() === shade.toLowerCase();
+                          return (
+                            <button
+                              key={shade}
+                              type="button"
+                              onClick={() => setActiveColor(shade)}
+                              className={`w-5.5 h-5.5 rounded-full border transition-all duration-150 flex items-center justify-center cursor-pointer ${
+                                isSelected 
+                                  ? 'ring-2 ring-slate-800 ring-offset-1 scale-110 border-slate-800 shadow-md z-10' 
+                                  : 'border-slate-300 hover:scale-105 hover:border-slate-500 hover:shadow-sm'
+                              }`}
+                              style={{ backgroundColor: shade }}
+                              title={`${family.name} shade: ${shade.toUpperCase()}`}
+                            >
+                              {isSelected && (
+                                <span 
+                                  className="text-[9px] font-bold leading-none select-none" 
+                                  style={{ color: getContrastTextColor(shade) }}
+                                >
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="color"
+                      id="modal_custom_color_picker"
+                      value={activeColor || '#ffffff'}
+                      onChange={(e) => setActiveColor(e.target.value)}
+                      className="h-8 w-10 rounded border border-slate-300 p-0.5 cursor-pointer bg-white"
+                    />
+                    <label htmlFor="modal_custom_color_picker" className="text-xs font-semibold text-slate-600 cursor-pointer hover:underline">
+                      Custom Color...
+                    </label>
+                  </div>
+                  {activeColor && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        {activeColor.toUpperCase()}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveColor('')}
+                        className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 italic">
+                  {activeColor ? 'Custom color selected' : 'Unique color will be auto-assigned'}
+                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsColorModalOpen(false)}
+                    className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================== */}
       {/* FIREBASE SETTINGS & MANAGER MODAL          */}

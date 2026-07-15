@@ -83,6 +83,36 @@ export function preValidateConstraints(
   };
 }
 
+export interface ClassGroupInfo {
+  groupId: string;
+  baseSection: string;
+  batch: string | null;
+  semester: string;
+}
+
+export function getClassGroupInfo(cls: ClassSection): ClassGroupInfo {
+  const sectionStr = cls.section.trim().toUpperCase();
+  // Match a letter (A-Z) followed by optional spaces/hyphens and then digits (\d+) at the end
+  const match = sectionStr.match(/([A-Z])\s*-?\s*(\d+)$/);
+  const baseSection = match ? match[1] : sectionStr;
+  const batch = match ? match[2] : null;
+  return {
+    groupId: `${cls.semester}_${baseSection}`,
+    baseSection,
+    batch,
+    semester: cls.semester
+  };
+}
+
+export function areSiblingBatches(cls1: ClassSection, cls2: ClassSection): boolean {
+  if (cls1.id === cls2.id) return false;
+  const info1 = getClassGroupInfo(cls1);
+  const info2 = getClassGroupInfo(cls2);
+  return info1.groupId === info2.groupId && 
+         info1.batch !== null && 
+         info2.batch !== null;
+}
+
 /**
  * A highly optimized backtracking timetable generator with constraint satisfaction.
  * Employs MRV (Minimum Remaining Values) sort and randomized slot picking to solve efficiently.
@@ -308,6 +338,95 @@ export function generateTimetable(
     return count;
   };
 
+  // Pre-calculate class lab units count
+  const classLabUnitsCount: Record<string, number> = {};
+  for (const cls of classes) {
+    let labCount = 0;
+    const classAssigns = assignments.filter(a => a.classId === cls.id);
+    for (const assign of classAssigns) {
+      const sub = subjects.find(s => s.id === assign.subjectId);
+      if (sub && sub.isLab) {
+        labCount += sub.weeklyPeriods;
+      }
+    }
+    classLabUnitsCount[cls.id] = labCount;
+  }
+
+  // Pre-calculate group lab faculties
+  const groupLabFaculties: Record<string, Set<string>> = {};
+  for (const assign of assignments) {
+    const sub = subjects.find(s => s.id === assign.subjectId);
+    if (sub && sub.isLab) {
+      const cls = classes.find(c => c.id === assign.classId);
+      if (cls) {
+        const info = getClassGroupInfo(cls);
+        if (!groupLabFaculties[info.groupId]) {
+          groupLabFaculties[info.groupId] = new Set();
+        }
+        groupLabFaculties[info.groupId].add(assign.facultyId);
+      }
+    }
+  }
+
+  const shareLabFaculty = (groupId1: string, groupId2: string): boolean => {
+    if (groupId1 === groupId2) return false;
+    const set1 = groupLabFaculties[groupId1];
+    const set2 = groupLabFaculties[groupId2];
+    if (!set1 || !set2) return false;
+    for (const fac of set1) {
+      if (set2.has(fac)) return true;
+    }
+    return false;
+  };
+
+  const hasClassLabOnDay = (classId: string, day: DayOfWeek): boolean => {
+    for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+      const subId = getSubjectAt(classId, day, pIdx);
+      if (subId) {
+        const sub = subjects.find(s => s.id === subId);
+        if (sub && sub.isLab) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const countScheduledLabUnits = (classId: string): number => {
+    let count = 0;
+    for (const d of days) {
+      for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+        const subId = getSubjectAt(classId, d, pIdx);
+        if (subId) {
+          const sub = subjects.find(s => s.id === subId);
+          if (sub && sub.isLab) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  };
+
+  const hasSharedFacultyLabOnDay = (classId: string, day: DayOfWeek): boolean => {
+    const currentCls = classes.find(cl => cl.id === classId);
+    if (!currentCls) return false;
+    const currentInfo = getClassGroupInfo(currentCls);
+
+    for (const otherCls of classes) {
+      if (otherCls.id === classId) continue;
+      const otherInfo = getClassGroupInfo(otherCls);
+      if (currentInfo.groupId === otherInfo.groupId) continue;
+
+      if (shareLabFaculty(currentInfo.groupId, otherInfo.groupId)) {
+        if (hasClassLabOnDay(otherCls.id, day)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   // Backtracking function
   let steps = 0;
   const MAX_STEPS = 15000;
@@ -442,6 +561,36 @@ export function generateTimetable(
             if (alreadyAllotted) break;
           }
           if (alreadyAllotted) continue;
+        }
+
+        // 4. Lab constraints: sibling batches on the same day, shared-faculty labs on different days
+        if (isLab) {
+          const currentCls = classes.find(cl => cl.id === classId);
+          if (currentCls) {
+            const siblings = classes.filter(cl => areSiblingBatches(currentCls, cl));
+            let siblingConstraintViolated = false;
+            for (const sib of siblings) {
+              const sibTotalLabPeriods = classLabUnitsCount[sib.id] || 0;
+              if (sibTotalLabPeriods === 0) continue;
+
+              const sibHasLabOnDay = hasClassLabOnDay(sib.id, day);
+              if (sibHasLabOnDay) {
+                continue; // Matches sibling's lab day
+              }
+
+              const sibScheduledLabPeriods = countScheduledLabUnits(sib.id);
+              const sibRemainingLabPeriods = sibTotalLabPeriods - sibScheduledLabPeriods;
+              if (sibRemainingLabPeriods <= 0) {
+                siblingConstraintViolated = true;
+                break;
+              }
+            }
+            if (siblingConstraintViolated) continue;
+          }
+
+          if (hasSharedFacultyLabOnDay(classId, day)) {
+            continue;
+          }
         }
 
         candidates.push({ day, periodIdx: pIdx });
@@ -631,6 +780,95 @@ function greedyFallback(
     return count;
   };
 
+  // Pre-calculate class lab units count
+  const classLabUnitsCount: Record<string, number> = {};
+  for (const cls of classes) {
+    let labCount = 0;
+    const classAssigns = assignments.filter(a => a.classId === cls.id);
+    for (const assign of classAssigns) {
+      const sub = subjects.find(s => s.id === assign.subjectId);
+      if (sub && sub.isLab) {
+        labCount += sub.weeklyPeriods;
+      }
+    }
+    classLabUnitsCount[cls.id] = labCount;
+  }
+
+  // Pre-calculate group lab faculties
+  const groupLabFaculties: Record<string, Set<string>> = {};
+  for (const assign of assignments) {
+    const sub = subjects.find(s => s.id === assign.subjectId);
+    if (sub && sub.isLab) {
+      const cls = classes.find(c => c.id === assign.classId);
+      if (cls) {
+        const info = getClassGroupInfo(cls);
+        if (!groupLabFaculties[info.groupId]) {
+          groupLabFaculties[info.groupId] = new Set();
+        }
+        groupLabFaculties[info.groupId].add(assign.facultyId);
+      }
+    }
+  }
+
+  const shareLabFaculty = (groupId1: string, groupId2: string): boolean => {
+    if (groupId1 === groupId2) return false;
+    const set1 = groupLabFaculties[groupId1];
+    const set2 = groupLabFaculties[groupId2];
+    if (!set1 || !set2) return false;
+    for (const fac of set1) {
+      if (set2.has(fac)) return true;
+    }
+    return false;
+  };
+
+  const hasClassLabOnDay = (classId: string, day: DayOfWeek): boolean => {
+    for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+      const subId = getSubjectAt(classId, day, pIdx);
+      if (subId) {
+        const sub = subjects.find(s => s.id === subId);
+        if (sub && sub.isLab) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const countScheduledLabUnits = (classId: string): number => {
+    let count = 0;
+    for (const d of days) {
+      for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+        const subId = getSubjectAt(classId, d, pIdx);
+        if (subId) {
+          const sub = subjects.find(s => s.id === subId);
+          if (sub && sub.isLab) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  };
+
+  const hasSharedFacultyLabOnDay = (classId: string, day: DayOfWeek): boolean => {
+    const currentCls = classes.find(cl => cl.id === classId);
+    if (!currentCls) return false;
+    const currentInfo = getClassGroupInfo(currentCls);
+
+    for (const otherCls of classes) {
+      if (otherCls.id === classId) continue;
+      const otherInfo = getClassGroupInfo(otherCls);
+      if (currentInfo.groupId === otherInfo.groupId) continue;
+
+      if (shareLabFaculty(currentInfo.groupId, otherInfo.groupId)) {
+        if (hasClassLabOnDay(otherCls.id, day)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   const lectureUnits: LectureUnit[] = [];
   for (const assign of assignments) {
     const sub = subjects.find(s => s.id === assign.subjectId);
@@ -781,6 +1019,36 @@ function greedyFallback(
           if (alreadyAllotted) break;
         }
         if (alreadyAllotted) continue;
+      }
+
+      // 4. Lab constraints: sibling batches on the same day, shared-faculty labs on different days
+      if (isLab) {
+        const currentCls = classes.find(cl => cl.id === classId);
+        if (currentCls) {
+          const siblings = classes.filter(cl => areSiblingBatches(currentCls, cl));
+          let siblingConstraintViolated = false;
+          for (const sib of siblings) {
+            const sibTotalLabPeriods = classLabUnitsCount[sib.id] || 0;
+            if (sibTotalLabPeriods === 0) continue;
+
+            const sibHasLabOnDay = hasClassLabOnDay(sib.id, day);
+            if (sibHasLabOnDay) {
+              continue; // Matches sibling's lab day
+            }
+
+            const sibScheduledLabPeriods = countScheduledLabUnits(sib.id);
+            const sibRemainingLabPeriods = sibTotalLabPeriods - sibScheduledLabPeriods;
+            if (sibRemainingLabPeriods <= 0) {
+              siblingConstraintViolated = true;
+              break;
+            }
+          }
+          if (siblingConstraintViolated) continue;
+        }
+
+        if (hasSharedFacultyLabOnDay(classId, day)) {
+          continue;
+        }
       }
 
       // Place
