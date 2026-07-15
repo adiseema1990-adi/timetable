@@ -529,7 +529,7 @@ export default function App() {
   const AUTHORIZED_EMAILS = [
     'adiseema1990@gmail.com',
     'sachinadi88@gmail.com',
-    'another.teacher@gmail.com'
+    'adisachin1988@gmail.com'
   ];
 
   // --- Firebase Google Auth State Listener ---
