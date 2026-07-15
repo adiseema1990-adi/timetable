@@ -444,6 +444,26 @@ export default function App() {
   // --- Mock Auth Notification ---
   const [authNotification, setAuthNotification] = useState<string | null>(null);
 
+  // --- Floating Toast Notifications ---
+  interface ToastItem {
+    id: string;
+    message: string;
+    type: 'success' | 'info' | 'warning' | 'error';
+  }
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    const id = 'toast_' + Date.now() + Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
   // --- Firebase Integration States ---
   const [firebaseTimetables, setFirebaseTimetables] = useState<string[]>([]);
   const [activeTimetableName, setActiveTimetableName] = useState<string>('Main Timetable');
@@ -954,6 +974,17 @@ export default function App() {
   };
 
   const showAuthNotice = (msg: string) => {
+    let toastType: 'success' | 'info' | 'warning' | 'error' = 'success';
+    const lower = msg.toLowerCase();
+    if (lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied')) {
+      toastType = 'error';
+    } else if (lower.includes('warning')) {
+      toastType = 'warning';
+    } else if (lower.includes('info') || lower.includes('loading') || lower.includes('fetching') || lower.includes('generating') || lower.includes('preparing')) {
+      toastType = 'info';
+    }
+    
+    addToast(msg, toastType);
     setAuthNotification(msg);
     setTimeout(() => setAuthNotification(null), 4000);
   };
@@ -1751,15 +1782,23 @@ export default function App() {
   };
 
   const deleteFaculty = (id: string) => {
+    const fac = faculties.find(f => f.id === id);
     setFaculties(faculties.filter(f => f.id !== id));
     setAssignments(assignments.filter(a => a.facultyId !== id));
+    if (fac) {
+      showAuthNotice(`Faculty "${fac.name}" (${fac.shortName}) deleted successfully.`);
+    }
   };
 
   const deleteSubject = (id: string) => {
+    const sub = subjects.find(s => s.id === id);
     setSubjects(subjects.filter(s => s.id !== id));
     setAssignments(assignments.filter(a => a.subjectId !== id));
     if (editingSubjectId === id) {
       cancelEditingSubject();
+    }
+    if (sub) {
+      showAuthNotice(`Subject "${sub.name}" (${sub.code}) deleted successfully.`);
     }
   };
 
@@ -1813,20 +1852,38 @@ export default function App() {
   };
 
   const deleteClass = (id: string) => {
+    const cls = classes.find(c => c.id === id);
     setClasses(classes.filter(c => c.id !== id));
     setAssignments(assignments.filter(a => a.classId !== id));
     if (selectedClassId === id) {
       const remaining = classes.filter(c => c.id !== id);
       setSelectedClassId(remaining.length > 0 ? remaining[0].id : '');
     }
+    if (cls) {
+      showAuthNotice(`Class "${cls.name} (Sec ${cls.section})" deleted successfully.`);
+    }
   };
 
   const deleteAssignment = (id: string) => {
+    const assign = assignments.find(a => a.id === id);
     setAssignments(assignments.filter(a => a.id !== id));
+    if (assign) {
+      const sub = subjects.find(s => s.id === assign.subjectId);
+      const fac = faculties.find(f => f.id === assign.facultyId);
+      const cls = classes.find(c => c.id === assign.classId);
+      const subCode = sub ? sub.code : 'Subject';
+      const facName = fac ? fac.shortName : 'Faculty';
+      const clsName = cls ? `${cls.name} (Sec ${cls.section})` : '';
+      showAuthNotice(`Assignment of "${subCode}" to "${facName}" for Class ${clsName} deleted successfully.`);
+    }
   };
 
   const deleteTimeSlot = (id: string) => {
+    const slot = timeSlots.find(t => t.id === id);
     setTimeSlots(timeSlots.filter(t => t.id !== id));
+    if (slot) {
+      showAuthNotice(`Time slot "${slot.label}" (${slot.startTime} - ${slot.endTime}) deleted successfully.`);
+    }
   };
 
   // --- Helper Selectors ---
@@ -2374,6 +2431,59 @@ export default function App() {
       )}
 
       {/* ========================================== */}
+      {/* FLOATING TOP RIGHT TOAST CONTAINER         */}
+      {/* ========================================== */}
+      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full">
+        {toasts.map((toast) => {
+          const isSuccess = toast.type === 'success';
+          const isError = toast.type === 'error';
+          const isWarning = toast.type === 'warning';
+          const isDeletion = toast.message.toLowerCase().includes('deleted') || toast.message.toLowerCase().includes('delete') || toast.message.toLowerCase().includes('removed');
+          
+          let cardBgClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
+          let iconColorClass = 'text-emerald-600';
+          let IconComp = CheckCircle;
+          
+          if (isDeletion) {
+            cardBgClass = 'bg-rose-50 border-rose-200/80 text-rose-900';
+            iconColorClass = 'text-rose-600';
+            IconComp = Trash2;
+          } else if (isError) {
+            cardBgClass = 'bg-red-50 border-red-200 text-red-900';
+            iconColorClass = 'text-red-600';
+            IconComp = AlertCircle;
+          } else if (isWarning) {
+            cardBgClass = 'bg-amber-50 border-amber-200 text-amber-900';
+            iconColorClass = 'text-amber-600';
+            IconComp = AlertTriangle;
+          } else if (toast.type === 'info') {
+            cardBgClass = 'bg-blue-50 border-blue-200 text-blue-900';
+            iconColorClass = 'text-blue-600';
+            IconComp = Info;
+          }
+
+          return (
+            <div
+              key={toast.id}
+              className={`pointer-events-auto border rounded-xl shadow-lg px-4 py-3 flex items-start space-x-3 animate-slide-in-right max-w-sm w-full transition-all duration-300 ${cardBgClass}`}
+            >
+              <IconComp className={`h-5 w-5 flex-shrink-0 mt-0.5 ${iconColorClass}`} />
+              <div className="flex-1 text-xs font-semibold pr-2 leading-relaxed">
+                {toast.message}
+              </div>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="text-slate-400 hover:text-slate-600 transition p-0.5 rounded-full hover:bg-black/5 flex-shrink-0 cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ========================================== */}
       {/* MAIN CONTENT AREA                          */}
       {/* ========================================== */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col">
@@ -2718,6 +2828,10 @@ service cloud.firestore {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Lab 2-Period Block</span>
+                        <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Project After Lunch Break</span>
                         <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
                       </div>
                     </div>

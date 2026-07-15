@@ -41,14 +41,30 @@ export function preValidateConstraints(
   const activeSlotsCount = timeSlots.filter(s => !s.isBreak).length;
   const totalSlotsPerClass = activeSlotsCount * days.length;
 
+  // total slots after lunch per class
+  const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
+  let activeSlotsAfterLunchCount = 0;
+  if (lunchBreakIdx !== -1) {
+    for (let i = lunchBreakIdx + 1; i < timeSlots.length; i++) {
+      if (!timeSlots[i].isBreak) {
+        activeSlotsAfterLunchCount++;
+      }
+    }
+  }
+  const totalSlotsAfterLunchPerClass = activeSlotsAfterLunchCount * days.length;
+
   // 1. Check if any class has more requested periods than total slots in the week
   for (const cls of classes) {
     const classAssignments = assignments.filter(a => a.classId === cls.id);
     let totalPeriodsRequested = 0;
+    let totalProjectPeriodsRequested = 0;
     for (const assign of classAssignments) {
       const sub = subjects.find(s => s.id === assign.subjectId);
       if (sub) {
         totalPeriodsRequested += sub.weeklyPeriods;
+        if (sub.isProject) {
+          totalProjectPeriodsRequested += sub.weeklyPeriods;
+        }
       }
     }
 
@@ -57,22 +73,38 @@ export function preValidateConstraints(
         `Class "${cls.name} (Sec ${cls.section})" requires ${totalPeriodsRequested} periods, but only ${totalSlotsPerClass} slots are available in the week (${days.length} days × ${activeSlotsCount} periods).`
       );
     }
+
+    if (lunchBreakIdx !== -1 && totalProjectPeriodsRequested > totalSlotsAfterLunchPerClass) {
+      errors.push(
+        `Class "${cls.name} (Sec ${cls.section})" requires ${totalProjectPeriodsRequested} Project/Seminar/Internship periods, but only ${totalSlotsAfterLunchPerClass} slots after lunch are available in the week (${days.length} days × ${activeSlotsAfterLunchCount} periods).`
+      );
+    }
   }
 
   // 2. Check if any faculty has more total periods than the total slots in a week (impossible to schedule even without overlaps)
   for (const fac of faculties) {
     const facAssignments = assignments.filter(a => a.facultyId === fac.id);
     let totalFacPeriods = 0;
+    let totalFacProjectPeriods = 0;
     for (const assign of facAssignments) {
       const sub = subjects.find(s => s.id === assign.subjectId);
       if (sub) {
         totalFacPeriods += sub.weeklyPeriods;
+        if (sub.isProject) {
+          totalFacProjectPeriods += sub.weeklyPeriods;
+        }
       }
     }
 
     if (totalFacPeriods > totalSlotsPerClass) {
       errors.push(
         `Faculty "${fac.name} (${fac.shortName})" is assigned to teach ${totalFacPeriods} periods, but there are only ${totalSlotsPerClass} total available slots in a week.`
+      );
+    }
+
+    if (lunchBreakIdx !== -1 && totalFacProjectPeriods > totalSlotsAfterLunchPerClass) {
+      errors.push(
+        `Faculty "${fac.name} (${fac.shortName})" is assigned to teach ${totalFacProjectPeriods} Project/Seminar/Internship periods, but there are only ${totalSlotsAfterLunchPerClass} available slots after lunch in a week.`
       );
     }
   }
@@ -486,6 +518,18 @@ export function generateTimetable(
         } else {
           if (schedule[classId][day][pIdx] !== null) continue;
           if (teacherBusy[facultyId][day][pIdx]) continue;
+        }
+
+        // Constraint: If subject is a Project/Seminar/Internship, it MUST be scheduled AFTER the lunch break
+        if (sub && sub.isProject && lunchBreakIdx !== -1) {
+          const slot1 = activeSlots[pIdx];
+          const origIdx1 = timeSlots.findIndex(s => s.id === slot1.id);
+          if (origIdx1 <= lunchBreakIdx) continue;
+          if (duration === 2) {
+            const slot2 = activeSlots[pIdx + 1];
+            const origIdx2 = timeSlots.findIndex(s => s.id === slot2.id);
+            if (origIdx2 <= lunchBreakIdx) continue;
+          }
         }
 
         // Apply continuous class constraint if faculty takes multiple subjects in this class
@@ -950,6 +994,18 @@ function greedyFallback(
       } else {
         if (schedule[classId][day][pIdx] !== null) continue;
         if (teacherBusy[facultyId][day][pIdx]) continue;
+      }
+
+      // Constraint: If subject is a Project/Seminar/Internship, it MUST be scheduled AFTER the lunch break
+      if (sub && sub.isProject && lunchBreakIdx !== -1) {
+        const slot1 = activeSlots[pIdx];
+        const origIdx1 = timeSlots.findIndex(s => s.id === slot1.id);
+        if (origIdx1 <= lunchBreakIdx) continue;
+        if (duration === 2) {
+          const slot2 = activeSlots[pIdx + 1];
+          const origIdx2 = timeSlots.findIndex(s => s.id === slot2.id);
+          if (origIdx2 <= lunchBreakIdx) continue;
+        }
       }
 
       // Apply continuous class constraint if faculty takes multiple subjects in this class
