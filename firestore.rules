@@ -33,7 +33,7 @@ service cloud.firestore {
         && request.auth.token.email in [
              'adiseema1990@gmail.com', 
              'sachinadi88@gmail.com', 
-             'another.teacher@gmail.com'
+             'adisachin1988@gmail.com'
            ];
     }
 
@@ -46,10 +46,10 @@ service cloud.firestore {
       allow update: if isAuthorizedMember()
                     && isValidId(timetableId) 
                     && isValidTimetable(request.resource.data)
-                    && (isSuperuser() || (request.resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId));
+                    && (isSuperuser() || (request.resource.data.userId == request.auth.uid && (resource == null || resource.data.userId == request.auth.uid)));
       allow delete: if isAuthorizedMember()
                     && isValidId(timetableId)
-                    && (isSuperuser() || resource.data.userId == request.auth.uid);
+                    && (isSuperuser() || (resource != null && resource.data.userId == request.auth.uid));
     }
   }
 }

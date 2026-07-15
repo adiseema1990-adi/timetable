@@ -13,6 +13,7 @@ import {
   Clock, 
   Users, 
   BookOpen, 
+  Pencil, 
   GraduationCap, 
   Calendar, 
   RotateCcw, 
@@ -488,6 +489,14 @@ export default function App() {
   const [newFacPhone, setNewFacPhone] = useState('');
   const [facFormSubmitted, setFacFormSubmitted] = useState(false);
   
+  // Faculty Editing State
+  const [editingFacultyId, setEditingFacultyId] = useState<string | null>(null);
+  const [editFacName, setEditFacName] = useState('');
+  const [editFacShort, setEditFacShort] = useState('');
+  const [editFacDept, setEditFacDept] = useState('CSE');
+  const [editFacPhone, setEditFacPhone] = useState('');
+  const [editFacFormSubmitted, setEditFacFormSubmitted] = useState(false);
+  
   // Subject Form
   const [newSubCode, setNewSubCode] = useState('');
   const [newSubName, setNewSubName] = useState('');
@@ -959,11 +968,23 @@ export default function App() {
         handleFirestoreError(error, OperationType.GET, "mvce_timetables");
       }
       const names: string[] = [];
-      querySnapshot.forEach((doc) => {
-        names.push(doc.id);
-      });
+      if (querySnapshot) {
+        querySnapshot.forEach((doc) => {
+          names.push(doc.id);
+        });
+      }
       setFirebaseTimetables(names);
       setFirebaseError(null); // Clear errors on successful fetch
+
+      // Auto-switch to the first authorized timetable if current one is not allowed
+      if (names.length > 0) {
+        const lastActive = localStorage.getItem('mvce_firebase_active_timetable') || activeTimetableName;
+        if (!names.includes(lastActive)) {
+          setActiveTimetableName(names[0]);
+          localStorage.setItem('mvce_firebase_active_timetable', names[0]);
+          loadTimetableFromFirebase(names[0]);
+        }
+      }
     } catch (error: any) {
       console.error("Error fetching timetables from Firestore:", error);
       setFirebaseError(error?.message || String(error));
@@ -1675,6 +1696,46 @@ export default function App() {
   };
 
   // --- Deletion Handlers ---
+  const startEditingFaculty = (fac: Faculty) => {
+    setEditingFacultyId(fac.id);
+    setEditFacName(fac.name);
+    setEditFacShort(fac.shortName);
+    setEditFacDept(fac.department);
+    setEditFacPhone(fac.phone === '--' ? '' : fac.phone);
+    setEditFacFormSubmitted(false);
+  };
+
+  const cancelEditingFaculty = () => {
+    setEditingFacultyId(null);
+    setEditFacName('');
+    setEditFacShort('');
+    setEditFacDept('CSE');
+    setEditFacPhone('');
+    setEditFacFormSubmitted(false);
+  };
+
+  const updateFaculty = (e: FormEvent) => {
+    e.preventDefault();
+    setEditFacFormSubmitted(true);
+    if (!editingFacultyId || !editFacName || !editFacShort) return;
+
+    setFaculties(prevFacs => prevFacs.map(f => {
+      if (f.id === editingFacultyId) {
+        return {
+          ...f,
+          name: editFacName,
+          shortName: editFacShort.toUpperCase(),
+          department: editFacDept,
+          phone: editFacPhone || '--'
+        };
+      }
+      return f;
+    }));
+
+    showAuthNotice(`Faculty details updated successfully.`);
+    cancelEditingFaculty();
+  };
+
   const deleteFaculty = (id: string) => {
     setFaculties(faculties.filter(f => f.id !== id));
     setAssignments(assignments.filter(a => a.facultyId !== id));
@@ -2408,12 +2469,13 @@ service cloud.firestore {
         && request.auth.token.email in [
              'adiseema1990@gmail.com', 
              'sachinadi88@gmail.com', 
-             'another.teacher@gmail.com'
+             'adisachin1988@gmail.com'
            ];
     }
     match /mvce_timetables/{document} {
       allow read: if isAuthorizedMember() && (isSuperuser() || resource == null || resource.data.userId == request.auth.uid);
-      allow write: if isAuthorizedMember() && (isSuperuser() || request.resource.data.userId == request.auth.uid);
+      allow create, update: if isAuthorizedMember() && (isSuperuser() || request.resource.data.userId == request.auth.uid);
+      allow delete: if isAuthorizedMember() && (isSuperuser() || resource.data.userId == request.auth.uid);
     }
   }
 }`}
@@ -3458,78 +3520,164 @@ service cloud.firestore {
           {/* ========================================== */}
           {activeTab === 'faculties' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Left Form: Add Faculty */}
+              {/* Left Form: Add / Edit Faculty */}
               <div className="bg-white border border-slate-200 rounded p-4 shadow-sm self-start">
-                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                  <Users className="h-4 w-4 text-blue-900" />
-                  <span>Register Faculty</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mb-3">Add staff members to make them available for assignment.</p>
+                {editingFacultyId ? (
+                  <>
+                    <h3 className="font-bold text-amber-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-amber-100 pb-2 mb-3">
+                      <Pencil className="h-4 w-4 text-amber-600" />
+                      <span>Edit Faculty Details</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-3">Update this staff member's info in the directory.</p>
 
-                <form onSubmit={addFaculty} className="space-y-3" noValidate>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Dr. Savitha Murthy"
-                      value={newFacName}
-                      onChange={(e) => setNewFacName(e.target.value)}
-                      className={`w-full bg-slate-50 border ${
-                        facFormSubmitted && !newFacName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                      } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                    />
-                  </div>
+                    <form onSubmit={updateFaculty} className="space-y-3" noValidate>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Dr. Savitha Murthy"
+                          value={editFacName}
+                          onChange={(e) => setEditFacName(e.target.value)}
+                          className={`w-full bg-amber-50/10 border ${
+                            editFacFormSubmitted && !editFacName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                        />
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Short Initials</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. SKM"
-                        value={newFacShort}
-                        onChange={(e) => setNewFacShort(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          facFormSubmitted && !newFacShort ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Department</label>
-                      <select
-                        value={newFacDept}
-                        onChange={(e) => setNewFacDept(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Short Initials</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. SKM"
+                            value={editFacShort}
+                            onChange={(e) => setEditFacShort(e.target.value)}
+                            className={`w-full bg-amber-50/10 border ${
+                              editFacFormSubmitted && !editFacShort ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Department</label>
+                          <select
+                            value={editFacDept}
+                            onChange={(e) => setEditFacDept(e.target.value)}
+                            className="w-full bg-amber-50/10 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                          >
+                            <option value="CSE">CSE</option>
+                            <option value="ECE">ECE</option>
+                            <option value="Applied Science">Applied Science</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Mechanical">Mechanical</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number (Optional)</label>
+                        <input
+                          type="tel"
+                          placeholder="e.g. +91 94481 23456"
+                          value={editFacPhone}
+                          onChange={(e) => setEditFacPhone(e.target.value)}
+                          className="w-full bg-amber-50/10 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                        />
+                      </div>
+
+                      <div className="flex space-x-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={cancelEditingFaculty}
+                          className="flex-1 py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] uppercase tracking-wider rounded transition cursor-pointer text-center"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1 cursor-pointer text-center"
+                        >
+                          <Check className="h-3 w-3 text-white" />
+                          <span>Save Changes</span>
+                        </button>
+                      </div>
+                    </form>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
+                      <Users className="h-4 w-4 text-blue-900" />
+                      <span>Register Faculty</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-3">Add staff members to make them available for assignment.</p>
+
+                    <form onSubmit={addFaculty} className="space-y-3" noValidate>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Dr. Savitha Murthy"
+                          value={newFacName}
+                          onChange={(e) => setNewFacName(e.target.value)}
+                          className={`w-full bg-slate-50 border ${
+                            facFormSubmitted && !newFacName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Short Initials</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. SKM"
+                            value={newFacShort}
+                            onChange={(e) => setNewFacShort(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              facFormSubmitted && !newFacShort ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                            } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Department</label>
+                          <select
+                            value={newFacDept}
+                            onChange={(e) => setNewFacDept(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                          >
+                            <option value="CSE">CSE</option>
+                            <option value="ECE">ECE</option>
+                            <option value="Applied Science">Applied Science</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Mechanical">Mechanical</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number (Optional)</label>
+                        <input
+                          type="tel"
+                          placeholder="e.g. +91 94481 23456"
+                          value={newFacPhone}
+                          onChange={(e) => setNewFacPhone(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
-                        <option value="CSE">CSE</option>
-                        <option value="ECE">ECE</option>
-                        <option value="Applied Science">Applied Science</option>
-                        <option value="Civil">Civil</option>
-                        <option value="Mechanical">Mechanical</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number (Optional)</label>
-                    <input
-                      type="tel"
-                      placeholder="e.g. +91 94481 23456"
-                      value={newFacPhone}
-                      onChange={(e) => setNewFacPhone(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-amber-300" />
-                    <span>Register Faculty</span>
-                  </button>
-                </form>
+                        <Plus className="h-3.5 w-3.5 text-amber-300" />
+                        <span>Register Faculty</span>
+                      </button>
+                    </form>
+                  </>
+                )}
               </div>
 
               {/* Right List: Faculties */}
@@ -3558,7 +3706,12 @@ service cloud.firestore {
                     <tbody className="divide-y divide-slate-100">
                       {faculties.length > 0 ? (
                         faculties.map((fac) => (
-                          <tr key={fac.id} className="hover:bg-slate-50/50 transition">
+                          <tr 
+                            key={fac.id} 
+                            className={`transition ${
+                              editingFacultyId === fac.id ? 'bg-amber-50/30 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'
+                            }`}
+                          >
                             <td className="p-2.5 font-bold text-slate-900">{fac.name}</td>
                             <td className="p-2.5 text-center">
                               <span className="font-mono bg-blue-50 text-blue-900 border border-blue-100 font-bold px-2 py-0.5 rounded text-[10px]">
@@ -3567,7 +3720,16 @@ service cloud.firestore {
                             </td>
                             <td className="p-2.5 font-semibold text-slate-700">{fac.department}</td>
                             <td className="p-2.5 text-slate-500 font-mono text-[10px]">{fac.phone || '--'}</td>
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 text-center flex items-center justify-center space-x-2">
+                              <button
+                                onClick={() => startEditingFaculty(fac)}
+                                className={`p-1 transition cursor-pointer ${
+                                  editingFacultyId === fac.id ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-blue-900'
+                                }`}
+                                title="Edit faculty details"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
                               <button
                                 onClick={() => deleteFaculty(fac.id)}
                                 className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
