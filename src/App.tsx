@@ -541,6 +541,7 @@ export default function App() {
 
   // Class Form
   const [newClassName, setNewClassName] = useState('');
+  const [newClassroom, setNewClassroom] = useState('');
   const [newClassSem, setNewClassSem] = useState('5th');
   const [newClassSec, setNewClassSec] = useState('A');
   const [classFormSubmitted, setClassFormSubmitted] = useState(false);
@@ -1777,15 +1778,17 @@ export default function App() {
       name: `${newClassName} ${newClassSem} Sem`,
       semester: newClassSem,
       section: sec,
-      labBatches: divideIntoBatches ? numBatches : 1
+      labBatches: divideIntoBatches ? numBatches : 1,
+      classroom: newClassroom.trim() || undefined
     };
     setClasses([...classes, newCls]);
     if (!selectedClassId) {
       setSelectedClassId(newCls.id);
     }
     setNewClassName('');
+    setNewClassroom('');
     setClassFormSubmitted(false);
-    showAuthNotice(`Class ${newCls.name} (Sec ${newCls.section}) created${divideIntoBatches ? ` with ${numBatches} Lab Batches (${sec}1, ${sec}2${numBatches >= 3 ? ', ' + sec + '3' : ''}${numBatches >= 4 ? ', ' + sec + '4' : ''})` : ''}.`);
+    showAuthNotice(`Class ${newCls.name} (Sec ${newCls.section})${newCls.classroom ? ` [Room ${newCls.classroom}]` : ''} created${divideIntoBatches ? ` with ${numBatches} Lab Batches (${sec}1, ${sec}2${numBatches >= 3 ? ', ' + sec + '3' : ''}${numBatches >= 4 ? ', ' + sec + '4' : ''})` : ''}.`);
   };
 
   const addAssignment = (e: FormEvent) => {
@@ -2631,7 +2634,7 @@ export default function App() {
       {/* ========================================== */}
       {/* MAIN CONTENT AREA                          */}
       {/* ========================================== */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col">
+      <main className="flex-1 w-[96%] max-w-[96%] mx-auto p-4 md:p-6 flex flex-col">
         
         {/* ========================================== */}
         {/* FIREBASE CLOUD PERSISTENCE PANEL           */}
@@ -3088,7 +3091,7 @@ service cloud.firestore {
                         Weekly Class Timetable
                       </h2>
                       <p className="text-[11px] font-bold text-slate-700 mt-0.5">
-                        Class: {currentClassObj.name} (Sec {currentClassObj.section})
+                        Class: {currentClassObj.name} (Sec {currentClassObj.section}){currentClassObj.classroom ? ` • Room: ${currentClassObj.classroom}` : ''}
                       </p>
                     </div>
                   )}
@@ -3222,22 +3225,25 @@ service cloud.firestore {
                                             const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
                                             if (!assign || !sub) return null;
 
-                                            const isB1 = batchItem.batchName.endsWith('1');
-                                            const isB2 = batchItem.batchName.endsWith('2');
-                                            const isB3 = batchItem.batchName.endsWith('3');
+                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color);
 
                                             return (
                                               <div 
                                                 key={batchItem.batchName} 
-                                                className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
-                                                  isB1 ? 'bg-amber-100/90 border-amber-300 text-amber-950' :
-                                                  isB2 ? 'bg-blue-100/90 border-blue-300 text-blue-950' :
-                                                  isB3 ? 'bg-emerald-100/90 border-emerald-300 text-emerald-950' :
-                                                  'bg-purple-100/90 border-purple-300 text-purple-950'
+                                                className={`p-1 rounded border text-left text-[9px] shadow-2xs transition-all ${
+                                                  palette.isCustom ? '' : `${palette.bg} ${palette.border} ${palette.text}`
                                                 }`}
+                                                style={palette.isCustom ? {
+                                                  backgroundColor: palette.styles.bg,
+                                                  borderColor: palette.styles.border,
+                                                  color: palette.styles.text
+                                                } : undefined}
                                               >
                                                 <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
-                                                  <span className={`px-1 py-0.2 rounded font-extrabold ${isB1 ? 'bg-amber-200/90 text-amber-900' : 'bg-blue-200/90 text-blue-900'}`}>
+                                                  <span 
+                                                    style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                                    className={`px-1 py-0.2 rounded font-extrabold ${palette.isCustom ? 'border' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`}`}
+                                                  >
                                                     Batch {batchItem.batchName}
                                                   </span>
                                                   <span className="opacity-80 font-mono">{sub.code}</span>
@@ -3264,24 +3270,57 @@ service cloud.firestore {
                                     const clsLabAssigns = isLabCell ? assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId))) : [];
 
                                     if (isLabCell && assign && clsLabAssigns.length > 1) {
+                                      const sub1 = sub;
+                                      const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color) : null;
                                       const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
                                       const otherSub = subjects.find(s => s.id === otherAssign.subjectId);
                                       const otherFac = faculties.find(f => f.id === otherAssign.facultyId);
+                                      const sub2Palette = otherSub ? getSubjectPalette(otherSub.id, otherSub.code, otherSub.color) : null;
 
                                       return (
                                         <div key={slot.id} className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center space-y-1 bg-amber-50/50 hover:bg-amber-100/40 min-h-[64px] transition-all">
-                                          <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-amber-100/90 border-amber-300 text-amber-950">
-                                            <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
-                                              <span className="px-1 py-0.2 rounded font-extrabold bg-amber-200/90 text-amber-900">Batch {sec}1</span>
-                                              <span className="opacity-80 font-mono">{sub ? sub.code : ''}</span>
-                                            </div>
-                                            <div className="font-extrabold truncate leading-tight mt-0.5" title={sub ? sub.name : ''}>{sub ? sub.name : ''}</div>
-                                            <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
-                                          </div>
-                                          {otherSub && (
-                                            <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-blue-100/90 border-blue-300 text-blue-950">
+                                          {sub1 && sub1Palette && (
+                                            <div 
+                                              className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                                sub1Palette.isCustom ? '' : `${sub1Palette.bg} ${sub1Palette.border} ${sub1Palette.text}`
+                                              }`}
+                                              style={sub1Palette.isCustom ? {
+                                                backgroundColor: sub1Palette.styles.bg,
+                                                borderColor: sub1Palette.styles.border,
+                                                color: sub1Palette.styles.text
+                                              } : undefined}
+                                            >
                                               <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
-                                                <span className="px-1 py-0.2 rounded font-extrabold bg-blue-200/90 text-blue-900">Batch {sec}2</span>
+                                                <span 
+                                                  style={sub1Palette.isCustom ? { backgroundColor: sub1Palette.styles.badgeBg, color: sub1Palette.styles.badgeText, borderColor: sub1Palette.styles.badgeBorder } : undefined}
+                                                  className={`px-1 py-0.2 rounded font-extrabold ${sub1Palette.isCustom ? 'border' : `${sub1Palette.badgeBg} ${sub1Palette.badgeText} border ${sub1Palette.badgeBorder}`}`}
+                                                >
+                                                  Batch {sec}1
+                                                </span>
+                                                <span className="opacity-80 font-mono">{sub1.code}</span>
+                                              </div>
+                                              <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
+                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
+                                            </div>
+                                          )}
+                                          {otherSub && sub2Palette && (
+                                            <div 
+                                              className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                                sub2Palette.isCustom ? '' : `${sub2Palette.bg} ${sub2Palette.border} ${sub2Palette.text}`
+                                              }`}
+                                              style={sub2Palette.isCustom ? {
+                                                backgroundColor: sub2Palette.styles.bg,
+                                                borderColor: sub2Palette.styles.border,
+                                                color: sub2Palette.styles.text
+                                              } : undefined}
+                                            >
+                                              <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                <span 
+                                                  style={sub2Palette.isCustom ? { backgroundColor: sub2Palette.styles.badgeBg, color: sub2Palette.styles.badgeText, borderColor: sub2Palette.styles.badgeBorder } : undefined}
+                                                  className={`px-1 py-0.2 rounded font-extrabold ${sub2Palette.isCustom ? 'border' : `${sub2Palette.badgeBg} ${sub2Palette.badgeText} border ${sub2Palette.badgeBorder}`}`}
+                                                >
+                                                  Batch {sec}2
+                                                </span>
                                                 <span className="opacity-80 font-mono">{otherSub.code}</span>
                                               </div>
                                               <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
@@ -4004,20 +4043,25 @@ service cloud.firestore {
                                               const bFac = bAssign ? faculties.find(f => f.id === bAssign.facultyId) : null;
                                               if (!bAssign || !bSub) return null;
 
-                                              const isB1 = batchItem.batchName.endsWith('1');
-                                              const isB2 = batchItem.batchName.endsWith('2');
+                                              const palette = getSubjectPalette(bSub.id, bSub.code, bSub.color);
 
                                               return (
                                                 <div 
                                                   key={batchItem.batchName} 
-                                                  className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
-                                                    isB1 ? 'bg-amber-100/90 border-amber-300 text-amber-950' :
-                                                    isB2 ? 'bg-blue-100/90 border-blue-300 text-blue-950' :
-                                                    'bg-purple-100/90 border-purple-300 text-purple-950'
+                                                  className={`p-1 rounded border text-left text-[9px] shadow-2xs transition-all ${
+                                                    palette.isCustom ? '' : `${palette.bg} ${palette.border} ${palette.text}`
                                                   }`}
+                                                  style={palette.isCustom ? {
+                                                    backgroundColor: palette.styles.bg,
+                                                    borderColor: palette.styles.border,
+                                                    color: palette.styles.text
+                                                  } : undefined}
                                                 >
                                                   <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
-                                                    <span className={`px-1 py-0.2 rounded font-extrabold ${isB1 ? 'bg-amber-200/90 text-amber-900' : 'bg-blue-200/90 text-blue-900'}`}>
+                                                    <span 
+                                                      style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                                      className={`px-1 py-0.2 rounded font-extrabold ${palette.isCustom ? 'border' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`}`}
+                                                    >
                                                       Batch {batchItem.batchName}
                                                     </span>
                                                     <span className="opacity-80 font-mono">{bSub.code}</span>
@@ -4037,24 +4081,57 @@ service cloud.firestore {
                                             const sec = currentClass ? currentClass.section.trim().toUpperCase() : 'A';
 
                                             if (clsLabAssigns.length > 1) {
+                                              const sub1 = sub;
+                                              const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color) : null;
                                               const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
                                               const otherSub = subjects.find(s => s.id === otherAssign.subjectId);
                                               const otherFac = faculties.find(f => f.id === otherAssign.facultyId);
+                                              const sub2Palette = otherSub ? getSubjectPalette(otherSub.id, otherSub.code, otherSub.color) : null;
 
                                               return (
                                                 <div className="flex flex-col justify-center space-y-1 w-full h-full">
-                                                  <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-amber-100/90 border-amber-300 text-amber-950">
-                                                    <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
-                                                      <span className="px-1 py-0.2 rounded font-extrabold bg-amber-200/90 text-amber-900">Batch {sec}1</span>
-                                                      <span className="opacity-80 font-mono">{sub.code}</span>
-                                                    </div>
-                                                    <div className="font-extrabold truncate leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
-                                                    <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
-                                                  </div>
-                                                  {otherSub && (
-                                                    <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-blue-100/90 border-blue-300 text-blue-950">
+                                                  {sub1 && sub1Palette && (
+                                                    <div 
+                                                      className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                                        sub1Palette.isCustom ? '' : `${sub1Palette.bg} ${sub1Palette.border} ${sub1Palette.text}`
+                                                      }`}
+                                                      style={sub1Palette.isCustom ? {
+                                                        backgroundColor: sub1Palette.styles.bg,
+                                                        borderColor: sub1Palette.styles.border,
+                                                        color: sub1Palette.styles.text
+                                                      } : undefined}
+                                                    >
                                                       <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
-                                                        <span className="px-1 py-0.2 rounded font-extrabold bg-blue-200/90 text-blue-900">Batch {sec}2</span>
+                                                        <span 
+                                                          style={sub1Palette.isCustom ? { backgroundColor: sub1Palette.styles.badgeBg, color: sub1Palette.styles.badgeText, borderColor: sub1Palette.styles.badgeBorder } : undefined}
+                                                          className={`px-1 py-0.2 rounded font-extrabold ${sub1Palette.isCustom ? 'border' : `${sub1Palette.badgeBg} ${sub1Palette.badgeText} border ${sub1Palette.badgeBorder}`}`}
+                                                        >
+                                                          Batch {sec}1
+                                                        </span>
+                                                        <span className="opacity-80 font-mono">{sub1.code}</span>
+                                                      </div>
+                                                      <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
+                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
+                                                    </div>
+                                                  )}
+                                                  {otherSub && sub2Palette && (
+                                                    <div 
+                                                      className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                                        sub2Palette.isCustom ? '' : `${sub2Palette.bg} ${sub2Palette.border} ${sub2Palette.text}`
+                                                      }`}
+                                                      style={sub2Palette.isCustom ? {
+                                                        backgroundColor: sub2Palette.styles.bg,
+                                                        borderColor: sub2Palette.styles.border,
+                                                        color: sub2Palette.styles.text
+                                                      } : undefined}
+                                                    >
+                                                      <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                        <span 
+                                                          style={sub2Palette.isCustom ? { backgroundColor: sub2Palette.styles.badgeBg, color: sub2Palette.styles.badgeText, borderColor: sub2Palette.styles.badgeBorder } : undefined}
+                                                          className={`px-1 py-0.2 rounded font-extrabold ${sub2Palette.isCustom ? 'border' : `${sub2Palette.badgeBg} ${sub2Palette.badgeText} border ${sub2Palette.badgeBorder}`}`}
+                                                        >
+                                                          Batch {sec}2
+                                                        </span>
                                                         <span className="opacity-80 font-mono">{otherSub.code}</span>
                                                       </div>
                                                       <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
@@ -4830,18 +4907,30 @@ service cloud.firestore {
                   <p className="text-[11px] text-slate-500 mb-3">Define semesters or branches to schedule tables for.</p>
 
                   <form onSubmit={addClass} className="space-y-3" noValidate>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Branch / Subject Group</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. CSE or ECE"
-                        value={newClassName}
-                        onChange={(e) => setNewClassName(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          classFormSubmitted && !newClassName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Branch / Subject Group</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. CSE or ECE"
+                          value={newClassName}
+                          onChange={(e) => setNewClassName(e.target.value)}
+                          className={`w-full bg-slate-50 border ${
+                            classFormSubmitted && !newClassName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Classroom</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Room 301 or LH-2"
+                          value={newClassroom}
+                          onChange={(e) => setNewClassroom(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -4936,7 +5025,7 @@ service cloud.firestore {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[10px] text-slate-500 mt-0.5 font-medium">Sec <span className="font-bold text-slate-700">{cls.section}</span> • {totalLectures} lectures / wk</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5 font-medium">Sec <span className="font-bold text-slate-700">{cls.section}</span>{cls.classroom ? <> • Room: <span className="font-bold text-slate-700">{cls.classroom}</span></> : ''} • {totalLectures} lectures / wk</p>
                             </div>
                             <button
                               onClick={() => deleteClass(cls.id)}
@@ -5463,7 +5552,7 @@ service cloud.firestore {
       {/* FOOTER                                     */}
       {/* ========================================== */}
       <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-6 mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="w-[96%] max-w-[96%] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div>
             <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">Sir M. Visvesvaraya College of Engineering, Raichur</p>
             <p className="text-[10px] text-slate-500 mt-0.5">Yeramarus Camp, Raichur, Karnataka, India.</p>
