@@ -1330,10 +1330,20 @@ export default function App() {
     // Save original styles/classes
     const originalWidth = element.style.width;
     const originalMinWidth = element.style.minWidth;
+    const originalBorder = element.style.border;
+    const originalBoxShadow = element.style.boxShadow;
     
-    // Temporarily force desktop size (landscape mode) for high-quality render
+    // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
+    element.style.setProperty('border', 'none', 'important');
+    element.style.setProperty('box-shadow', 'none', 'important');
+
+    const elementsWithShadow = element.querySelectorAll('[class*="shadow"]');
+    elementsWithShadow.forEach(el => {
+      (el as HTMLElement).dataset.originalShadow = (el as HTMLElement).style.boxShadow || '';
+      (el as HTMLElement).style.setProperty('box-shadow', 'none', 'important');
+    });
     
     const printHeader = element.querySelector('.print\\:flex');
     if (printHeader) {
@@ -1415,6 +1425,12 @@ export default function App() {
       // Restore original style values
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
+      element.style.border = originalBorder;
+      element.style.boxShadow = originalBoxShadow;
+
+      elementsWithShadow.forEach(el => {
+        (el as HTMLElement).style.boxShadow = (el as HTMLElement).dataset.originalShadow || '';
+      });
       
       if (printHeader) {
         printHeader.classList.add('hidden');
@@ -1445,10 +1461,20 @@ export default function App() {
     // Save original styles/classes
     const originalWidth = element.style.width;
     const originalMinWidth = element.style.minWidth;
+    const originalBorder = element.style.border;
+    const originalBoxShadow = element.style.boxShadow;
     
-    // Temporarily force desktop size (landscape mode) for high-quality render
+    // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
+    element.style.setProperty('border', 'none', 'important');
+    element.style.setProperty('box-shadow', 'none', 'important');
+
+    const elementsWithShadow = element.querySelectorAll('[class*="shadow"]');
+    elementsWithShadow.forEach(el => {
+      (el as HTMLElement).dataset.originalShadow = (el as HTMLElement).style.boxShadow || '';
+      (el as HTMLElement).style.setProperty('box-shadow', 'none', 'important');
+    });
     
     const printHeader = element.querySelector('.print\\:flex');
     if (printHeader) {
@@ -1530,6 +1556,12 @@ export default function App() {
       // Restore original style values
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
+      element.style.border = originalBorder;
+      element.style.boxShadow = originalBoxShadow;
+
+      elementsWithShadow.forEach(el => {
+        (el as HTMLElement).style.boxShadow = (el as HTMLElement).dataset.originalShadow || '';
+      });
       
       if (printHeader) {
         printHeader.classList.add('hidden');
@@ -1557,10 +1589,20 @@ export default function App() {
     // Save original styles/classes
     const originalWidth = element.style.width;
     const originalMinWidth = element.style.minWidth;
+    const originalBorder = element.style.border;
+    const originalBoxShadow = element.style.boxShadow;
     
-    // Temporarily force desktop size (landscape mode) for high-quality render
+    // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
+    element.style.setProperty('border', 'none', 'important');
+    element.style.setProperty('box-shadow', 'none', 'important');
+
+    const elementsWithShadow = element.querySelectorAll('[class*="shadow"]');
+    elementsWithShadow.forEach(el => {
+      (el as HTMLElement).dataset.originalShadow = (el as HTMLElement).style.boxShadow || '';
+      (el as HTMLElement).style.setProperty('box-shadow', 'none', 'important');
+    });
     
     const printHeader = element.querySelector('.print\\:flex');
     if (printHeader) {
@@ -1642,6 +1684,12 @@ export default function App() {
       // Restore original style values
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
+      element.style.border = originalBorder;
+      element.style.boxShadow = originalBoxShadow;
+
+      elementsWithShadow.forEach(el => {
+        (el as HTMLElement).style.boxShadow = (el as HTMLElement).dataset.originalShadow || '';
+      });
       
       if (printHeader) {
         printHeader.classList.add('hidden');
