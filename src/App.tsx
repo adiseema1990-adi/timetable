@@ -4364,6 +4364,7 @@ service cloud.firestore {
                             className="w-full bg-amber-50/10 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                           >
                             <option value="CSE">CSE</option>
+                            <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
                             <option value="Applied Science">Applied Science</option>
                             <option value="Civil">Civil</option>
@@ -4450,6 +4451,7 @@ service cloud.firestore {
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
                           >
                             <option value="CSE">CSE</option>
+                            <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
                             <option value="Applied Science">Applied Science</option>
                             <option value="Civil">Civil</option>
@@ -4597,6 +4599,7 @@ service cloud.firestore {
                             className="w-full bg-amber-50/10 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                           >
                             <option value="CSE">CSE</option>
+                            <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
                             <option value="Applied Science">Applied Science</option>
                             <option value="Civil">Civil</option>
@@ -4752,6 +4755,7 @@ service cloud.firestore {
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
                           >
                             <option value="CSE">CSE</option>
+                            <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
                             <option value="Applied Science">Applied Science</option>
                             <option value="Civil">Civil</option>
