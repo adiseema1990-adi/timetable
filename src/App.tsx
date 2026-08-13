@@ -1809,11 +1809,13 @@ export default function App() {
   const addAssignment = (e: FormEvent) => {
     e.preventDefault();
     setAssignFormSubmitted(true);
-    if (!assignClassId || !assignSubId || !assignFacId) return;
+    const selSub = subjects.find(s => s.id === assignSubId);
+    const isOptionalFaculty = selSub?.isAicteActivity || selSub?.isStudentActivity;
+    if (!assignClassId || !assignSubId || (!isOptionalFaculty && !assignFacId)) return;
     
     // Check if assignment already exists
     const exists = assignments.some(
-      a => a.classId === assignClassId && a.subjectId === assignSubId && a.facultyId === assignFacId
+      a => a.classId === assignClassId && a.subjectId === assignSubId && (isOptionalFaculty ? true : a.facultyId === assignFacId)
     );
     if (exists) {
       showAuthNotice("Warning: This assignment already exists!");
@@ -1824,11 +1826,11 @@ export default function App() {
       id: 'a_' + Date.now(),
       classId: assignClassId,
       subjectId: assignSubId,
-      facultyId: assignFacId
+      facultyId: assignFacId || ''
     };
     setAssignments([...assignments, newAssign]);
     setAssignFormSubmitted(false);
-    showAuthNotice("Staff assigned to subject successfully.");
+    showAuthNotice("Course faculty binding created successfully.");
   };
 
   const startEditingAssignment = (assign: Assignment) => {
@@ -1850,10 +1852,12 @@ export default function App() {
   const updateAssignment = (e?: FormEvent) => {
     if (e) e.preventDefault();
     setAssignFormSubmitted(true);
-    if (!editingAssignmentId || !assignClassId || !assignSubId || !assignFacId) return;
+    const selSub = subjects.find(s => s.id === assignSubId);
+    const isOptionalFaculty = selSub?.isAicteActivity || selSub?.isStudentActivity;
+    if (!editingAssignmentId || !assignClassId || !assignSubId || (!isOptionalFaculty && !assignFacId)) return;
 
     const exists = assignments.some(
-      a => a.id !== editingAssignmentId && a.classId === assignClassId && a.subjectId === assignSubId && a.facultyId === assignFacId
+      a => a.id !== editingAssignmentId && a.classId === assignClassId && a.subjectId === assignSubId && (isOptionalFaculty ? true : a.facultyId === assignFacId)
     );
     if (exists) {
       showAuthNotice("Warning: This binding already exists!");
@@ -1866,7 +1870,7 @@ export default function App() {
           ...a,
           classId: assignClassId,
           subjectId: assignSubId,
-          facultyId: assignFacId
+          facultyId: assignFacId || ''
         };
       }
       return a;
@@ -2072,7 +2076,7 @@ export default function App() {
       day: string;
       pIdx?: number;
       message: string;
-      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision' | 'aicte_day_conflict';
+      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision' | 'aicte_day_conflict' | 'mentoring_lunch_conflict';
     }[] = [];
 
     const activeSlots = timeSlots.filter(s => !s.isBreak);
@@ -2099,7 +2103,7 @@ export default function App() {
           const assignId = slots[pIdx];
           if (assignId) {
             const assign = assignments.find(a => a.id === assignId);
-            if (assign) {
+            if (assign && assign.facultyId) {
               const key = `${day}_${pIdx}_${assign.facultyId}`;
               if (!teacherSlotMap[key]) {
                 teacherSlotMap[key] = [];
@@ -2223,7 +2227,7 @@ export default function App() {
           if (a1Id && a2Id) {
             const assign1 = assignments.find(a => a.id === a1Id);
             const assign2 = assignments.find(a => a.id === a2Id);
-            if (assign1 && assign2 && assign1.facultyId === assign2.facultyId) {
+            if (assign1 && assign2 && assign1.facultyId && assign1.facultyId === assign2.facultyId) {
               const facId = assign1.facultyId;
               const facAssigns = assignments.filter(a => a.classId === cls.id && a.facultyId === facId);
               if (facAssigns.length > 1) {
@@ -2312,6 +2316,26 @@ export default function App() {
                 message: `AICTE Activity subject ${sub.code} is scheduled ${count} times on Saturday, exceeding requested ${weekly} periods.`,
                 type: 'daily_limit'
               });
+            }
+          } else if (sub.isStudentActivity) {
+            const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
+            if (lunchBreakIdx !== -1) {
+              const indices = subjectIndices[subId] || [];
+              for (const pIdx of indices) {
+                const slot = activeSlots[pIdx];
+                if (slot) {
+                  const origIdx = timeSlots.findIndex(s => s.id === slot.id);
+                  if (origIdx <= lunchBreakIdx) {
+                    warningsList.push({
+                      classId: cls.id,
+                      day,
+                      pIdx,
+                      message: `Student Activity / Mentoring subject ${sub.code} is scheduled before or during lunch on ${day}. Must be scheduled strictly after lunch.`,
+                      type: 'mentoring_lunch_conflict'
+                    });
+                  }
+                }
+              }
             }
           } else {
             const maxLimit = weekly > days.length ? Math.ceil(weekly / days.length) : 1;
@@ -3152,6 +3176,22 @@ service cloud.firestore {
                                 {scheduleWarnings.some(w => w.type === 'aicte_day_conflict')
                                   ? "Warning: AICTE Activity subjects must be scheduled strictly on Saturday."
                                   : "Verified: AICTE Activity subjects are scheduled strictly on Saturday."}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            {scheduleWarnings.some(w => w.type === 'mentoring_lunch_conflict') ? (
+                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-800">Student Activity / Mentoring Post-Lunch Rule</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
+                                {scheduleWarnings.some(w => w.type === 'mentoring_lunch_conflict')
+                                  ? "Warning: Student Activity / Mentoring subjects must be allocated strictly after lunch."
+                                  : "Verified: All Student Activity / Mentoring subjects are allocated strictly after lunch."}
                               </p>
                             </div>
                           </div>
@@ -5284,14 +5324,14 @@ service cloud.firestore {
                         <div>
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Faculty Member</label>
                           <select
-                            required
+                            required={!subjects.find(s => s.id === assignSubId)?.isAicteActivity && !subjects.find(s => s.id === assignSubId)?.isStudentActivity}
                             value={assignFacId}
                             onChange={(e) => setAssignFacId(e.target.value)}
                             className={`w-full bg-slate-50 border ${
-                              assignFormSubmitted && !assignFacId ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-amber-500'
+                              assignFormSubmitted && !assignFacId && !subjects.find(s => s.id === assignSubId)?.isAicteActivity && !subjects.find(s => s.id === assignSubId)?.isStudentActivity ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-amber-500'
                             } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                           >
-                            <option value="">-- Choose Faculty --</option>
+                            <option value="">{subjects.find(s => s.id === assignSubId)?.isAicteActivity || subjects.find(s => s.id === assignSubId)?.isStudentActivity ? '-- No Staff / Faculty Required --' : '-- Choose Faculty --'}</option>
                             {faculties.map(f => (
                               <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
                             ))}
@@ -5362,14 +5402,14 @@ service cloud.firestore {
                         <div>
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Faculty Member</label>
                           <select
-                            required
+                            required={!subjects.find(s => s.id === assignSubId)?.isAicteActivity && !subjects.find(s => s.id === assignSubId)?.isStudentActivity}
                             value={assignFacId}
                             onChange={(e) => setAssignFacId(e.target.value)}
                             className={`w-full bg-slate-50 border ${
-                              assignFormSubmitted && !assignFacId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                              assignFormSubmitted && !assignFacId && !subjects.find(s => s.id === assignSubId)?.isAicteActivity && !subjects.find(s => s.id === assignSubId)?.isStudentActivity ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
                             } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
                           >
-                            <option value="">-- Choose Faculty --</option>
+                            <option value="">{subjects.find(s => s.id === assignSubId)?.isAicteActivity || subjects.find(s => s.id === assignSubId)?.isStudentActivity ? '-- No Staff / Faculty Required --' : '-- Choose Faculty --'}</option>
                             {faculties.map(f => (
                               <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
                             ))}
@@ -5474,6 +5514,8 @@ service cloud.firestore {
                                     </select>
                                   ) : fac ? (
                                     `${fac.name} (${fac.shortName})`
+                                  ) : sub && (sub.isAicteActivity || sub.isStudentActivity) ? (
+                                    <span className="text-teal-700 font-semibold italic bg-teal-50 border border-teal-200 px-2 py-0.5 rounded text-[10px]">Self-Guided / Unassigned</span>
                                   ) : (
                                     <span className="text-red-500">Deleted Faculty</span>
                                   )}
