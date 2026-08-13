@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, TimetableSchedule, ClassTimetable } from '../types';
+import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, TimetableSchedule, BatchAssignment } from '../types';
 
 export interface SolverResult {
   success: boolean;
@@ -17,7 +17,101 @@ export interface SolverResult {
   }[];
 }
 
-interface LectureUnit {
+export interface ParallelLabUnit {
+  isParallelLab: true;
+  classId: string;
+  sessionIndex: number;
+  duration: number; // 2
+  batchAssignments: {
+    batchName: string;
+    assignmentId: string;
+    facultyId: string;
+    subjectId: string;
+  }[];
+}
+
+export const isSubjectLab = (sub: Subject | undefined): boolean => {
+  if (!sub) return false;
+  if (sub.isLab === true) return true;
+  const nameLower = (sub.name || '').toLowerCase();
+  const codeLower = (sub.code || '').toLowerCase();
+  return nameLower.includes('lab') || nameLower.includes('practical') || codeLower.includes('lab');
+};
+
+export const getBatchItemsFromCell = (cell: any): BatchAssignment[] | null => {
+  if (!cell) return null;
+  if (Array.isArray(cell)) return cell;
+  if (typeof cell === 'object') {
+    if (cell._isBatchArray && Array.isArray(cell.items)) return cell.items;
+    if ('batches' in cell && Array.isArray(cell.batches)) return cell.batches;
+    if ('items' in cell && Array.isArray(cell.items)) return cell.items;
+  }
+  return null;
+};
+
+export const getAssignmentIdsFromCell = (cell: any): string[] => {
+  if (!cell) return [];
+  if (typeof cell === 'string') return [cell];
+  const batchItems = getBatchItemsFromCell(cell);
+  if (batchItems) return batchItems.map(b => b.assignmentId);
+  return [];
+};
+
+export const serializeForFirestore = (obj: any): any => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => {
+      const serialized = serializeForFirestore(item);
+      if (Array.isArray(serialized)) {
+        return { _isBatchArray: true, items: serialized };
+      }
+      return serialized;
+    });
+  }
+
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (Array.isArray(val)) {
+      result[key] = val.map(item => {
+        const serialized = serializeForFirestore(item);
+        if (Array.isArray(serialized)) {
+          return { _isBatchArray: true, items: serialized };
+        }
+        return serialized;
+      });
+    } else {
+      result[key] = serializeForFirestore(val);
+    }
+  }
+  return result;
+};
+
+export const deserializeFromFirestore = (obj: any): any => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => deserializeFromFirestore(item));
+  }
+
+  if (obj._isBatchArray === true && Array.isArray(obj.items)) {
+    return obj.items.map((item: any) => deserializeFromFirestore(item));
+  }
+
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    result[key] = deserializeFromFirestore(obj[key]);
+  }
+  return result;
+};
+
+export interface StandardUnit {
+  isParallelLab: false;
   assignmentId: string;
   classId: string;
   facultyId: string;
@@ -25,6 +119,8 @@ interface LectureUnit {
   unitIndex: number; // 0 to weeklyPeriods-1
   duration: number; // 1 or 2
 }
+
+export type SolverUnit = ParallelLabUnit | StandardUnit;
 
 /**
  * Validates if the input configuration has obvious physical impossibilities.
@@ -41,7 +137,6 @@ export function preValidateConstraints(
   const activeSlotsCount = timeSlots.filter(s => !s.isBreak).length;
   const totalSlotsPerClass = activeSlotsCount * days.length;
 
-  // total slots after lunch per class
   const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
   let activeSlotsAfterLunchCount = 0;
   if (lunchBreakIdx !== -1) {
@@ -58,12 +153,41 @@ export function preValidateConstraints(
     const classAssignments = assignments.filter(a => a.classId === cls.id);
     let totalPeriodsRequested = 0;
     let totalProjectPeriodsRequested = 0;
-    for (const assign of classAssignments) {
-      const sub = subjects.find(s => s.id === assign.subjectId);
-      if (sub) {
-        totalPeriodsRequested += sub.weeklyPeriods;
-        if (sub.isProject) {
-          totalProjectPeriodsRequested += sub.weeklyPeriods;
+
+    if (cls.labBatches && cls.labBatches > 1) {
+      const labAssigns = classAssignments.filter(a => {
+        const sub = subjects.find(s => s.id === a.subjectId);
+        return sub && sub.isLab;
+      });
+      const nonLabAssigns = classAssignments.filter(a => {
+        const sub = subjects.find(s => s.id === a.subjectId);
+        return !sub || !sub.isLab;
+      });
+      for (const assign of nonLabAssigns) {
+        const sub = subjects.find(s => s.id === assign.subjectId);
+        if (sub) {
+          totalPeriodsRequested += sub.weeklyPeriods;
+          if (sub.isProject) totalProjectPeriodsRequested += sub.weeklyPeriods;
+        }
+      }
+      if (labAssigns.length > 0) {
+        const numSessions = Math.max(
+          ...labAssigns.map(a => {
+            const sub = subjects.find(s => s.id === a.subjectId);
+            return sub ? Math.ceil(sub.weeklyPeriods / 2) : 1;
+          }),
+          labAssigns.length
+        );
+        totalPeriodsRequested += numSessions * 2;
+      }
+    } else {
+      for (const assign of classAssignments) {
+        const sub = subjects.find(s => s.id === assign.subjectId);
+        if (sub) {
+          totalPeriodsRequested += sub.weeklyPeriods;
+          if (sub.isProject) {
+            totalProjectPeriodsRequested += sub.weeklyPeriods;
+          }
         }
       }
     }
@@ -81,7 +205,7 @@ export function preValidateConstraints(
     }
   }
 
-  // 2. Check if any faculty has more total periods than the total slots in a week (impossible to schedule even without overlaps)
+  // 2. Check if any faculty has more total periods than the total slots in a week
   for (const fac of faculties) {
     const facAssignments = assignments.filter(a => a.facultyId === fac.id);
     let totalFacPeriods = 0;
@@ -124,7 +248,6 @@ export interface ClassGroupInfo {
 
 export function getClassGroupInfo(cls: ClassSection): ClassGroupInfo {
   const sectionStr = cls.section.trim().toUpperCase();
-  // Match a letter (A-Z) followed by optional spaces/hyphens and then digits (\d+) at the end
   const match = sectionStr.match(/([A-Z])\s*-?\s*(\d+)$/);
   const baseSection = match ? match[1] : sectionStr;
   const batch = match ? match[2] : null;
@@ -146,8 +269,142 @@ export function areSiblingBatches(cls1: ClassSection, cls2: ClassSection): boole
 }
 
 /**
+ * Helper to build SolverUnits for all classes and assignments.
+ */
+function buildLectureUnits(
+  classes: ClassSection[],
+  assignments: Assignment[],
+  subjects: Subject[]
+): SolverUnit[] {
+  const lectureUnits: SolverUnit[] = [];
+
+  for (const cls of classes) {
+    const classAssigns = assignments.filter(a => a.classId === cls.id);
+
+    const numBatches = (cls.labBatches !== undefined && cls.labBatches !== null && cls.labBatches > 0) ? cls.labBatches : 2;
+    if (numBatches > 1) {
+      const labAssigns = classAssigns.filter(a => {
+        const sub = subjects.find(s => s.id === a.subjectId);
+        return isSubjectLab(sub);
+      });
+      const nonLabAssigns = classAssigns.filter(a => {
+        const sub = subjects.find(s => s.id === a.subjectId);
+        return !isSubjectLab(sub);
+      });
+
+      // Theory subjects
+      for (const assign of nonLabAssigns) {
+        const sub = subjects.find(s => s.id === assign.subjectId);
+        if (!sub) continue;
+        for (let i = 0; i < sub.weeklyPeriods; i++) {
+          lectureUnits.push({
+            isParallelLab: false,
+            assignmentId: assign.id,
+            classId: assign.classId,
+            facultyId: assign.facultyId,
+            subjectId: assign.subjectId,
+            unitIndex: i,
+            duration: 1,
+          });
+        }
+      }
+
+      // Parallel Lab sessions
+      if (labAssigns.length > 0) {
+        const sec = cls.section.trim().toUpperCase() || 'A';
+        const batchNames: string[] = [];
+        for (let b = 1; b <= numBatches; b++) {
+          batchNames.push(`${sec}${b}`);
+        }
+
+        const numSessions = Math.max(
+          ...labAssigns.map(a => {
+            const sub = subjects.find(s => s.id === a.subjectId);
+            return sub ? Math.ceil(sub.weeklyPeriods / 2) : 1;
+          }),
+          labAssigns.length
+        );
+
+        for (let s = 0; s < numSessions; s++) {
+          const batchAssignments: ParallelLabUnit['batchAssignments'] = [];
+          for (let b = 0; b < numBatches; b++) {
+            const assignIdx = (s + b) % labAssigns.length;
+            const assign = labAssigns[assignIdx];
+            const sub = subjects.find(s => s.id === assign.subjectId);
+            batchAssignments.push({
+              batchName: batchNames[b],
+              assignmentId: assign.id,
+              facultyId: assign.facultyId,
+              subjectId: sub ? sub.id : assign.subjectId,
+            });
+          }
+
+          lectureUnits.push({
+            isParallelLab: true,
+            classId: cls.id,
+            sessionIndex: s,
+            duration: 2,
+            batchAssignments,
+          });
+        }
+      }
+    } else {
+      // Standard class (labBatches <= 1)
+      for (const assign of classAssigns) {
+        const sub = subjects.find(s => s.id === assign.subjectId);
+        if (!sub) continue;
+        if (sub.isLab) {
+          let remaining = sub.weeklyPeriods;
+          let i = 0;
+          while (remaining > 0) {
+            if (remaining >= 2) {
+              lectureUnits.push({
+                isParallelLab: false,
+                assignmentId: assign.id,
+                classId: assign.classId,
+                facultyId: assign.facultyId,
+                subjectId: assign.subjectId,
+                unitIndex: i,
+                duration: 2,
+              });
+              remaining -= 2;
+              i += 2;
+            } else {
+              lectureUnits.push({
+                isParallelLab: false,
+                assignmentId: assign.id,
+                classId: assign.classId,
+                facultyId: assign.facultyId,
+                subjectId: assign.subjectId,
+                unitIndex: i,
+                duration: 1,
+              });
+              remaining -= 1;
+              i += 1;
+            }
+          }
+        } else {
+          for (let i = 0; i < sub.weeklyPeriods; i++) {
+            lectureUnits.push({
+              isParallelLab: false,
+              assignmentId: assign.id,
+              classId: assign.classId,
+              facultyId: assign.facultyId,
+              subjectId: assign.subjectId,
+              unitIndex: i,
+              duration: 1,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return lectureUnits;
+}
+
+/**
  * A highly optimized backtracking timetable generator with constraint satisfaction.
- * Employs MRV (Minimum Remaining Values) sort and randomized slot picking to solve efficiently.
  */
 export function generateTimetable(
   faculties: Faculty[],
@@ -160,7 +417,6 @@ export function generateTimetable(
   const activeSlots = timeSlots.filter(s => !s.isBreak);
   const totalPeriods = activeSlots.length;
 
-  // Identify the lunch break and the active slot index preceding it
   const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
   let activeLunchPredecessorId: string | null = null;
   if (lunchBreakIdx > 0) {
@@ -172,7 +428,6 @@ export function generateTimetable(
     }
   }
 
-  // Helper to determine if an active slot is a preferred/high-priority slot (Period 1, 2, 3, 4, or before lunch)
   const isHighPriorityPeriod = (pIdx: number): boolean => {
     if (pIdx === 0 || pIdx === 1) return true;
     const slot = activeSlots[pIdx];
@@ -198,7 +453,6 @@ export function generateTimetable(
     return false;
   };
 
-  // Helper to check if two active period indices are consecutive in the original timeSlots (no breaks between them)
   const arePeriodsConsecutive = (pIdx1: number, pIdx2: number): boolean => {
     const slot1 = activeSlots[pIdx1];
     const slot2 = activeSlots[pIdx2];
@@ -208,7 +462,6 @@ export function generateTimetable(
     return Math.abs(idx2 - idx1) === 1;
   };
 
-  // Helper to check if an active slot corresponds to Period 1, 2, 3, or 4
   const isPeriod1To4 = (pIdx: number): boolean => {
     const slot = activeSlots[pIdx];
     if (!slot) return false;
@@ -220,7 +473,6 @@ export function generateTimetable(
     return isP1 || isP2 || isP3 || isP4;
   };
 
-  // Helper to check if an active slot corresponds to Period 1
   const isPeriod1 = (pIdx: number): boolean => {
     const slot = activeSlots[pIdx];
     if (!slot) return false;
@@ -252,67 +504,9 @@ export function generateTimetable(
   }
 
   // Create lecture units
-  const lectureUnits: LectureUnit[] = [];
-  for (const assign of assignments) {
-    const sub = subjects.find(s => s.id === assign.subjectId);
-    if (!sub) continue;
-    if (sub.isLab) {
-      let remaining = sub.weeklyPeriods;
-      let i = 0;
-      while (remaining > 0) {
-        if (remaining >= 2) {
-          lectureUnits.push({
-            assignmentId: assign.id,
-            classId: assign.classId,
-            facultyId: assign.facultyId,
-            subjectId: assign.subjectId,
-            unitIndex: i,
-            duration: 2,
-          });
-          remaining -= 2;
-          i += 2;
-        } else {
-          lectureUnits.push({
-            assignmentId: assign.id,
-            classId: assign.classId,
-            facultyId: assign.facultyId,
-            subjectId: assign.subjectId,
-            unitIndex: i,
-            duration: 1,
-          });
-          remaining -= 1;
-          i += 1;
-        }
-      }
-    } else {
-      for (let i = 0; i < sub.weeklyPeriods; i++) {
-        lectureUnits.push({
-          assignmentId: assign.id,
-          classId: assign.classId,
-          facultyId: assign.facultyId,
-          subjectId: assign.subjectId,
-          unitIndex: i,
-          duration: 1,
-        });
-      }
-    }
-  }
-
-  // Count how many total hours/periods each faculty is teaching to prioritize busiest teachers
-  const facultyLoad: Record<string, number> = {};
-  for (const unit of lectureUnits) {
-    facultyLoad[unit.facultyId] = (facultyLoad[unit.facultyId] || 0) + unit.duration;
-  }
-
-  // Sort units: schedule busiest teachers first (Most Constrained Heuristic)
-  lectureUnits.sort((a, b) => {
-    const loadA = facultyLoad[a.facultyId] || 0;
-    const loadB = facultyLoad[b.facultyId] || 0;
-    return loadB - loadA; // descending order of faculty workload
-  });
+  const lectureUnits = buildLectureUnits(classes, assignments, subjects);
 
   // Identify which faculties take multiple subjects in the SAME class
-  // key: facultyId_classId -> boolean
   const facultyMultiSubjectMap: Record<string, boolean> = {};
   for (const cls of classes) {
     for (const fac of faculties) {
@@ -324,7 +518,6 @@ export function generateTimetable(
   }
 
   // Initialize schedules
-  // schedule[classId][day][periodIndex] = assignmentId | null
   const schedule: TimetableSchedule = {};
   for (const cls of classes) {
     schedule[cls.id] = {};
@@ -334,7 +527,6 @@ export function generateTimetable(
   }
 
   // Track teacher commitments
-  // teacherBusy[facultyId][day][periodIndex] = boolean
   const teacherBusy: Record<string, Record<string, boolean[]>> = {};
   for (const fac of faculties) {
     teacherBusy[fac.id] = {};
@@ -343,130 +535,81 @@ export function generateTimetable(
     }
   }
 
-  // Helper to fetch faculty ID currently teaching a class in a slot
-  const getFacultyAt = (classId: string, day: string, periodIdx: number): string | null => {
-    const assignId = schedule[classId][day][periodIdx];
-    if (!assignId) return null;
-    const assign = assignments.find(a => a.id === assignId);
-    return assign ? assign.facultyId : null;
+  const getFacultiesAt = (classId: string, day: string, periodIdx: number): string[] => {
+    const cell = schedule[classId][day][periodIdx];
+    if (!cell) return [];
+    if (typeof cell === 'string') {
+      const assign = assignments.find(a => a.id === cell);
+      return assign ? [assign.facultyId] : [];
+    }
+    const batchItems = getBatchItemsFromCell(cell);
+    if (batchItems) {
+      const facs: string[] = [];
+      for (const item of batchItems) {
+        const assign = assignments.find(a => a.id === item.assignmentId);
+        if (assign) facs.push(assign.facultyId);
+      }
+      return facs;
+    }
+    return [];
   };
 
-  // Helper to fetch subject ID currently in a slot
-  const getSubjectAt = (classId: string, day: string, periodIdx: number): string | null => {
-    const assignId = schedule[classId][day][periodIdx];
-    if (!assignId) return null;
-    const assign = assignments.find(a => a.id === assignId);
-    return assign ? assign.subjectId : null;
+  const getSubjectsAt = (classId: string, day: string, periodIdx: number): string[] => {
+    const cell = schedule[classId][day][periodIdx];
+    if (!cell) return [];
+    if (typeof cell === 'string') {
+      const assign = assignments.find(a => a.id === cell);
+      return assign ? [assign.subjectId] : [];
+    }
+    const batchItems = getBatchItemsFromCell(cell);
+    if (batchItems) {
+      const subs: string[] = [];
+      for (const item of batchItems) {
+        const assign = assignments.find(a => a.id === item.assignmentId);
+        if (assign) subs.push(assign.subjectId);
+      }
+      return subs;
+    }
+    return [];
   };
 
-  // Helper to count how many times a subject is scheduled on a day for a class
   const getSubjectCountOnDay = (classId: string, day: string, subId: string): number => {
     let count = 0;
     for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-      if (getSubjectAt(classId, day, pIdx) === subId) {
+      const subs = getSubjectsAt(classId, day, pIdx);
+      if (subs.includes(subId)) {
         count++;
       }
     }
     return count;
   };
 
-  // Pre-calculate class lab units count
-  const classLabUnitsCount: Record<string, number> = {};
-  for (const cls of classes) {
-    let labCount = 0;
-    const classAssigns = assignments.filter(a => a.classId === cls.id);
-    for (const assign of classAssigns) {
-      const sub = subjects.find(s => s.id === assign.subjectId);
-      if (sub && sub.isLab) {
-        labCount += sub.weeklyPeriods;
-      }
-    }
-    classLabUnitsCount[cls.id] = labCount;
-  }
-
-  // Pre-calculate group lab faculties
-  const groupLabFaculties: Record<string, Set<string>> = {};
-  for (const assign of assignments) {
-    const sub = subjects.find(s => s.id === assign.subjectId);
-    if (sub && sub.isLab) {
-      const cls = classes.find(c => c.id === assign.classId);
-      if (cls) {
-        const info = getClassGroupInfo(cls);
-        if (!groupLabFaculties[info.groupId]) {
-          groupLabFaculties[info.groupId] = new Set();
-        }
-        groupLabFaculties[info.groupId].add(assign.facultyId);
-      }
-    }
-  }
-
-  const shareLabFaculty = (groupId1: string, groupId2: string): boolean => {
-    if (groupId1 === groupId2) return false;
-    const set1 = groupLabFaculties[groupId1];
-    const set2 = groupLabFaculties[groupId2];
-    if (!set1 || !set2) return false;
-    for (const fac of set1) {
-      if (set2.has(fac)) return true;
-    }
-    return false;
-  };
-
   const hasClassLabOnDay = (classId: string, day: DayOfWeek): boolean => {
     for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-      const subId = getSubjectAt(classId, day, pIdx);
-      if (subId) {
-        const sub = subjects.find(s => s.id === subId);
-        if (sub && sub.isLab) {
-          return true;
-        }
+      const subs = getSubjectsAt(classId, day, pIdx);
+      for (const sId of subs) {
+        const sub = subjects.find(s => s.id === sId);
+        if (sub && sub.isLab) return true;
       }
     }
     return false;
   };
 
-  const countScheduledLabUnits = (classId: string): number => {
-    let count = 0;
-    for (const d of days) {
-      for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-        const subId = getSubjectAt(classId, d, pIdx);
-        if (subId) {
-          const sub = subjects.find(s => s.id === subId);
-          if (sub && sub.isLab) {
-            count++;
-          }
-        }
-      }
-    }
-    return count;
-  };
-
-  const hasSharedFacultyLabOnDay = (classId: string, day: DayOfWeek): boolean => {
-    const currentCls = classes.find(cl => cl.id === classId);
-    if (!currentCls) return false;
-    const currentInfo = getClassGroupInfo(currentCls);
-
-    for (const otherCls of classes) {
-      if (otherCls.id === classId) continue;
-      const otherInfo = getClassGroupInfo(otherCls);
-      if (currentInfo.groupId === otherInfo.groupId) continue;
-
-      if (shareLabFaculty(currentInfo.groupId, otherInfo.groupId)) {
-        if (hasClassLabOnDay(otherCls.id, day)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
+  // Sort units: schedule parallel labs and longer units first
+  lectureUnits.sort((a, b) => {
+    if (a.isParallelLab && !b.isParallelLab) return -1;
+    if (!a.isParallelLab && b.isParallelLab) return 1;
+    return b.duration - a.duration;
+  });
 
   // Backtracking function
   let steps = 0;
-  const MAX_STEPS = 15000;
+  const MAX_STEPS = 20000;
 
   function backtrack(unitIdx: number): boolean {
     steps++;
     if (steps > MAX_STEPS) {
-      return false; // safety timeout
+      return false;
     }
 
     if (unitIdx === lectureUnits.length) {
@@ -476,7 +619,6 @@ export function generateTimetable(
           for (let p = 0; p < totalPeriods; p++) {
             if (isPeriod1To4(p)) {
               if (schedule[cls.id][day][p] === null) {
-                // Check if there is some lesson after this period on this day
                 let hasAfter = false;
                 for (let j = p + 1; j < totalPeriods; j++) {
                   if (schedule[cls.id][day][j] !== null) {
@@ -485,104 +627,141 @@ export function generateTimetable(
                   }
                 }
                 if (hasAfter) {
-                  return false; // Violates "avoid free periods in Period 1, 2, 3, and 4"
+                  return false;
                 }
               }
             }
           }
         }
       }
-      return true; // All scheduled successfully!
+      return true;
     }
 
     const unit = lectureUnits[unitIdx];
-    const { classId, facultyId, assignmentId, subjectId, duration } = unit;
 
-    const sub = subjects.find(s => s.id === subjectId);
-    const weeklyPeriods = sub ? sub.weeklyPeriods : 0;
-    const isLab = sub ? sub.isLab === true : false;
-
-    // Check if faculty has multiple subjects in this class
-    const isMultiSubject = facultyMultiSubjectMap[`${facultyId}_${classId}`] || false;
-
-    // Build all possible slots (day, periodIndex)
+    // Build all candidate slots
     const candidates: { day: DayOfWeek; periodIdx: number }[] = [];
     for (const day of days) {
       for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-        // Must be vacant and within bounds
-        if (duration === 2) {
-          if (pIdx + 1 >= totalPeriods) continue;
-          if (schedule[classId][day][pIdx] !== null || schedule[classId][day][pIdx + 1] !== null) continue;
-          if (teacherBusy[facultyId][day][pIdx] || teacherBusy[facultyId][day][pIdx + 1]) continue;
-          if (!arePeriodsConsecutive(pIdx, pIdx + 1)) continue;
-        } else {
-          if (schedule[classId][day][pIdx] !== null) continue;
-          if (teacherBusy[facultyId][day][pIdx]) continue;
+        candidates.push({ day, periodIdx: pIdx });
+      }
+    }
+
+    // Shuffle and prioritize
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    candidates.sort((a, b) => {
+      const prioA = isHighPriorityPeriod(a.periodIdx) ? 1 : 0;
+      const prioB = isHighPriorityPeriod(b.periodIdx) ? 1 : 0;
+      return prioB - prioA;
+    });
+
+    if (unit.isParallelLab) {
+      const { classId, batchAssignments } = unit;
+
+      for (const cand of candidates) {
+        const { day, periodIdx } = cand;
+
+        if (periodIdx + 1 >= totalPeriods) continue;
+        if (schedule[classId][day][periodIdx] !== null || schedule[classId][day][periodIdx + 1] !== null) continue;
+        if (!arePeriodsConsecutive(periodIdx, periodIdx + 1)) continue;
+
+        // Check if all faculties are free
+        let anyFacultyBusy = false;
+        for (const b of batchAssignments) {
+          if (teacherBusy[b.facultyId][day][periodIdx] || teacherBusy[b.facultyId][day][periodIdx + 1]) {
+            anyFacultyBusy = true;
+            break;
+          }
+        }
+        if (anyFacultyBusy) continue;
+
+        // Check if class already has lab on this day
+        if (hasClassLabOnDay(classId, day)) continue;
+
+        // Place
+        const cellValue: BatchAssignment[] = batchAssignments.map(b => ({
+          batchName: b.batchName,
+          assignmentId: b.assignmentId
+        }));
+
+        schedule[classId][day][periodIdx] = cellValue;
+        schedule[classId][day][periodIdx + 1] = cellValue;
+
+        for (const b of batchAssignments) {
+          teacherBusy[b.facultyId][day][periodIdx] = true;
+          teacherBusy[b.facultyId][day][periodIdx + 1] = true;
         }
 
-        // Constraint: If subject is a Project/Seminar/Internship, it MUST be scheduled AFTER the lunch break
+        if (backtrack(unitIdx + 1)) return true;
+
+        // Backtrack
+        schedule[classId][day][periodIdx] = null;
+        schedule[classId][day][periodIdx + 1] = null;
+
+        for (const b of batchAssignments) {
+          teacherBusy[b.facultyId][day][periodIdx] = false;
+          teacherBusy[b.facultyId][day][periodIdx + 1] = false;
+        }
+      }
+      return false;
+    } else {
+      const stdUnit = unit as StandardUnit;
+      const { classId, facultyId, assignmentId, subjectId, duration } = stdUnit;
+      const sub = subjects.find(s => s.id === subjectId);
+      const weeklyPeriods = sub ? sub.weeklyPeriods : 0;
+      const isLab = sub ? sub.isLab === true : false;
+      const isMultiSubject = facultyMultiSubjectMap[`${facultyId}_${classId}`] || false;
+
+      for (const cand of candidates) {
+        const { day, periodIdx } = cand;
+
+        if (duration === 2) {
+          if (periodIdx + 1 >= totalPeriods) continue;
+          if (schedule[classId][day][periodIdx] !== null || schedule[classId][day][periodIdx + 1] !== null) continue;
+          if (teacherBusy[facultyId][day][periodIdx] || teacherBusy[facultyId][day][periodIdx + 1]) continue;
+          if (!arePeriodsConsecutive(periodIdx, periodIdx + 1)) continue;
+        } else {
+          if (schedule[classId][day][periodIdx] !== null) continue;
+          if (teacherBusy[facultyId][day][periodIdx]) continue;
+        }
+
+        // Project constraint
         if (sub && sub.isProject && lunchBreakIdx !== -1) {
-          const slot1 = activeSlots[pIdx];
+          const slot1 = activeSlots[periodIdx];
           const origIdx1 = timeSlots.findIndex(s => s.id === slot1.id);
           if (origIdx1 <= lunchBreakIdx) continue;
           if (duration === 2) {
-            const slot2 = activeSlots[pIdx + 1];
+            const slot2 = activeSlots[periodIdx + 1];
             const origIdx2 = timeSlots.findIndex(s => s.id === slot2.id);
             if (origIdx2 <= lunchBreakIdx) continue;
           }
         }
 
-        // Apply continuous class constraint if faculty takes multiple subjects in this class
+        // Multi subject continuous constraint
         if (isMultiSubject) {
           if (duration === 2) {
-            // Check before the 2-period block
-            if (pIdx > 0) {
-              const prevFac = getFacultyAt(classId, day, pIdx - 1);
-              if (prevFac === facultyId) continue;
-            }
-            // Check after the 2-period block
-            if (pIdx + 2 < totalPeriods) {
-              const nextFac = getFacultyAt(classId, day, pIdx + 2);
-              if (nextFac === facultyId) continue;
-            }
+            if (periodIdx > 0 && getFacultiesAt(classId, day, periodIdx - 1).includes(facultyId)) continue;
+            if (periodIdx + 2 < totalPeriods && getFacultiesAt(classId, day, periodIdx + 2).includes(facultyId)) continue;
           } else {
-            // Check previous slot
-            if (pIdx > 0) {
-              const prevFac = getFacultyAt(classId, day, pIdx - 1);
-              if (prevFac === facultyId) continue;
-            }
-            // Check next slot
-            if (pIdx < totalPeriods - 1) {
-              const nextFac = getFacultyAt(classId, day, pIdx + 1);
-              if (nextFac === facultyId) continue;
-            }
+            if (periodIdx > 0 && getFacultiesAt(classId, day, periodIdx - 1).includes(facultyId)) continue;
+            if (periodIdx < totalPeriods - 1 && getFacultiesAt(classId, day, periodIdx + 1).includes(facultyId)) continue;
           }
         }
 
-        // --- CONSTRAINTS ---
-        // 1. Do not add continuous classes for the same subject on the same day
+        // 1. Same subject continuous check
         if (duration === 2) {
-          if (pIdx > 0) {
-            const prevSub = getSubjectAt(classId, day, pIdx - 1);
-            if (prevSub === subjectId) continue;
-          }
-          if (pIdx + 2 < totalPeriods) {
-            const nextSub = getSubjectAt(classId, day, pIdx + 2);
-            if (nextSub === subjectId) continue;
-          }
+          if (periodIdx > 0 && getSubjectsAt(classId, day, periodIdx - 1).includes(subjectId)) continue;
+          if (periodIdx + 2 < totalPeriods && getSubjectsAt(classId, day, periodIdx + 2).includes(subjectId)) continue;
         } else {
-          if (pIdx > 0) {
-            const prevSub = getSubjectAt(classId, day, pIdx - 1);
-            if (prevSub === subjectId) continue;
-          }
-          if (pIdx < totalPeriods - 1) {
-            const nextSub = getSubjectAt(classId, day, pIdx + 1);
-            if (nextSub === subjectId) continue;
-          }
+          if (periodIdx > 0 && getSubjectsAt(classId, day, periodIdx - 1).includes(subjectId)) continue;
+          if (periodIdx < totalPeriods - 1 && getSubjectsAt(classId, day, periodIdx + 1).includes(subjectId)) continue;
         }
 
-        // 2. Do not put the same subject more than once per day,
-        // unless weeklyPeriods is greater than the number of active days.
+        // 2. Max occurrences per day
         const currentCountOnDay = getSubjectCountOnDay(classId, day, subjectId);
         if (isLab) {
           if (currentCountOnDay > 0) continue;
@@ -591,13 +770,13 @@ export function generateTimetable(
           if (currentCountOnDay >= maxOccurrencesPerDay) continue;
         }
 
-        // 3. One subject has to be allotted only once for Period 1 in a week.
-        const occupiesPeriod1 = duration === 2 ? (isPeriod1(pIdx) || isPeriod1(pIdx + 1)) : isPeriod1(pIdx);
+        // 3. Period 1 constraint
+        const occupiesPeriod1 = duration === 2 ? (isPeriod1(periodIdx) || isPeriod1(periodIdx + 1)) : isPeriod1(periodIdx);
         if (occupiesPeriod1) {
           let alreadyAllotted = false;
           for (const d of days) {
             for (let p = 0; p < totalPeriods; p++) {
-              if (isPeriod1(p) && getSubjectAt(classId, d, p) === subjectId) {
+              if (isPeriod1(p) && getSubjectsAt(classId, d, p).includes(subjectId)) {
                 alreadyAllotted = true;
                 break;
               }
@@ -607,85 +786,32 @@ export function generateTimetable(
           if (alreadyAllotted) continue;
         }
 
-        // 4. Lab constraints: sibling batches on the same day, shared-faculty labs on different days
-        if (isLab) {
-          const currentCls = classes.find(cl => cl.id === classId);
-          if (currentCls) {
-            const siblings = classes.filter(cl => areSiblingBatches(currentCls, cl));
-            let siblingConstraintViolated = false;
-            for (const sib of siblings) {
-              const sibTotalLabPeriods = classLabUnitsCount[sib.id] || 0;
-              if (sibTotalLabPeriods === 0) continue;
-
-              const sibHasLabOnDay = hasClassLabOnDay(sib.id, day);
-              if (sibHasLabOnDay) {
-                continue; // Matches sibling's lab day
-              }
-
-              const sibScheduledLabPeriods = countScheduledLabUnits(sib.id);
-              const sibRemainingLabPeriods = sibTotalLabPeriods - sibScheduledLabPeriods;
-              if (sibRemainingLabPeriods <= 0) {
-                siblingConstraintViolated = true;
-                break;
-              }
-            }
-            if (siblingConstraintViolated) continue;
-          }
-
-          if (hasSharedFacultyLabOnDay(classId, day)) {
-            continue;
-          }
+        // Place
+        if (duration === 2) {
+          schedule[classId][day][periodIdx] = assignmentId;
+          schedule[classId][day][periodIdx + 1] = assignmentId;
+          teacherBusy[facultyId][day][periodIdx] = true;
+          teacherBusy[facultyId][day][periodIdx + 1] = true;
+        } else {
+          schedule[classId][day][periodIdx] = assignmentId;
+          teacherBusy[facultyId][day][periodIdx] = true;
         }
 
-        candidates.push({ day, periodIdx: pIdx });
+        if (backtrack(unitIdx + 1)) return true;
+
+        // Backtrack
+        if (duration === 2) {
+          schedule[classId][day][periodIdx] = null;
+          schedule[classId][day][periodIdx + 1] = null;
+          teacherBusy[facultyId][day][periodIdx] = false;
+          teacherBusy[facultyId][day][periodIdx + 1] = false;
+        } else {
+          schedule[classId][day][periodIdx] = null;
+          teacherBusy[facultyId][day][periodIdx] = false;
+        }
       }
+      return false;
     }
-
-    // Shuffling candidate slots adds randomness and avoids worst-case deterministic backtracking depth.
-    // It finds valid schedules in a fraction of a millisecond.
-    for (let i = candidates.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-    }
-
-    // Prioritize high-priority slots (Period 1, 2, and before lunch)
-    candidates.sort((a, b) => {
-      const prioA = isHighPriorityPeriod(a.periodIdx) ? 1 : 0;
-      const prioB = isHighPriorityPeriod(b.periodIdx) ? 1 : 0;
-      return prioB - prioA;
-    });
-
-    for (const cand of candidates) {
-      const { day, periodIdx } = cand;
-
-      // Make assignment
-      if (duration === 2) {
-        schedule[classId][day][periodIdx] = assignmentId;
-        schedule[classId][day][periodIdx + 1] = assignmentId;
-        teacherBusy[facultyId][day][periodIdx] = true;
-        teacherBusy[facultyId][day][periodIdx + 1] = true;
-      } else {
-        schedule[classId][day][periodIdx] = assignmentId;
-        teacherBusy[facultyId][day][periodIdx] = true;
-      }
-
-      if (backtrack(unitIdx + 1)) {
-        return true;
-      }
-
-      // Backtrack / Undo assignment
-      if (duration === 2) {
-        schedule[classId][day][periodIdx] = null;
-        schedule[classId][day][periodIdx + 1] = null;
-        teacherBusy[facultyId][day][periodIdx] = false;
-        teacherBusy[facultyId][day][periodIdx + 1] = false;
-      } else {
-        schedule[classId][day][periodIdx] = null;
-        teacherBusy[facultyId][day][periodIdx] = false;
-      }
-    }
-
-    return false;
   }
 
   const success = backtrack(0);
@@ -697,15 +823,12 @@ export function generateTimetable(
       message: 'Timetable generated successfully without any clashes or continuity conflicts!'
     };
   } else {
-    // If exact backtrack failed, let's return whatever we scheduled so far or try a greedy recovery to let the user see a partial schedule.
-    // Let's run a greedy solver to fill as many slots as possible so the user gets a mostly complete timetable with notes about unscheduled items.
     return greedyFallback(faculties, subjects, classes, assignments, timeSlots, days, facultyMultiSubjectMap);
   }
 }
 
 /**
- * Greedy fallback if perfect backtracking fails. It places as many units as possible
- * and provides clear feedback on which lessons could not be scheduled.
+ * Greedy fallback if perfect backtracking reaches limit.
  */
 function greedyFallback(
   faculties: Faculty[],
@@ -720,22 +843,13 @@ function greedyFallback(
   const totalPeriods = activeSlots.length;
 
   const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
-  let activeLunchPredecessorId: string | null = null;
-  if (lunchBreakIdx > 0) {
-    for (let i = lunchBreakIdx - 1; i >= 0; i--) {
-      if (!timeSlots[i].isBreak) {
-        activeLunchPredecessorId = timeSlots[i].id;
-        break;
-      }
-    }
-  }
 
   const isHighPriorityPeriod = (pIdx: number): boolean => {
     if (pIdx === 0 || pIdx === 1) return true;
     const slot = activeSlots[pIdx];
     if (!slot) return false;
     const labelLower = slot.label.toLowerCase();
-    if (
+    return (
       labelLower.includes('period 1') || 
       labelLower.includes('period 2') || 
       labelLower.includes('1st') || 
@@ -746,13 +860,7 @@ function greedyFallback(
       labelLower.includes('4th') ||
       pIdx === 2 ||
       pIdx === 3
-    ) {
-      return true;
-    }
-    if (activeLunchPredecessorId && slot.id === activeLunchPredecessorId) {
-      return true;
-    }
-    return false;
+    );
   };
 
   const arePeriodsConsecutive = (pIdx1: number, pIdx2: number): boolean => {
@@ -762,17 +870,6 @@ function greedyFallback(
     const idx1 = timeSlots.findIndex(s => s.id === slot1.id);
     const idx2 = timeSlots.findIndex(s => s.id === slot2.id);
     return Math.abs(idx2 - idx1) === 1;
-  };
-
-  const isPeriod1To4 = (pIdx: number): boolean => {
-    const slot = activeSlots[pIdx];
-    if (!slot) return false;
-    const labelLower = slot.label.toLowerCase();
-    const isP1 = labelLower.includes('period 1') || labelLower.includes('1st') || pIdx === 0;
-    const isP2 = labelLower.includes('period 2') || labelLower.includes('2nd') || pIdx === 1;
-    const isP3 = labelLower.includes('period 3') || labelLower.includes('3rd') || pIdx === 2;
-    const isP4 = labelLower.includes('period 4') || labelLower.includes('4th') || pIdx === 3;
-    return isP1 || isP2 || isP3 || isP4;
   };
 
   const isPeriod1 = (pIdx: number): boolean => {
@@ -798,178 +895,77 @@ function greedyFallback(
     }
   }
 
-  const getFacultyAt = (classId: string, day: string, periodIdx: number): string | null => {
-    const assignId = schedule[classId][day][periodIdx];
-    if (!assignId) return null;
-    const assign = assignments.find(a => a.id === assignId);
-    return assign ? assign.facultyId : null;
+  const getFacultiesAt = (classId: string, day: string, periodIdx: number): string[] => {
+    const cell = schedule[classId][day][periodIdx];
+    if (!cell) return [];
+    if (typeof cell === 'string') {
+      const assign = assignments.find(a => a.id === cell);
+      return assign ? [assign.facultyId] : [];
+    }
+    const batchItems = getBatchItemsFromCell(cell);
+    if (batchItems) {
+      const facs: string[] = [];
+      for (const item of batchItems) {
+        const assign = assignments.find(a => a.id === item.assignmentId);
+        if (assign) facs.push(assign.facultyId);
+      }
+      return facs;
+    }
+    return [];
   };
 
-  // Helper to fetch subject ID currently in a slot
-  const getSubjectAt = (classId: string, day: string, periodIdx: number): string | null => {
-    const assignId = schedule[classId][day][periodIdx];
-    if (!assignId) return null;
-    const assign = assignments.find(a => a.id === assignId);
-    return assign ? assign.subjectId : null;
+  const getSubjectsAt = (classId: string, day: string, periodIdx: number): string[] => {
+    const cell = schedule[classId][day][periodIdx];
+    if (!cell) return [];
+    if (typeof cell === 'string') {
+      const assign = assignments.find(a => a.id === cell);
+      return assign ? [assign.subjectId] : [];
+    }
+    const batchItems = getBatchItemsFromCell(cell);
+    if (batchItems) {
+      const subs: string[] = [];
+      for (const item of batchItems) {
+        const assign = assignments.find(a => a.id === item.assignmentId);
+        if (assign) subs.push(assign.subjectId);
+      }
+      return subs;
+    }
+    return [];
   };
 
-  // Helper to count how many times a subject is scheduled on a day for a class
   const getSubjectCountOnDay = (classId: string, day: string, subId: string): number => {
     let count = 0;
     for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-      if (getSubjectAt(classId, day, pIdx) === subId) {
-        count++;
-      }
+      const subs = getSubjectsAt(classId, day, pIdx);
+      if (subs.includes(subId)) count++;
     }
     return count;
-  };
-
-  // Pre-calculate class lab units count
-  const classLabUnitsCount: Record<string, number> = {};
-  for (const cls of classes) {
-    let labCount = 0;
-    const classAssigns = assignments.filter(a => a.classId === cls.id);
-    for (const assign of classAssigns) {
-      const sub = subjects.find(s => s.id === assign.subjectId);
-      if (sub && sub.isLab) {
-        labCount += sub.weeklyPeriods;
-      }
-    }
-    classLabUnitsCount[cls.id] = labCount;
-  }
-
-  // Pre-calculate group lab faculties
-  const groupLabFaculties: Record<string, Set<string>> = {};
-  for (const assign of assignments) {
-    const sub = subjects.find(s => s.id === assign.subjectId);
-    if (sub && sub.isLab) {
-      const cls = classes.find(c => c.id === assign.classId);
-      if (cls) {
-        const info = getClassGroupInfo(cls);
-        if (!groupLabFaculties[info.groupId]) {
-          groupLabFaculties[info.groupId] = new Set();
-        }
-        groupLabFaculties[info.groupId].add(assign.facultyId);
-      }
-    }
-  }
-
-  const shareLabFaculty = (groupId1: string, groupId2: string): boolean => {
-    if (groupId1 === groupId2) return false;
-    const set1 = groupLabFaculties[groupId1];
-    const set2 = groupLabFaculties[groupId2];
-    if (!set1 || !set2) return false;
-    for (const fac of set1) {
-      if (set2.has(fac)) return true;
-    }
-    return false;
   };
 
   const hasClassLabOnDay = (classId: string, day: DayOfWeek): boolean => {
     for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-      const subId = getSubjectAt(classId, day, pIdx);
-      if (subId) {
-        const sub = subjects.find(s => s.id === subId);
-        if (sub && sub.isLab) {
-          return true;
-        }
+      const subs = getSubjectsAt(classId, day, pIdx);
+      for (const sId of subs) {
+        const sub = subjects.find(s => s.id === sId);
+        if (sub && sub.isLab) return true;
       }
     }
     return false;
   };
 
-  const countScheduledLabUnits = (classId: string): number => {
-    let count = 0;
-    for (const d of days) {
-      for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-        const subId = getSubjectAt(classId, d, pIdx);
-        if (subId) {
-          const sub = subjects.find(s => s.id === subId);
-          if (sub && sub.isLab) {
-            count++;
-          }
-        }
-      }
-    }
-    return count;
-  };
+  const lectureUnits = buildLectureUnits(classes, assignments, subjects);
 
-  const hasSharedFacultyLabOnDay = (classId: string, day: DayOfWeek): boolean => {
-    const currentCls = classes.find(cl => cl.id === classId);
-    if (!currentCls) return false;
-    const currentInfo = getClassGroupInfo(currentCls);
+  lectureUnits.sort((a, b) => {
+    if (a.isParallelLab && !b.isParallelLab) return -1;
+    if (!a.isParallelLab && b.isParallelLab) return 1;
+    return b.duration - a.duration;
+  });
 
-    for (const otherCls of classes) {
-      if (otherCls.id === classId) continue;
-      const otherInfo = getClassGroupInfo(otherCls);
-      if (currentInfo.groupId === otherInfo.groupId) continue;
-
-      if (shareLabFaculty(currentInfo.groupId, otherInfo.groupId)) {
-        if (hasClassLabOnDay(otherCls.id, day)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  const lectureUnits: LectureUnit[] = [];
-  for (const assign of assignments) {
-    const sub = subjects.find(s => s.id === assign.subjectId);
-    if (!sub) continue;
-    if (sub.isLab) {
-      let remaining = sub.weeklyPeriods;
-      let i = 0;
-      while (remaining > 0) {
-        if (remaining >= 2) {
-          lectureUnits.push({
-            assignmentId: assign.id,
-            classId: assign.classId,
-            facultyId: assign.facultyId,
-            subjectId: assign.subjectId,
-            unitIndex: i,
-            duration: 2,
-          });
-          remaining -= 2;
-          i += 2;
-        } else {
-          lectureUnits.push({
-            assignmentId: assign.id,
-            classId: assign.classId,
-            facultyId: assign.facultyId,
-            subjectId: assign.subjectId,
-            unitIndex: i,
-            duration: 1,
-          });
-          remaining -= 1;
-          i += 1;
-        }
-      }
-    } else {
-      for (let i = 0; i < sub.weeklyPeriods; i++) {
-        lectureUnits.push({
-          assignmentId: assign.id,
-          classId: assign.classId,
-          facultyId: assign.facultyId,
-          subjectId: assign.subjectId,
-          unitIndex: i,
-          duration: 1,
-        });
-      }
-    }
-  }
-
-  const unscheduledUnits: LectureUnit[] = [];
+  const unscheduledUnits: SolverUnit[] = [];
 
   for (const unit of lectureUnits) {
-    const { classId, facultyId, assignmentId, subjectId, duration } = unit;
-    const isMultiSubject = facultyMultiSubjectMap[`${facultyId}_${classId}`] || false;
-    const sub = subjects.find(s => s.id === subjectId);
-    const weeklyPeriods = sub ? sub.weeklyPeriods : 0;
-    const isLab = sub ? sub.isLab === true : false;
     let placed = false;
 
-    // Scan for any slot prioritizing high priority periods
     const candSlots: { day: DayOfWeek; pIdx: number }[] = [];
     for (const day of days) {
       for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
@@ -982,143 +978,128 @@ function greedyFallback(
       return prioB - prioA;
     });
 
-    for (const cand of candSlots) {
-      const { day, pIdx } = cand;
+    if (unit.isParallelLab) {
+      const { classId, batchAssignments } = unit;
 
-      // Must be vacant and within bounds
-      if (duration === 2) {
+      for (const cand of candSlots) {
+        const { day, pIdx } = cand;
+
         if (pIdx + 1 >= totalPeriods) continue;
         if (schedule[classId][day][pIdx] !== null || schedule[classId][day][pIdx + 1] !== null) continue;
-        if (teacherBusy[facultyId][day][pIdx] || teacherBusy[facultyId][day][pIdx + 1]) continue;
         if (!arePeriodsConsecutive(pIdx, pIdx + 1)) continue;
-      } else {
-        if (schedule[classId][day][pIdx] !== null) continue;
-        if (teacherBusy[facultyId][day][pIdx]) continue;
-      }
 
-      // Constraint: If subject is a Project/Seminar/Internship, it MUST be scheduled AFTER the lunch break
-      if (sub && sub.isProject && lunchBreakIdx !== -1) {
-        const slot1 = activeSlots[pIdx];
-        const origIdx1 = timeSlots.findIndex(s => s.id === slot1.id);
-        if (origIdx1 <= lunchBreakIdx) continue;
-        if (duration === 2) {
-          const slot2 = activeSlots[pIdx + 1];
-          const origIdx2 = timeSlots.findIndex(s => s.id === slot2.id);
-          if (origIdx2 <= lunchBreakIdx) continue;
+        let anyFacultyBusy = false;
+        for (const b of batchAssignments) {
+          if (teacherBusy[b.facultyId][day][pIdx] || teacherBusy[b.facultyId][day][pIdx + 1]) {
+            anyFacultyBusy = true;
+            break;
+          }
         }
-      }
+        if (anyFacultyBusy) continue;
 
-      // Apply continuous class constraint if faculty takes multiple subjects in this class
-      if (isMultiSubject) {
+        if (hasClassLabOnDay(classId, day)) continue;
+
+        const cellValue: BatchAssignment[] = batchAssignments.map(b => ({
+          batchName: b.batchName,
+          assignmentId: b.assignmentId
+        }));
+
+        schedule[classId][day][pIdx] = cellValue;
+        schedule[classId][day][pIdx + 1] = cellValue;
+
+        for (const b of batchAssignments) {
+          teacherBusy[b.facultyId][day][pIdx] = true;
+          teacherBusy[b.facultyId][day][pIdx + 1] = true;
+        }
+
+        placed = true;
+        break;
+      }
+    } else {
+      const stdUnit = unit as StandardUnit;
+      const { classId, facultyId, assignmentId, subjectId, duration } = stdUnit;
+      const sub = subjects.find(s => s.id === subjectId);
+      const weeklyPeriods = sub ? sub.weeklyPeriods : 0;
+      const isLab = sub ? sub.isLab === true : false;
+      const isMultiSubject = facultyMultiSubjectMap[`${facultyId}_${classId}`] || false;
+
+      for (const cand of candSlots) {
+        const { day, pIdx } = cand;
+
         if (duration === 2) {
-          // Check before the 2-period block
-          if (pIdx > 0) {
-            const prevFac = getFacultyAt(classId, day, pIdx - 1);
-            if (prevFac === facultyId) continue;
-          }
-          // Check after the 2-period block
-          if (pIdx + 2 < totalPeriods) {
-            const nextFac = getFacultyAt(classId, day, pIdx + 2);
-            if (nextFac === facultyId) continue;
-          }
+          if (pIdx + 1 >= totalPeriods) continue;
+          if (schedule[classId][day][pIdx] !== null || schedule[classId][day][pIdx + 1] !== null) continue;
+          if (teacherBusy[facultyId][day][pIdx] || teacherBusy[facultyId][day][pIdx + 1]) continue;
+          if (!arePeriodsConsecutive(pIdx, pIdx + 1)) continue;
         } else {
-          // Check previous slot
-          if (pIdx > 0 && getFacultyAt(classId, day, pIdx - 1) === facultyId) continue;
-          // Check next slot
-          if (pIdx < totalPeriods - 1 && getFacultyAt(classId, day, pIdx + 1) === facultyId) continue;
+          if (schedule[classId][day][pIdx] !== null) continue;
+          if (teacherBusy[facultyId][day][pIdx]) continue;
         }
-      }
 
-      // --- CONSTRAINTS ---
-      // 1. Do not add continuous classes for the same subject on the same day
-      if (duration === 2) {
-        if (pIdx > 0) {
-          const prevSub = getSubjectAt(classId, day, pIdx - 1);
-          if (prevSub === subjectId) continue;
-        }
-        if (pIdx + 2 < totalPeriods) {
-          const nextSub = getSubjectAt(classId, day, pIdx + 2);
-          if (nextSub === subjectId) continue;
-        }
-      } else {
-        if (pIdx > 0) {
-          const prevSub = getSubjectAt(classId, day, pIdx - 1);
-          if (prevSub === subjectId) continue;
-        }
-        if (pIdx < totalPeriods - 1) {
-          const nextSub = getSubjectAt(classId, day, pIdx + 1);
-          if (nextSub === subjectId) continue;
-        }
-      }
-
-      // 2. Do not put the same subject more than once per day,
-      // unless weeklyPeriods is greater than the number of active days.
-      const currentCountOnDay = getSubjectCountOnDay(classId, day, subjectId);
-      if (isLab) {
-        if (currentCountOnDay > 0) continue;
-      } else {
-        const maxOccurrencesPerDay = (weeklyPeriods > days.length) ? Math.ceil(weeklyPeriods / days.length) : 1;
-        if (currentCountOnDay >= maxOccurrencesPerDay) continue;
-      }
-
-      // 3. One subject has to be allotted only once for Period 1 in a week.
-      const occupiesPeriod1 = duration === 2 ? (isPeriod1(pIdx) || isPeriod1(pIdx + 1)) : isPeriod1(pIdx);
-      if (occupiesPeriod1) {
-        let alreadyAllotted = false;
-        for (const d of days) {
-          for (let p = 0; p < totalPeriods; p++) {
-            if (isPeriod1(p) && getSubjectAt(classId, d, p) === subjectId) {
-              alreadyAllotted = true;
-              break;
-            }
+        if (sub && sub.isProject && lunchBreakIdx !== -1) {
+          const slot1 = activeSlots[pIdx];
+          const origIdx1 = timeSlots.findIndex(s => s.id === slot1.id);
+          if (origIdx1 <= lunchBreakIdx) continue;
+          if (duration === 2) {
+            const slot2 = activeSlots[pIdx + 1];
+            const origIdx2 = timeSlots.findIndex(s => s.id === slot2.id);
+            if (origIdx2 <= lunchBreakIdx) continue;
           }
-          if (alreadyAllotted) break;
         }
-        if (alreadyAllotted) continue;
-      }
 
-      // 4. Lab constraints: sibling batches on the same day, shared-faculty labs on different days
-      if (isLab) {
-        const currentCls = classes.find(cl => cl.id === classId);
-        if (currentCls) {
-          const siblings = classes.filter(cl => areSiblingBatches(currentCls, cl));
-          let siblingConstraintViolated = false;
-          for (const sib of siblings) {
-            const sibTotalLabPeriods = classLabUnitsCount[sib.id] || 0;
-            if (sibTotalLabPeriods === 0) continue;
-
-            const sibHasLabOnDay = hasClassLabOnDay(sib.id, day);
-            if (sibHasLabOnDay) {
-              continue; // Matches sibling's lab day
-            }
-
-            const sibScheduledLabPeriods = countScheduledLabUnits(sib.id);
-            const sibRemainingLabPeriods = sibTotalLabPeriods - sibScheduledLabPeriods;
-            if (sibRemainingLabPeriods <= 0) {
-              siblingConstraintViolated = true;
-              break;
-            }
+        if (isMultiSubject) {
+          if (duration === 2) {
+            if (pIdx > 0 && getFacultiesAt(classId, day, pIdx - 1).includes(facultyId)) continue;
+            if (pIdx + 2 < totalPeriods && getFacultiesAt(classId, day, pIdx + 2).includes(facultyId)) continue;
+          } else {
+            if (pIdx > 0 && getFacultiesAt(classId, day, pIdx - 1).includes(facultyId)) continue;
+            if (pIdx < totalPeriods - 1 && getFacultiesAt(classId, day, pIdx + 1).includes(facultyId)) continue;
           }
-          if (siblingConstraintViolated) continue;
         }
 
-        if (hasSharedFacultyLabOnDay(classId, day)) {
-          continue;
+        if (duration === 2) {
+          if (pIdx > 0 && getSubjectsAt(classId, day, pIdx - 1).includes(subjectId)) continue;
+          if (pIdx + 2 < totalPeriods && getSubjectsAt(classId, day, pIdx + 2).includes(subjectId)) continue;
+        } else {
+          if (pIdx > 0 && getSubjectsAt(classId, day, pIdx - 1).includes(subjectId)) continue;
+          if (pIdx < totalPeriods - 1 && getSubjectsAt(classId, day, pIdx + 1).includes(subjectId)) continue;
         }
-      }
 
-      // Place
-      if (duration === 2) {
-        schedule[classId][day][pIdx] = assignmentId;
-        schedule[classId][day][pIdx + 1] = assignmentId;
-        teacherBusy[facultyId][day][pIdx] = true;
-        teacherBusy[facultyId][day][pIdx + 1] = true;
-      } else {
-        schedule[classId][day][pIdx] = assignmentId;
-        teacherBusy[facultyId][day][pIdx] = true;
+        const currentCountOnDay = getSubjectCountOnDay(classId, day, subjectId);
+        if (isLab) {
+          if (currentCountOnDay > 0) continue;
+        } else {
+          const maxOccurrencesPerDay = (weeklyPeriods > days.length) ? Math.ceil(weeklyPeriods / days.length) : 1;
+          if (currentCountOnDay >= maxOccurrencesPerDay) continue;
+        }
+
+        const occupiesPeriod1 = duration === 2 ? (isPeriod1(pIdx) || isPeriod1(pIdx + 1)) : isPeriod1(pIdx);
+        if (occupiesPeriod1) {
+          let alreadyAllotted = false;
+          for (const d of days) {
+            for (let p = 0; p < totalPeriods; p++) {
+              if (isPeriod1(p) && getSubjectsAt(classId, d, p).includes(subjectId)) {
+                alreadyAllotted = true;
+                break;
+              }
+            }
+            if (alreadyAllotted) break;
+          }
+          if (alreadyAllotted) continue;
+        }
+
+        if (duration === 2) {
+          schedule[classId][day][pIdx] = assignmentId;
+          schedule[classId][day][pIdx + 1] = assignmentId;
+          teacherBusy[facultyId][day][pIdx] = true;
+          teacherBusy[facultyId][day][pIdx + 1] = true;
+        } else {
+          schedule[classId][day][pIdx] = assignmentId;
+          teacherBusy[facultyId][day][pIdx] = true;
+        }
+        placed = true;
+        break;
       }
-      placed = true;
-      break;
     }
 
     if (!placed) {
@@ -1129,18 +1110,29 @@ function greedyFallback(
   return {
     success: false,
     schedule,
-    message: `Could not schedule ${unscheduledUnits.length} periods due to tight constraints. Loaded partial clash-free timetable. Try increasing weekly periods, adding days, or adjusting staff assignments.`,
-    unscheduledUnits: unscheduledUnits.map(u => ({
-      classId: u.classId,
-      subjectId: u.subjectId,
-      facultyId: u.facultyId,
-      unitIndex: u.unitIndex
-    }))
+    message: `Could not schedule ${unscheduledUnits.length} periods due to tight constraints. Loaded partial clash-free timetable.`,
+    unscheduledUnits: unscheduledUnits.map(u => {
+      if (u.isParallelLab) {
+        return {
+          classId: u.classId,
+          subjectId: u.batchAssignments[0]?.subjectId || '',
+          facultyId: u.batchAssignments[0]?.facultyId || '',
+          unitIndex: u.sessionIndex
+        };
+      }
+      const std = u as StandardUnit;
+      return {
+        classId: std.classId,
+        subjectId: std.subjectId,
+        facultyId: std.facultyId,
+        unitIndex: std.unitIndex
+      };
+    })
   };
 }
 
 /**
- * Generates initial sample data representing HKE Society's Sir M. Visvesvaraya College of Engineering, Raichur.
+ * Generates initial sample data.
  */
 export function getSampleData() {
   const faculties: Faculty[] = [];

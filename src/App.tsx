@@ -46,7 +46,7 @@ import {
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Faculty, Subject, ClassSection, Assignment, TimeSlot, DayOfWeek, TimetableSchedule } from './types';
-import { generateTimetable, preValidateConstraints, SolverResult, areSiblingBatches, getClassGroupInfo } from './utils/solver';
+import { generateTimetable, preValidateConstraints, SolverResult, areSiblingBatches, getClassGroupInfo, isSubjectLab, serializeForFirestore, deserializeFromFirestore, getBatchItemsFromCell, getAssignmentIdsFromCell } from './utils/solver';
 import { db, auth, googleProvider } from './firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where } from 'firebase/firestore';
@@ -550,6 +550,7 @@ export default function App() {
   const [assignSubId, setAssignSubId] = useState('');
   const [assignFacId, setAssignFacId] = useState('');
   const [assignFormSubmitted, setAssignFormSubmitted] = useState(false);
+  const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
 
   // Time Slot Form
   const [newSlotLabel, setNewSlotLabel] = useState('');
@@ -702,12 +703,12 @@ export default function App() {
         color: sub.color || UNIQUE_BG_COLORS[idx % UNIQUE_BG_COLORS.length]
       }));
       setSubjects(subjectsWithColors);
-      setClasses(JSON.parse(savedClasses));
+      const parsedClasses = JSON.parse(savedClasses).map((c: any) => ({ ...c, labBatches: c.labBatches ?? 2 }));
+      setClasses(parsedClasses);
       setAssignments(JSON.parse(savedAssignments));
       setTimeSlots(JSON.parse(savedTimeSlots));
       setDays(JSON.parse(savedDays));
       
-      const parsedClasses = JSON.parse(savedClasses);
       if (parsedClasses.length > 0) {
         setSelectedClassId(parsedClasses[0].id);
       }
@@ -989,6 +990,21 @@ export default function App() {
     setTimeout(() => setAuthNotification(null), 4000);
   };
 
+  const formatFacultyName = (rawName: string): string => {
+    if (!rawName) return '';
+    return rawName
+      .split(/(\s+)/)
+      .map((part) => {
+        if (!part || /^\s+$/.test(part)) return part;
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .join('');
+  };
+
+  const cleanPhoneNumber = (val: string): string => {
+    return val.replace(/\D/g, '');
+  };
+
   // --- Firebase Integration Helper Functions ---
 
   // Fetch available timetables from Firebase Firestore
@@ -1062,8 +1078,10 @@ export default function App() {
         solverResult: solverResult || null
       };
       
+      const serializedData = serializeForFirestore(timetableData);
+      
       try {
-        await setDoc(doc(db, "mvce_timetables", nameToSave), timetableData);
+        await setDoc(doc(db, "mvce_timetables", nameToSave), serializedData);
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, `mvce_timetables/${nameToSave}`);
       }
@@ -1103,15 +1121,17 @@ export default function App() {
       }
       
       if (docSnap && docSnap.exists()) {
-        const data = docSnap.data();
+        const rawData = docSnap.data();
+        const data = deserializeFromFirestore(rawData);
         
         // Load states
         if (data.faculties) setFaculties(data.faculties);
         if (data.subjects) setSubjects(data.subjects);
         if (data.classes) {
-          setClasses(data.classes);
-          if (data.classes.length > 0) {
-            setSelectedClassId(data.classes[0].id);
+          const updatedClasses = data.classes.map((c: any) => ({ ...c, labBatches: c.labBatches ?? 2 }));
+          setClasses(updatedClasses);
+          if (updatedClasses.length > 0) {
+            setSelectedClassId(updatedClasses[0].id);
           }
         }
         if (data.assignments) setAssignments(data.assignments);
@@ -1230,13 +1250,27 @@ export default function App() {
           for (const cls of classes) {
             const classSched = solverResult.schedule[cls.id];
             if (classSched && classSched[day]) {
-              const assignmentId = classSched[day][periodIdx];
-              if (assignmentId) {
-                const assign = assignments.find(a => a.id === assignmentId);
-                if (assign && assign.facultyId === facId) {
-                  const sub = subjects.find(s => s.id === assign.subjectId);
-                  daySlots.push(`• *${slot.startTime} - ${slot.endTime}* (${slot.label}): ${cls.name} (Sec ${cls.section}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
-                  dayHasClasses = true;
+              const cellEntry = classSched[day][periodIdx];
+              if (cellEntry) {
+                if (typeof cellEntry === 'string') {
+                  const assign = assignments.find(a => a.id === cellEntry);
+                  if (assign && assign.facultyId === facId) {
+                    const sub = subjects.find(s => s.id === assign.subjectId);
+                    daySlots.push(`• *${slot.startTime} - ${slot.endTime}* (${slot.label}): ${cls.name} (Sec ${cls.section}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
+                    dayHasClasses = true;
+                  }
+                } else {
+                  const batchItems = getBatchItemsFromCell(cellEntry);
+                  if (batchItems) {
+                    for (const batchItem of batchItems) {
+                      const assign = assignments.find(a => a.id === batchItem.assignmentId);
+                      if (assign && assign.facultyId === facId) {
+                        const sub = subjects.find(s => s.id === assign.subjectId);
+                        daySlots.push(`• *${slot.startTime} - ${slot.endTime}* (${slot.label}): ${cls.name} (Sec ${cls.section}, Batch ${batchItem.batchName}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
+                        dayHasClasses = true;
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1630,9 +1664,13 @@ export default function App() {
     e.preventDefault();
     setFacFormSubmitted(true);
     if (!newFacName || !newFacShort) return;
+    if (newFacPhone && newFacPhone.length !== 10) {
+      showAuthNotice("Error: Phone number must be exactly 10 digits.");
+      return;
+    }
     const newFac: Faculty = {
       id: 'f_' + Date.now(),
-      name: newFacName,
+      name: formatFacultyName(newFacName),
       shortName: newFacShort.toUpperCase(),
       department: newFacDept,
       phone: newFacPhone || '--'
@@ -1666,6 +1704,8 @@ export default function App() {
       color: selectedColor
     };
     setSubjects([...subjects, newSub]);
+    showAuthNotice(`Subject ${newSub.code} added.`);
+
     setNewSubCode('');
     setNewSubName('');
     setNewSubPeriods(4);
@@ -1673,18 +1713,23 @@ export default function App() {
     setNewSubIsProject(false);
     setNewSubColor('');
     setSubFormSubmitted(false);
-    showAuthNotice(`Subject ${newSub.code} added.`);
   };
+
+  const [divideIntoBatches, setDivideIntoBatches] = useState(false);
+  const [numBatches, setNumBatches] = useState(2);
 
   const addClass = (e: FormEvent) => {
     e.preventDefault();
     setClassFormSubmitted(true);
     if (!newClassName) return;
+
+    const sec = newClassSec.trim().toUpperCase() || 'A';
     const newCls: ClassSection = {
       id: 'c_' + Date.now(),
       name: `${newClassName} ${newClassSem} Sem`,
       semester: newClassSem,
-      section: newClassSec.toUpperCase()
+      section: sec,
+      labBatches: divideIntoBatches ? numBatches : 1
     };
     setClasses([...classes, newCls]);
     if (!selectedClassId) {
@@ -1692,7 +1737,7 @@ export default function App() {
     }
     setNewClassName('');
     setClassFormSubmitted(false);
-    showAuthNotice(`Class ${newCls.name} (Sec ${newCls.section}) created.`);
+    showAuthNotice(`Class ${newCls.name} (Sec ${newCls.section}) created${divideIntoBatches ? ` with ${numBatches} Lab Batches (${sec}1, ${sec}2${numBatches >= 3 ? ', ' + sec + '3' : ''}${numBatches >= 4 ? ', ' + sec + '4' : ''})` : ''}.`);
   };
 
   const addAssignment = (e: FormEvent) => {
@@ -1718,6 +1763,51 @@ export default function App() {
     setAssignments([...assignments, newAssign]);
     setAssignFormSubmitted(false);
     showAuthNotice("Staff assigned to subject successfully.");
+  };
+
+  const startEditingAssignment = (assign: Assignment) => {
+    setEditingAssignmentId(assign.id);
+    setAssignClassId(assign.classId);
+    setAssignSubId(assign.subjectId);
+    setAssignFacId(assign.facultyId);
+    setAssignFormSubmitted(false);
+  };
+
+  const cancelEditingAssignment = () => {
+    setEditingAssignmentId(null);
+    setAssignClassId('');
+    setAssignSubId('');
+    setAssignFacId('');
+    setAssignFormSubmitted(false);
+  };
+
+  const updateAssignment = (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    setAssignFormSubmitted(true);
+    if (!editingAssignmentId || !assignClassId || !assignSubId || !assignFacId) return;
+
+    const exists = assignments.some(
+      a => a.id !== editingAssignmentId && a.classId === assignClassId && a.subjectId === assignSubId && a.facultyId === assignFacId
+    );
+    if (exists) {
+      showAuthNotice("Warning: This binding already exists!");
+      return;
+    }
+
+    setAssignments(assignments.map(a => {
+      if (a.id === editingAssignmentId) {
+        return {
+          ...a,
+          classId: assignClassId,
+          subjectId: assignSubId,
+          facultyId: assignFacId
+        };
+      }
+      return a;
+    }));
+
+    cancelEditingAssignment();
+    showAuthNotice("Course faculty binding updated successfully.");
   };
 
   const addTimeSlot = (e: FormEvent) => {
@@ -1763,12 +1853,16 @@ export default function App() {
     e.preventDefault();
     setEditFacFormSubmitted(true);
     if (!editingFacultyId || !editFacName || !editFacShort) return;
+    if (editFacPhone && editFacPhone.length !== 10) {
+      showAuthNotice("Error: Phone number must be exactly 10 digits.");
+      return;
+    }
 
     setFaculties(prevFacs => prevFacs.map(f => {
       if (f.id === editingFacultyId) {
         return {
           ...f,
-          name: editFacName,
+          name: formatFacultyName(editFacName),
           shortName: editFacShort.toUpperCase(),
           department: editFacDept,
           phone: editFacPhone || '--'
@@ -1865,6 +1959,9 @@ export default function App() {
   };
 
   const deleteAssignment = (id: string) => {
+    if (editingAssignmentId === id) {
+      cancelEditingAssignment();
+    }
     const assign = assignments.find(a => a.id === id);
     setAssignments(assignments.filter(a => a.id !== id));
     if (assign) {
@@ -3061,23 +3158,100 @@ service cloud.firestore {
                                       );
                                     }
 
-                                    const assignmentId = slotsForDay[activePeriodCounter];
+                                    const cellEntry = slotsForDay[activePeriodCounter];
+                                    activePeriodCounter++;
+
+                                    const batchItems = getBatchItemsFromCell(cellEntry);
+                                    if (batchItems) {
+                                      return (
+                                        <div 
+                                          key={slot.id} 
+                                          className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center space-y-1 bg-amber-50/50 hover:bg-amber-100/40 min-h-[64px] transition-all"
+                                        >
+                                          {batchItems.map((batchItem) => {
+                                            const assign = assignments.find(a => a.id === batchItem.assignmentId);
+                                            const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
+                                            const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
+                                            if (!assign || !sub) return null;
+
+                                            const isB1 = batchItem.batchName.endsWith('1');
+                                            const isB2 = batchItem.batchName.endsWith('2');
+                                            const isB3 = batchItem.batchName.endsWith('3');
+
+                                            return (
+                                              <div 
+                                                key={batchItem.batchName} 
+                                                className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                                  isB1 ? 'bg-amber-100/90 border-amber-300 text-amber-950' :
+                                                  isB2 ? 'bg-blue-100/90 border-blue-300 text-blue-950' :
+                                                  isB3 ? 'bg-emerald-100/90 border-emerald-300 text-emerald-950' :
+                                                  'bg-purple-100/90 border-purple-300 text-purple-950'
+                                                }`}
+                                              >
+                                                <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                  <span className={`px-1 py-0.2 rounded font-extrabold ${isB1 ? 'bg-amber-200/90 text-amber-900' : 'bg-blue-200/90 text-blue-900'}`}>
+                                                    Batch {batchItem.batchName}
+                                                  </span>
+                                                  <span className="opacity-80 font-mono">{sub.code}</span>
+                                                </div>
+                                                <div className="font-extrabold truncate leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
+                                                <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
+                                                  👤 {fac ? fac.name : 'Unassigned'}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    }
+
+                                    const assignmentId = typeof cellEntry === 'string' ? cellEntry : null;
                                     const assign = assignmentId ? assignments.find(a => a.id === assignmentId) : null;
                                     const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
                                     const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
 
-                                    activePeriodCounter++;
+                                    const isLabCell = sub ? isSubjectLab(sub) : false;
+                                    const currentClass = classes.find(c => c.id === selectedClassId);
+                                    const sec = currentClass ? currentClass.section.trim().toUpperCase() : 'A';
+                                    const clsLabAssigns = isLabCell ? assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId))) : [];
+
+                                    if (isLabCell && assign && clsLabAssigns.length > 1) {
+                                      const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
+                                      const otherSub = subjects.find(s => s.id === otherAssign.subjectId);
+                                      const otherFac = faculties.find(f => f.id === otherAssign.facultyId);
+
+                                      return (
+                                        <div key={slot.id} className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center space-y-1 bg-amber-50/50 hover:bg-amber-100/40 min-h-[64px] transition-all">
+                                          <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-amber-100/90 border-amber-300 text-amber-950">
+                                            <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                              <span className="px-1 py-0.2 rounded font-extrabold bg-amber-200/90 text-amber-900">Batch {sec}1</span>
+                                              <span className="opacity-80 font-mono">{sub ? sub.code : ''}</span>
+                                            </div>
+                                            <div className="font-extrabold truncate leading-tight mt-0.5" title={sub ? sub.name : ''}>{sub ? sub.name : ''}</div>
+                                            <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
+                                          </div>
+                                          {otherSub && (
+                                            <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-blue-100/90 border-blue-300 text-blue-950">
+                                              <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                <span className="px-1 py-0.2 rounded font-extrabold bg-blue-200/90 text-blue-900">Batch {sec}2</span>
+                                                <span className="opacity-80 font-mono">{otherSub.code}</span>
+                                              </div>
+                                              <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
+                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : 'Unassigned'}</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    }
 
                                     const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color) : null;
-
-                                    const currentClass = classes.find(c => c.id === selectedClassId);
                                     const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
-                                    const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null;
+                                    const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : isLabCell ? `${sec}1&${sec}2` : null;
 
                                     return (
                                       <div 
                                         key={slot.id} 
-                                        className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
+                                        className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20 relative cursor-pointer ${
                                           assign && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
                                         } ${batchStr ? 'pl-3.5' : ''}`}
                                         style={assign && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
@@ -3327,18 +3501,34 @@ service cloud.firestore {
                               activePeriodCounter++;
 
                               // Find if selected faculty is assigned to any class during this period on this day
-                              let matchDetails = null;
+                              let matchDetails: { cls: ClassSection; assign: Assignment; sub: Subject | undefined; batchName?: string | null } | null = null;
                               if (solverResult?.schedule) {
                                 for (const cls of classes) {
                                   const classSched = solverResult.schedule[cls.id];
                                   if (classSched && classSched[day]) {
-                                    const assignmentId = classSched[day][periodIdx];
-                                    if (assignmentId) {
-                                      const assign = assignments.find(a => a.id === assignmentId);
-                                      if (assign && assign.facultyId === selectedFacultyId) {
-                                        const sub = subjects.find(s => s.id === assign.subjectId);
-                                        matchDetails = { cls, assign, sub };
-                                        break;
+                                    const cellEntry = classSched[day][periodIdx];
+                                    if (cellEntry) {
+                                      if (typeof cellEntry === 'string') {
+                                        const assign = assignments.find(a => a.id === cellEntry);
+                                        if (assign && assign.facultyId === selectedFacultyId) {
+                                          const sub = subjects.find(s => s.id === assign.subjectId);
+                                          matchDetails = { cls, assign, sub, batchName: null };
+                                          break;
+                                        }
+                                      } else {
+                                        const batchItems = getBatchItemsFromCell(cellEntry);
+                                        if (batchItems) {
+                                          const batchMatch = batchItems.find(b => {
+                                            const assign = assignments.find(a => a.id === b.assignmentId);
+                                            return assign?.facultyId === selectedFacultyId;
+                                          });
+                                          if (batchMatch) {
+                                            const assign = assignments.find(a => a.id === batchMatch.assignmentId);
+                                            const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
+                                            matchDetails = { cls, assign, sub, batchName: batchMatch.batchName };
+                                            break;
+                                          }
+                                        }
                                       }
                                     }
                                   }
@@ -3348,12 +3538,12 @@ service cloud.firestore {
                               const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code, matchDetails.sub.color) : null;
                               const currentClass = matchDetails?.cls;
                               const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
-                              const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null;
+                              const batchStr = matchDetails?.batchName ? `Batch ${matchDetails.batchName}` : (groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null);
 
                               return (
                                 <div 
                                   key={slot.id} 
-                                  className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative ${
+                                  className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20 relative cursor-pointer ${
                                     matchDetails && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
                                   } ${batchStr ? 'pl-3.5' : ''}`}
                                   style={matchDetails && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
@@ -3649,7 +3839,8 @@ service cloud.firestore {
                                     }
 
                                     const currentActiveIdx = activePeriodCounter;
-                                    const assignmentId = slotsForDay[currentActiveIdx];
+                                    const cellEntry = slotsForDay[currentActiveIdx];
+                                    const assignmentId = typeof cellEntry === 'string' ? cellEntry : null;
                                     const assign = assignmentId ? assignments.find(a => a.id === assignmentId) : null;
                                     const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
                                     const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
@@ -3728,13 +3919,13 @@ service cloud.firestore {
                                             }
                                           }
                                         }}
-                                        className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition relative cursor-pointer select-none ${
+                                        className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition-all duration-300 relative cursor-pointer select-none ${
                                           isSelectedForSwap
                                             ? 'bg-blue-100/90 ring-4 ring-blue-500 border-blue-500 z-10 scale-[0.98]'
                                             : assign && sub
                                               ? (getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${getSubjectPalette(sub.id, sub.code, sub.color).bg} ${getSubjectPalette(sub.id, sub.code, sub.color).hoverBg}`)
                                               : 'bg-slate-50/10 hover:bg-slate-50/40'
-                                        } ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''} ${batchStr ? 'pl-3.5' : ''}`}
+                                        } ${!isSelectedForSwap ? 'transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20' : ''} ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''} ${batchStr ? 'pl-3.5' : ''}`}
                                         style={assign && sub && getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? { '--custom-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.bg, '--custom-hover-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.hoverBg, '--custom-text': getSubjectPalette(sub.id, sub.code, sub.color).styles?.text, '--custom-border': getSubjectPalette(sub.id, sub.code, sub.color).styles?.border } as CSSProperties : undefined}
                                       >
                                         {batchStr && assign && (
@@ -3757,7 +3948,102 @@ service cloud.firestore {
                                             {batchStr}
                                           </span>
                                         )}
-                                        {assign && sub && fac ? (
+                                        {getBatchItemsFromCell(cellEntry) ? (
+                                          <div className="flex flex-col justify-center space-y-1 w-full h-full">
+                                            {getBatchItemsFromCell(cellEntry)!.map((batchItem) => {
+                                              const bAssign = assignments.find(a => a.id === batchItem.assignmentId);
+                                              const bSub = bAssign ? subjects.find(s => s.id === bAssign.subjectId) : null;
+                                              const bFac = bAssign ? faculties.find(f => f.id === bAssign.facultyId) : null;
+                                              if (!bAssign || !bSub) return null;
+
+                                              const isB1 = batchItem.batchName.endsWith('1');
+                                              const isB2 = batchItem.batchName.endsWith('2');
+
+                                              return (
+                                                <div 
+                                                  key={batchItem.batchName} 
+                                                  className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                                    isB1 ? 'bg-amber-100/90 border-amber-300 text-amber-950' :
+                                                    isB2 ? 'bg-blue-100/90 border-blue-300 text-blue-950' :
+                                                    'bg-purple-100/90 border-purple-300 text-purple-950'
+                                                  }`}
+                                                >
+                                                  <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                    <span className={`px-1 py-0.2 rounded font-extrabold ${isB1 ? 'bg-amber-200/90 text-amber-900' : 'bg-blue-200/90 text-blue-900'}`}>
+                                                      Batch {batchItem.batchName}
+                                                    </span>
+                                                    <span className="opacity-80 font-mono">{bSub.code}</span>
+                                                  </div>
+                                                  <div className="font-extrabold truncate leading-tight mt-0.5" title={bSub.name}>{bSub.name}</div>
+                                                  <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
+                                                    👤 {bFac ? bFac.name : 'Unassigned'}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : (assign && sub && isSubjectLab(sub)) ? (
+                                          (() => {
+                                            const clsLabAssigns = assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId)));
+                                            const currentClass = classes.find(c => c.id === selectedClassId);
+                                            const sec = currentClass ? currentClass.section.trim().toUpperCase() : 'A';
+
+                                            if (clsLabAssigns.length > 1) {
+                                              const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
+                                              const otherSub = subjects.find(s => s.id === otherAssign.subjectId);
+                                              const otherFac = faculties.find(f => f.id === otherAssign.facultyId);
+
+                                              return (
+                                                <div className="flex flex-col justify-center space-y-1 w-full h-full">
+                                                  <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-amber-100/90 border-amber-300 text-amber-950">
+                                                    <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                      <span className="px-1 py-0.2 rounded font-extrabold bg-amber-200/90 text-amber-900">Batch {sec}1</span>
+                                                      <span className="opacity-80 font-mono">{sub.code}</span>
+                                                    </div>
+                                                    <div className="font-extrabold truncate leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
+                                                    <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
+                                                  </div>
+                                                  {otherSub && (
+                                                    <div className="p-1 rounded border text-left text-[9px] shadow-2xs bg-blue-100/90 border-blue-300 text-blue-950">
+                                                      <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                        <span className="px-1 py-0.2 rounded font-extrabold bg-blue-200/90 text-blue-900">Batch {sec}2</span>
+                                                        <span className="opacity-80 font-mono">{otherSub.code}</span>
+                                                      </div>
+                                                      <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
+                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : 'Unassigned'}</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            }
+
+                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color);
+                                            return (
+                                              <>
+                                                <div>
+                                                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                                                    <span className="px-1 py-0.2 rounded font-extrabold bg-amber-200 text-amber-900 text-[8px] uppercase tracking-wider">
+                                                      Batch {sec}1 & {sec}2
+                                                    </span>
+                                                    <span className="font-mono text-[8px] opacity-80">{sub.code}</span>
+                                                  </div>
+                                                  <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
+                                                    {sub.name}
+                                                  </div>
+                                                </div>
+                                                <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                                  <span 
+                                                    style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                                    className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
+                                                    title={fac ? fac.name : 'Unassigned'}
+                                                  >
+                                                    👤 {fac ? fac.name : 'Unassigned'}
+                                                  </span>
+                                                </div>
+                                              </>
+                                            );
+                                          })()
+                                        ) : assign && sub && fac ? (
                                           (() => {
                                             const palette = getSubjectPalette(sub.id, sub.code, sub.color);
                                             return (
@@ -3844,7 +4130,7 @@ service cloud.firestore {
                           required
                           placeholder="e.g. Dr. Savitha Murthy"
                           value={editFacName}
-                          onChange={(e) => setEditFacName(e.target.value)}
+                          onChange={(e) => setEditFacName(formatFacultyName(e.target.value))}
                           className={`w-full bg-amber-50/10 border ${
                             editFacFormSubmitted && !editFacName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
                           } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
@@ -3859,7 +4145,7 @@ service cloud.firestore {
                             required
                             placeholder="e.g. SKM"
                             value={editFacShort}
-                            onChange={(e) => setEditFacShort(e.target.value)}
+                            onChange={(e) => setEditFacShort(e.target.value.toUpperCase())}
                             className={`w-full bg-amber-50/10 border ${
                               editFacFormSubmitted && !editFacShort ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
                             } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
@@ -3885,10 +4171,14 @@ service cloud.firestore {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number (Optional)</label>
                         <input
                           type="tel"
-                          placeholder="e.g. +91 94481 23456"
+                          placeholder="e.g. 10-digit number"
                           value={editFacPhone}
-                          onChange={(e) => setEditFacPhone(e.target.value)}
-                          className="w-full bg-amber-50/10 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                          onChange={(e) => setEditFacPhone(cleanPhoneNumber(e.target.value))}
+                          className={`w-full bg-amber-50/10 border ${
+                            editFacFormSubmitted && editFacPhone && editFacPhone.length !== 10
+                              ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                              : 'border-slate-200 focus:ring-amber-500'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                         />
                       </div>
 
@@ -3926,7 +4216,7 @@ service cloud.firestore {
                           required
                           placeholder="e.g. Dr. Savitha Murthy"
                           value={newFacName}
-                          onChange={(e) => setNewFacName(e.target.value)}
+                          onChange={(e) => setNewFacName(formatFacultyName(e.target.value))}
                           className={`w-full bg-slate-50 border ${
                             facFormSubmitted && !newFacName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
                           } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
@@ -3941,7 +4231,7 @@ service cloud.firestore {
                             required
                             placeholder="e.g. SKM"
                             value={newFacShort}
-                            onChange={(e) => setNewFacShort(e.target.value)}
+                            onChange={(e) => setNewFacShort(e.target.value.toUpperCase())}
                             className={`w-full bg-slate-50 border ${
                               facFormSubmitted && !newFacShort ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
                             } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
@@ -3967,10 +4257,14 @@ service cloud.firestore {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number (Optional)</label>
                         <input
                           type="tel"
-                          placeholder="e.g. +91 94481 23456"
+                          placeholder="e.g. 10-digit number"
                           value={newFacPhone}
-                          onChange={(e) => setNewFacPhone(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                          onChange={(e) => setNewFacPhone(cleanPhoneNumber(e.target.value))}
+                          className={`w-full bg-slate-50 border ${
+                            facFormSubmitted && newFacPhone && newFacPhone.length !== 10
+                              ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                              : 'border-slate-200 focus:ring-blue-900'
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                         />
                       </div>
 
@@ -4529,12 +4823,38 @@ service cloud.firestore {
                       </div>
                     </div>
 
+                    <div className="pt-2 border-t border-slate-100 mt-2">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={divideIntoBatches}
+                          onChange={(e) => setDivideIntoBatches(e.target.checked)}
+                          className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer h-3.5 w-3.5"
+                        />
+                        <span>Divide Section into Student Batches?</span>
+                      </label>
+                      {divideIntoBatches && (
+                        <div className="mt-2 pl-5 flex items-center space-x-2">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Batches:</label>
+                          <select
+                            value={numBatches}
+                            onChange={(e) => setNumBatches(Number(e.target.value))}
+                            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                          >
+                            <option value={2}>2 Batches ({newClassSec.trim().toUpperCase() || 'A'}1, {newClassSec.trim().toUpperCase() || 'A'}2)</option>
+                            <option value={3}>3 Batches ({newClassSec.trim().toUpperCase() || 'A'}1, {newClassSec.trim().toUpperCase() || 'A'}2, {newClassSec.trim().toUpperCase() || 'A'}3)</option>
+                            <option value={4}>4 Batches ({newClassSec.trim().toUpperCase() || 'A'}1, {newClassSec.trim().toUpperCase() || 'A'}2, {newClassSec.trim().toUpperCase() || 'A'}3, {newClassSec.trim().toUpperCase() || 'A'}4)</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       type="submit"
                       className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5 text-amber-300" />
-                      <span>Create Class</span>
+                      <span>{divideIntoBatches ? `Create Class & ${numBatches} Batches` : 'Create Class'}</span>
                     </button>
                   </form>
                 </div>
@@ -4560,7 +4880,14 @@ service cloud.firestore {
                         return (
                           <div key={cls.id} className="border border-slate-200 rounded p-3 bg-slate-50/50 flex items-center justify-between">
                             <div>
-                              <p className="font-bold text-slate-900 text-xs">{cls.name}</p>
+                              <div className="flex items-center space-x-1.5">
+                                <p className="font-bold text-slate-900 text-xs">{cls.name}</p>
+                                {cls.labBatches && cls.labBatches > 1 && (
+                                  <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-1.5 py-0.2 rounded shadow-2xs">
+                                    {cls.labBatches} Lab Batches ({cls.section}1-{cls.section}{cls.labBatches})
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-slate-500 mt-0.5 font-medium">Sec <span className="font-bold text-slate-700">{cls.section}</span> • {totalLectures} lectures / wk</p>
                             </div>
                             <button
@@ -4587,72 +4914,163 @@ service cloud.firestore {
                 
                 {/* Left Form: Assign Staff */}
                 <div className="bg-white border border-slate-200 rounded p-4 shadow-sm self-start">
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                    <Sliders className="h-4 w-4 text-blue-900" />
-                    <span>Assign Staff Member</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mb-3">Bind a teacher to a course subject for a specific class.</p>
+                  {editingAssignmentId ? (
+                    <>
+                      <div className="flex items-center justify-between border-b border-amber-100 pb-2 mb-3">
+                        <h3 className="font-bold text-amber-900 text-xs uppercase tracking-wider flex items-center space-x-1.5">
+                          <Pencil className="h-4 w-4 text-amber-600" />
+                          <span>Edit Faculty Binding</span>
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={cancelEditingAssignment}
+                          className="text-[10px] font-bold text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded cursor-pointer transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-3">Update staff binding for class or subject.</p>
 
-                  <form onSubmit={addAssignment} className="space-y-3" noValidate>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Target Class / Section</label>
-                      <select
-                        required
-                        value={assignClassId}
-                        onChange={(e) => setAssignClassId(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          assignFormSubmitted && !assignClassId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
-                      >
-                        <option value="">-- Choose Class --</option>
-                        {classes.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
-                        ))}
-                      </select>
-                    </div>
+                      <form onSubmit={updateAssignment} className="space-y-3" noValidate>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Target Class / Section</label>
+                          <select
+                            required
+                            value={assignClassId}
+                            onChange={(e) => setAssignClassId(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              assignFormSubmitted && !assignClassId ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          >
+                            <option value="">-- Choose Class --</option>
+                            {classes.map(c => (
+                              <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                            ))}
+                          </select>
+                        </div>
 
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Syllabus Subject</label>
-                      <select
-                        required
-                        value={assignSubId}
-                        onChange={(e) => setAssignSubId(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          assignFormSubmitted && !assignSubId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
-                      >
-                        <option value="">-- Choose Subject --</option>
-                        {subjects.map(s => (
-                          <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Syllabus Subject</label>
+                          <select
+                            required
+                            value={assignSubId}
+                            onChange={(e) => setAssignSubId(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              assignFormSubmitted && !assignSubId ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          >
+                            <option value="">-- Choose Subject --</option>
+                            {subjects.map(s => (
+                              <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Faculty Member</label>
-                      <select
-                        required
-                        value={assignFacId}
-                        onChange={(e) => setAssignFacId(e.target.value)}
-                        className={`w-full bg-slate-50 border ${
-                          assignFormSubmitted && !assignFacId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                        } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
-                      >
-                        <option value="">-- Choose Faculty --</option>
-                        {faculties.map(f => (
-                          <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
-                        ))}
-                      </select>
-                    </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Faculty Member</label>
+                          <select
+                            required
+                            value={assignFacId}
+                            onChange={(e) => setAssignFacId(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              assignFormSubmitted && !assignFacId ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          >
+                            <option value="">-- Choose Faculty --</option>
+                            {faculties.map(f => (
+                              <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
+                            ))}
+                          </select>
+                        </div>
 
-                    <button
-                      type="submit"
-                      className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <Plus className="h-3.5 w-3.5 text-amber-300" />
-                      <span>Create Assignment</span>
-                    </button>
-                  </form>
+                        <div className="flex items-center space-x-2 pt-1">
+                          <button
+                            type="submit"
+                            className="flex-1 py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Save Changes</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditingAssignment}
+                            className="py-2 px-3 border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
+                        <Sliders className="h-4 w-4 text-blue-900" />
+                        <span>Assign Staff Member</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mb-3">Bind a teacher to a course subject for a specific class.</p>
+
+                      <form onSubmit={addAssignment} className="space-y-3" noValidate>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Target Class / Section</label>
+                          <select
+                            required
+                            value={assignClassId}
+                            onChange={(e) => setAssignClassId(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              assignFormSubmitted && !assignClassId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                            } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          >
+                            <option value="">-- Choose Class --</option>
+                            {classes.map(c => (
+                              <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Syllabus Subject</label>
+                          <select
+                            required
+                            value={assignSubId}
+                            onChange={(e) => setAssignSubId(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              assignFormSubmitted && !assignSubId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                            } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          >
+                            <option value="">-- Choose Subject --</option>
+                            {subjects.map(s => (
+                              <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Faculty Member</label>
+                          <select
+                            required
+                            value={assignFacId}
+                            onChange={(e) => setAssignFacId(e.target.value)}
+                            className={`w-full bg-slate-50 border ${
+                              assignFormSubmitted && !assignFacId ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                            } rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 cursor-pointer`}
+                          >
+                            <option value="">-- Choose Faculty --</option>
+                            {faculties.map(f => (
+                              <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                        >
+                          <Plus className="h-3.5 w-3.5 text-amber-300" />
+                          <span>Create Assignment</span>
+                        </button>
+                      </form>
+                    </>
+                  )}
                 </div>
 
                 {/* Right List: Assignments */}
@@ -4681,17 +5099,44 @@ service cloud.firestore {
                       <tbody className="divide-y divide-slate-100">
                         {assignments.length > 0 ? (
                           assignments.map((assign) => {
-                            const cls = classes.find(c => c.id === assign.classId);
-                            const sub = subjects.find(s => s.id === assign.subjectId);
-                            const fac = faculties.find(f => f.id === assign.facultyId);
+                            const isEditing = editingAssignmentId === assign.id;
+                            const cls = classes.find(c => c.id === (isEditing ? assignClassId : assign.classId));
+                            const sub = subjects.find(s => s.id === (isEditing ? assignSubId : assign.subjectId));
+                            const fac = faculties.find(f => f.id === (isEditing ? assignFacId : assign.facultyId));
 
                             return (
-                              <tr key={assign.id} className="hover:bg-slate-50/50 transition">
+                              <tr key={assign.id} className={`${isEditing ? 'bg-amber-50/70 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'} transition`}>
                                 <td className="p-2.5 font-bold text-slate-900">
-                                  {cls ? `${cls.name} (Sec ${cls.section})` : <span className="text-red-500">Deleted Class</span>}
+                                  {isEditing ? (
+                                    <select
+                                      value={assignClassId}
+                                      onChange={(e) => setAssignClassId(e.target.value)}
+                                      className="w-full bg-white border border-amber-300 rounded px-1.5 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-bold"
+                                    >
+                                      <option value="">-- Choose Class --</option>
+                                      {classes.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                                      ))}
+                                    </select>
+                                  ) : cls ? (
+                                    `${cls.name} (Sec ${cls.section})`
+                                  ) : (
+                                    <span className="text-red-500">Deleted Class</span>
+                                  )}
                                 </td>
                                 <td className="p-2.5">
-                                  {sub ? (
+                                  {isEditing ? (
+                                    <select
+                                      value={assignSubId}
+                                      onChange={(e) => setAssignSubId(e.target.value)}
+                                      className="w-full bg-white border border-amber-300 rounded px-1.5 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                                    >
+                                      <option value="">-- Choose Subject --</option>
+                                      {subjects.map(s => (
+                                        <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
+                                      ))}
+                                    </select>
+                                  ) : sub ? (
                                     <div>
                                       <span className="font-mono font-bold text-slate-900">{sub.code}</span>
                                       <span className="text-slate-500 ml-2 font-medium">{sub.name}</span>
@@ -4701,7 +5146,22 @@ service cloud.firestore {
                                   )}
                                 </td>
                                 <td className="p-2.5 font-bold text-slate-800">
-                                  {fac ? `${fac.name} (${fac.shortName})` : <span className="text-red-500">Deleted Faculty</span>}
+                                  {isEditing ? (
+                                    <select
+                                      value={assignFacId}
+                                      onChange={(e) => setAssignFacId(e.target.value)}
+                                      className="w-full bg-white border border-amber-300 rounded px-1.5 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-bold"
+                                    >
+                                      <option value="">-- Choose Faculty --</option>
+                                      {faculties.map(f => (
+                                        <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
+                                      ))}
+                                    </select>
+                                  ) : fac ? (
+                                    `${fac.name} (${fac.shortName})`
+                                  ) : (
+                                    <span className="text-red-500">Deleted Faculty</span>
+                                  )}
                                 </td>
                                 <td className="p-2.5 text-center">
                                   {sub ? (
@@ -4711,13 +5171,41 @@ service cloud.firestore {
                                   ) : '--'}
                                 </td>
                                 <td className="p-2.5 text-center">
-                                  <button
-                                    onClick={() => deleteAssignment(assign.id)}
-                                    className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
-                                    title="Remove assignment"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
+                                  {isEditing ? (
+                                    <div className="flex items-center justify-center space-x-1">
+                                      <button
+                                        onClick={() => updateAssignment()}
+                                        className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100/70 rounded transition cursor-pointer"
+                                        title="Save Changes"
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={cancelEditingAssignment}
+                                        className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-200/70 rounded transition cursor-pointer"
+                                        title="Cancel Edit"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center space-x-1">
+                                      <button
+                                        onClick={() => startEditingAssignment(assign)}
+                                        className="p-1 text-slate-400 hover:text-amber-600 transition cursor-pointer"
+                                        title="Edit assignment binding"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteAssignment(assign.id)}
+                                        className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                                        title="Remove assignment"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             );

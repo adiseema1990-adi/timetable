@@ -27,7 +27,15 @@ export interface ClassSection {
   name: string; // e.g., "V Sem CSE"
   semester: string; // e.g., "5th"
   section: string; // e.g., "A"
+  labBatches?: number; // Number of student batches for labs (e.g., 2 for A1 & A2)
 }
+
+export interface BatchAssignment {
+  batchName: string; // e.g., "A1", "A2"
+  assignmentId: string;
+}
+
+export type ScheduleEntry = string | BatchAssignment[] | null;
 
 export interface Assignment {
   id: string;
@@ -53,7 +61,7 @@ export interface TimetableCell {
 
 // Day -> Array of cells (aligned with active/non-break slots)
 export interface ClassTimetable {
-  [day: string]: (string | null)[]; // Array of Assignment ID or null, index maps to active (non-break) periods
+  [day: string]: ScheduleEntry[]; // Array of ScheduleEntry, index maps to active (non-break) periods
 }
 
 export interface TimetableSchedule {
