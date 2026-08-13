@@ -41,7 +41,9 @@ import {
   MessageSquare,
   Send,
   Copy,
-  Lock
+  Lock,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -435,6 +437,11 @@ export default function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [undoStack, setUndoStack] = useState<TimetableSchedule[]>([]);
   const [redoStack, setRedoStack] = useState<TimetableSchedule[]>([]);
+
+  // Accordion States for Dashboard Cards
+  const [isOptimizerOpen, setIsOptimizerOpen] = useState(false);
+  const [isConstraintsOpen, setIsConstraintsOpen] = useState(false);
+  const [isGuidelinesOpen, setIsGuidelinesOpen] = useState(false);
 
   // Clear selected cell on tab or class change
   useEffect(() => {
@@ -2922,157 +2929,230 @@ service cloud.firestore {
           {activeTab === 'dashboard' && (
             <div className="space-y-4">
               
-              {/* Top Row: Diagnostics, Summary & Instructions */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Top Row: Diagnostics, Summary & Instructions - Accordion Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                 
-                {/* Generation Card */}
-                <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                    <Sparkles className="h-4 w-4 text-blue-900" />
-                    <span>Timetable Optimizer</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mb-4">
-                    Instantly calculate a conflict-free roster mapping all faculties, subjects, and break timings.
-                  </p>
+                {/* Generation Card Accordion */}
+                <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden transition-all">
+                  <div className="p-2.5 bg-slate-50/80 hover:bg-slate-100/80 flex items-center justify-between border-b border-slate-100 transition text-left select-none">
+                    <div 
+                      onClick={() => setIsOptimizerOpen(!isOptimizerOpen)}
+                      className="flex items-center space-x-1.5 cursor-pointer flex-1 py-0.5 mr-2"
+                    >
+                      <Sparkles className="h-4 w-4 text-blue-900 flex-shrink-0" />
+                      <span className="font-bold text-slate-900 text-[8pt] uppercase tracking-wider">Timetable Optimizer</span>
+                    </div>
 
-                  <button
-                    onClick={handleGenerate}
-                    disabled={isGenerating}
-                    className="w-full py-2 px-4 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                        <span>Solving constraints...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                        <span>GENERATE TIMETABLE</span>
-                      </>
-                    )}
-                  </button>
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGenerate();
+                        }}
+                        disabled={isGenerating}
+                        className="py-1.5 px-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-[10px] uppercase tracking-wider rounded shadow-2xs transition disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                            <span>Solving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3 text-amber-300" />
+                            <span>GENERATE TIMETABLE</span>
+                          </>
+                        )}
+                      </button>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100">
-                    <h4 className="text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Algorithm Diagnostics:</h4>
-                    <div className="space-y-1.5 text-[11px]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Clash Solver Status</span>
-                        <span className={`font-bold uppercase text-[9px] ${solverResult?.success ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-amber-700 bg-amber-50 border border-amber-100'} px-1.5 py-0.5 rounded`}>
-                          {solverResult?.success ? 'Optimized' : 'Inactive / Partial'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">No-Overlap Guard</span>
-                        <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">No Continuous Lectures</span>
-                        <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Period 1-4 Gap Prevention</span>
-                        <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Lab 2-Period Block</span>
-                        <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Project After Lunch Break</span>
-                        <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsOptimizerOpen(!isOptimizerOpen)}
+                        className="p-1 text-slate-500 hover:text-slate-800 cursor-pointer flex items-center justify-center rounded hover:bg-slate-200/50"
+                      >
+                        {isOptimizerOpen ? (
+                          <ChevronUp className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                        )}
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                {/* Validation Summary Card */}
-                <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">Constraint Verification</h3>
-                  
-                  {validationSummary ? (
-                    <div className="space-y-3">
-                      <div className="flex items-start space-x-2.5 text-[11px]">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="font-bold text-slate-800">Faculty Overlap Check</p>
-                          <p className="text-slate-500 text-[10px] leading-tight mt-0.5">No faculty is assigned to multiple classes simultaneously.</p>
+                  {isOptimizerOpen && (
+                    <div className="p-4">
+                      <p className="text-[11px] text-slate-500 mb-3">
+                        Instantly calculate a conflict-free roster mapping all faculties, subjects, and break timings.
+                      </p>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <h4 className="text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Algorithm Diagnostics:</h4>
+                        <div className="space-y-1.5 text-[11px]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Clash Solver Status</span>
+                            <span className={`font-bold uppercase text-[9px] ${solverResult?.success ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-amber-700 bg-amber-50 border border-amber-100'} px-1.5 py-0.5 rounded`}>
+                              {solverResult?.success ? 'Optimized' : 'Inactive / Partial'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">No-Overlap Guard</span>
+                            <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">No Continuous Lectures</span>
+                            <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Period 1-4 Gap Prevention</span>
+                            <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Lab 2-Period Block</span>
+                            <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Project After Lunch Break</span>
+                            <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="flex items-start space-x-2.5 text-[11px]">
-                        {hasAnyContinuityConflict ? (
-                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        )}
-                        <div>
-                          <p className="font-bold text-slate-800">Continuous Lecture Restrictor</p>
-                          <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
-                            {hasAnyContinuityConflict 
-                              ? "Warning: Some multi-course teachers are scheduled back-to-back." 
-                              : "Verified: Teachers taking multiple subjects in the same class have balanced workloads."}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start space-x-2.5 text-[11px]">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="font-bold text-slate-800">Course Credit Hours Status</p>
-                          <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
-                            Mapping {validationSummary.totalAssignments} subjects across {validationSummary.totalClasses} sections.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start space-x-2.5 text-[11px]">
-                        {hasAnyPeriod1To4FreePeriodConflict ? (
-                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        )}
-                        <div>
-                          <p className="font-bold text-slate-800">Period 1 to 4 Free-Period Guard</p>
-                          <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
-                            {hasAnyPeriod1To4FreePeriodConflict 
-                              ? "Optimization Warning: A free-period gap exists in Period 1, 2, 3, or 4." 
-                              : "Verified: No free period gaps in Period 1, 2, 3, or 4 for any class section!"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start space-x-2.5 text-[11px]">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="font-bold text-slate-800">Lab Continuous Block</p>
-                          <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
-                            Verified: All Lab / Practical sessions are successfully assigned in contiguous 2-period stretches without split-break interruptions.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-slate-400 text-center py-4 font-medium italic">
-                      Configure data to run verification logic.
                     </div>
                   )}
                 </div>
 
-                {/* Legend & Instructions */}
-                <div className="bg-slate-100 border border-slate-200 rounded p-4 text-[11px] text-slate-600">
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[10px] flex items-center space-x-1 mb-2">
-                    <Info className="h-3.5 w-3.5 text-blue-900" />
-                    <span>User Guidelines</span>
-                  </h4>
-                  <ol className="list-decimal list-inside space-y-1 leading-relaxed text-[11px]">
-                    <li>Add your faculties in the <strong className="text-slate-900">Faculty</strong> tab.</li>
-                    <li>Add course subjects in the <strong className="text-slate-900">Subjects</strong> tab.</li>
-                    <li>Link faculties and subjects in <strong className="text-slate-900">Class Assignments</strong>.</li>
-                    <li>Configure college hours in <strong className="text-slate-900">Time Configuration</strong>.</li>
-                    <li>Hit <strong className="text-slate-900">Generate Timetable</strong> to build rosters!</li>
-                  </ol>
+                {/* Validation Summary Card Accordion */}
+                <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setIsConstraintsOpen(!isConstraintsOpen)}
+                    className="w-full p-3 bg-slate-50/80 hover:bg-slate-100/80 flex items-center justify-between border-b border-slate-100 transition cursor-pointer text-left select-none"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span className="font-bold text-slate-900 text-[8pt] uppercase tracking-wider">Constraint Verification</span>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      {validationSummary && (
+                        <span className={`font-bold uppercase text-[9px] ${hasAnyContinuityConflict || hasAnyPeriod1To4FreePeriodConflict ? 'text-amber-700 bg-amber-50 border border-amber-200' : 'text-emerald-700 bg-emerald-50 border border-emerald-200'} px-1.5 py-0.5 rounded`}>
+                          {hasAnyContinuityConflict || hasAnyPeriod1To4FreePeriodConflict ? 'Warnings' : 'Verified'}
+                        </span>
+                      )}
+                      {isConstraintsOpen ? (
+                        <ChevronUp className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                      )}
+                    </div>
+                  </button>
+
+                  {isConstraintsOpen && (
+                    <div className="p-4">
+                      {validationSummary ? (
+                        <div className="space-y-3">
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-bold text-slate-800">Faculty Overlap Check</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">No faculty is assigned to multiple classes simultaneously.</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            {hasAnyContinuityConflict ? (
+                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-800">Continuous Lecture Restrictor</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
+                                {hasAnyContinuityConflict 
+                                  ? "Warning: Some multi-course teachers are scheduled back-to-back." 
+                                  : "Verified: Teachers taking multiple subjects in the same class have balanced workloads."}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-bold text-slate-800">Course Credit Hours Status</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
+                                Mapping {validationSummary.totalAssignments} subjects across {validationSummary.totalClasses} sections.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            {hasAnyPeriod1To4FreePeriodConflict ? (
+                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-800">Period 1 to 4 Free-Period Guard</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
+                                {hasAnyPeriod1To4FreePeriodConflict 
+                                  ? "Optimization Warning: A free-period gap exists in Period 1, 2, 3, or 4." 
+                                  : "Verified: No free period gaps in Period 1, 2, 3, or 4 for any class section!"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-bold text-slate-800">Lab Continuous Block</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
+                                Verified: All Lab / Practical sessions are successfully assigned in contiguous 2-period stretches without split-break interruptions.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 text-center py-4 font-medium italic">
+                          Configure data to run verification logic.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* Legend & Instructions Accordion */}
+                <div className="bg-slate-50/80 border border-slate-200 rounded-lg shadow-sm overflow-hidden transition-all text-[11px] text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => setIsGuidelinesOpen(!isGuidelinesOpen)}
+                    className="w-full p-3 bg-slate-100/90 hover:bg-slate-200/70 flex items-center justify-between border-b border-slate-200 transition cursor-pointer text-left select-none"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Info className="h-3.5 w-3.5 text-blue-900" />
+                      <span className="font-bold text-slate-900 uppercase tracking-wider text-[10px]">User Guidelines</span>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="font-bold text-[9px] text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded">5 Steps</span>
+                      {isGuidelinesOpen ? (
+                        <ChevronUp className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                      )}
+                    </div>
+                  </button>
+
+                  {isGuidelinesOpen && (
+                    <div className="p-4">
+                      <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-[11px]">
+                        <li>Add your faculties in the <strong className="text-slate-900">Faculty</strong> tab.</li>
+                        <li>Add course subjects in the <strong className="text-slate-900">Subjects</strong> tab.</li>
+                        <li>Link faculties and subjects in <strong className="text-slate-900">Class Assignments</strong>.</li>
+                        <li>Configure college hours in <strong className="text-slate-900">Time Configuration</strong>.</li>
+                        <li>Hit <strong className="text-slate-900">Generate Timetable</strong> to build rosters!</li>
+                      </ol>
+                    </div>
+                  )}
+                </div>
+
               </div>
 
               {/* Bottom Row: Generated Timetable View (Full Width Card) */}
