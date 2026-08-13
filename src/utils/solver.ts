@@ -136,6 +136,8 @@ export function preValidateConstraints(
   const errors: string[] = [];
   const activeSlotsCount = timeSlots.filter(s => !s.isBreak).length;
   const totalSlotsPerClass = activeSlotsCount * days.length;
+  const weekdayDays = days.filter(d => d !== 'Saturday');
+  const weekdaySlotsPerClass = activeSlotsCount * weekdayDays.length;
 
   const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
   let activeSlotsAfterLunchCount = 0;
@@ -147,11 +149,13 @@ export function preValidateConstraints(
     }
   }
   const totalSlotsAfterLunchPerClass = activeSlotsAfterLunchCount * days.length;
+  // After lunch slots available on weekdays
+  const weekdaySlotsAfterLunchPerClass = activeSlotsAfterLunchCount * weekdayDays.length;
 
-  // 1. Check if any class has more requested periods than total slots in the week
+  // 1. Check if any class has more requested periods than available slots
   for (const cls of classes) {
     const classAssignments = assignments.filter(a => a.classId === cls.id);
-    let totalPeriodsRequested = 0;
+    let totalNonAictePeriodsRequested = 0;
     let totalProjectPeriodsRequested = 0;
 
     if (cls.labBatches && cls.labBatches > 1) {
@@ -165,8 +169,8 @@ export function preValidateConstraints(
       });
       for (const assign of nonLabAssigns) {
         const sub = subjects.find(s => s.id === assign.subjectId);
-        if (sub) {
-          totalPeriodsRequested += sub.weeklyPeriods;
+        if (sub && !sub.isAicteActivity) {
+          totalNonAictePeriodsRequested += sub.weeklyPeriods;
           if (sub.isProject) totalProjectPeriodsRequested += sub.weeklyPeriods;
         }
       }
@@ -178,13 +182,13 @@ export function preValidateConstraints(
           }),
           labAssigns.length
         );
-        totalPeriodsRequested += numSessions * 2;
+        totalNonAictePeriodsRequested += numSessions * 2;
       }
     } else {
       for (const assign of classAssignments) {
         const sub = subjects.find(s => s.id === assign.subjectId);
-        if (sub) {
-          totalPeriodsRequested += sub.weeklyPeriods;
+        if (sub && !sub.isAicteActivity) {
+          totalNonAictePeriodsRequested += sub.weeklyPeriods;
           if (sub.isProject) {
             totalProjectPeriodsRequested += sub.weeklyPeriods;
           }
@@ -192,15 +196,15 @@ export function preValidateConstraints(
       }
     }
 
-    if (totalPeriodsRequested > totalSlotsPerClass) {
+    if (totalNonAictePeriodsRequested > weekdaySlotsPerClass) {
       errors.push(
-        `Class "${cls.name} (Sec ${cls.section})" requires ${totalPeriodsRequested} periods, but only ${totalSlotsPerClass} slots are available in the week (${days.length} days × ${activeSlotsCount} periods).`
+        `Class "${cls.name} (Sec ${cls.section})" requires ${totalNonAictePeriodsRequested} standard periods, but only ${weekdaySlotsPerClass} slots are available on weekdays (${weekdayDays.length} days × ${activeSlotsCount} periods) as Saturday is reserved for AICTE Activity.`
       );
     }
 
-    if (lunchBreakIdx !== -1 && totalProjectPeriodsRequested > totalSlotsAfterLunchPerClass) {
+    if (lunchBreakIdx !== -1 && totalProjectPeriodsRequested > weekdaySlotsAfterLunchPerClass) {
       errors.push(
-        `Class "${cls.name} (Sec ${cls.section})" requires ${totalProjectPeriodsRequested} Project/Seminar/Internship periods, but only ${totalSlotsAfterLunchPerClass} slots after lunch are available in the week (${days.length} days × ${activeSlotsAfterLunchCount} periods).`
+        `Class "${cls.name} (Sec ${cls.section})" requires ${totalProjectPeriodsRequested} Project/Seminar/Internship periods, but only ${weekdaySlotsAfterLunchPerClass} slots after lunch are available on weekdays (${weekdayDays.length} days × ${activeSlotsAfterLunchCount} periods).`
       );
     }
 
@@ -357,15 +361,17 @@ function buildLectureUnits(
         const sub = subjects.find(s => s.id === assign.subjectId);
         if (!sub) continue;
         if (sub.isAicteActivity) {
-          lectureUnits.push({
-            isParallelLab: false,
-            assignmentId: assign.id,
-            classId: assign.classId,
-            facultyId: assign.facultyId,
-            subjectId: assign.subjectId,
-            unitIndex: 0,
-            duration: sub.weeklyPeriods,
-          });
+          for (let i = 0; i < sub.weeklyPeriods; i++) {
+            lectureUnits.push({
+              isParallelLab: false,
+              assignmentId: assign.id,
+              classId: assign.classId,
+              facultyId: assign.facultyId,
+              subjectId: assign.subjectId,
+              unitIndex: i,
+              duration: 1,
+            });
+          }
         } else {
           for (let i = 0; i < sub.weeklyPeriods; i++) {
             lectureUnits.push({
@@ -456,15 +462,17 @@ function buildLectureUnits(
             }
           }
         } else if (sub.isAicteActivity) {
-          lectureUnits.push({
-            isParallelLab: false,
-            assignmentId: assign.id,
-            classId: assign.classId,
-            facultyId: assign.facultyId,
-            subjectId: assign.subjectId,
-            unitIndex: 0,
-            duration: sub.weeklyPeriods,
-          });
+          for (let i = 0; i < sub.weeklyPeriods; i++) {
+            lectureUnits.push({
+              isParallelLab: false,
+              assignmentId: assign.id,
+              classId: assign.classId,
+              facultyId: assign.facultyId,
+              subjectId: assign.subjectId,
+              unitIndex: i,
+              duration: 1,
+            });
+          }
         } else {
           for (let i = 0; i < sub.weeklyPeriods; i++) {
             lectureUnits.push({
@@ -747,6 +755,9 @@ export function generateTimetable(
       for (const cand of candidates) {
         const { day, periodIdx } = cand;
 
+        // Saturday is strictly reserved for AICTE Activity subjects
+        if (day === 'Saturday') continue;
+
         if (periodIdx + 1 >= totalPeriods) continue;
         if (schedule[classId][day][periodIdx] !== null || schedule[classId][day][periodIdx + 1] !== null) continue;
         if (!arePeriodsConsecutive(periodIdx, periodIdx + 1)) continue;
@@ -817,6 +828,7 @@ export function generateTimetable(
         if (isBlocked) continue;
 
         if (sub && sub.isAicteActivity && day !== 'Saturday') continue;
+        if (sub && !sub.isAicteActivity && day === 'Saturday') continue;
 
         // Project and Student Activity / Mentoring post-lunch constraint
         if (sub && (sub.isProject || sub.isStudentActivity) && lunchBreakIdx !== -1) {
@@ -831,8 +843,8 @@ export function generateTimetable(
           if (periodIdx + duration < totalPeriods && getFacultiesAt(classId, day, periodIdx + duration).includes(facultyId)) continue;
         }
 
-        // 1. Same subject continuous check (unless AICTE activity)
-        if (!sub?.isAicteActivity) {
+        // 1. Same subject continuous check (unless AICTE activity or Student activity)
+        if (!sub?.isAicteActivity && !sub?.isStudentActivity) {
           if (periodIdx > 0 && getSubjectsAt(classId, day, periodIdx - 1).includes(subjectId)) continue;
           if (periodIdx + duration < totalPeriods && getSubjectsAt(classId, day, periodIdx + duration).includes(subjectId)) continue;
         }
@@ -841,7 +853,7 @@ export function generateTimetable(
         const currentCountOnDay = getSubjectCountOnDay(classId, day, subjectId);
         if (isLab) {
           if (currentCountOnDay > 0) continue;
-        } else if (sub && sub.isAicteActivity) {
+        } else if (sub && (sub.isAicteActivity || sub.isStudentActivity)) {
           if (currentCountOnDay >= sub.weeklyPeriods) continue;
         } else {
           const maxOccurrencesPerDay = (weeklyPeriods > days.length) ? Math.ceil(weeklyPeriods / days.length) : 1;
@@ -849,7 +861,7 @@ export function generateTimetable(
         }
 
         // 3. Period 1 constraint
-        if (!sub?.isAicteActivity) {
+        if (!sub?.isAicteActivity && !sub?.isStudentActivity) {
           let occupiesPeriod1 = false;
           for (let d = 0; d < duration; d++) {
             if (isPeriod1(periodIdx + d)) { occupiesPeriod1 = true; break; }
@@ -1057,6 +1069,8 @@ function greedyFallback(
       for (const cand of candSlots) {
         const { day, pIdx } = cand;
 
+        if (day === 'Saturday') continue;
+
         if (pIdx + 1 >= totalPeriods) continue;
         if (schedule[classId][day][pIdx] !== null || schedule[classId][day][pIdx + 1] !== null) continue;
         if (!arePeriodsConsecutive(pIdx, pIdx + 1)) continue;
@@ -1115,6 +1129,7 @@ function greedyFallback(
         if (isBlocked) continue;
 
         if (sub && sub.isAicteActivity && day !== 'Saturday') continue;
+        if (sub && !sub.isAicteActivity && day === 'Saturday') continue;
 
         if (sub && (sub.isProject || sub.isStudentActivity) && lunchBreakIdx !== -1) {
           const slot1 = activeSlots[pIdx];
@@ -1127,7 +1142,7 @@ function greedyFallback(
           if (pIdx + duration < totalPeriods && getFacultiesAt(classId, day, pIdx + duration).includes(facultyId)) continue;
         }
 
-        if (!sub?.isAicteActivity) {
+        if (!sub?.isAicteActivity && !sub?.isStudentActivity) {
           if (pIdx > 0 && getSubjectsAt(classId, day, pIdx - 1).includes(subjectId)) continue;
           if (pIdx + duration < totalPeriods && getSubjectsAt(classId, day, pIdx + duration).includes(subjectId)) continue;
         }
@@ -1135,14 +1150,14 @@ function greedyFallback(
         const currentCountOnDay = getSubjectCountOnDay(classId, day, subjectId);
         if (isLab) {
           if (currentCountOnDay > 0) continue;
-        } else if (sub && sub.isAicteActivity) {
+        } else if (sub && (sub.isAicteActivity || sub.isStudentActivity)) {
           if (currentCountOnDay >= sub.weeklyPeriods) continue;
         } else {
           const maxOccurrencesPerDay = (weeklyPeriods > days.length) ? Math.ceil(weeklyPeriods / days.length) : 1;
           if (currentCountOnDay >= maxOccurrencesPerDay) continue;
         }
 
-        if (!sub?.isAicteActivity) {
+        if (!sub?.isAicteActivity && !sub?.isStudentActivity) {
           let occupiesPeriod1 = false;
           for (let d = 0; d < duration; d++) {
             if (isPeriod1(pIdx + d)) { occupiesPeriod1 = true; break; }

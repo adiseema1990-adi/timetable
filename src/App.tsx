@@ -687,6 +687,29 @@ export default function App() {
     }
   };
 
+  const getAssignmentDetails = (assignmentId: string | null) => {
+    if (!assignmentId) return { assign: null, sub: null, fac: null };
+    let assign = assignments.find(a => a.id === assignmentId);
+    if (!assign && assignmentId.startsWith('auto_')) {
+      const parts = assignmentId.split('_');
+      const classId = parts[1];
+      const subjectId = parts.slice(2).join('_');
+      const sub = subjects.find(s => s.id === subjectId);
+      if (sub) {
+        assign = {
+          id: assignmentId,
+          classId,
+          subjectId,
+          facultyId: ''
+        };
+      }
+    }
+    if (!assign) return { assign: null, sub: null, fac: null };
+    const sub = subjects.find(s => s.id === assign.subjectId) || null;
+    const fac = assign.facultyId ? (faculties.find(f => f.id === assign.facultyId) || null) : null;
+    return { assign, sub, fac };
+  };
+
   // --- Load Initial Sample Data ---
   useEffect(() => {
     if (!currentUser) return;
@@ -747,7 +770,7 @@ export default function App() {
         { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
         { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
       ];
-      const defaultDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const defaultDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       setFaculties([]);
       setSubjects([]);
       setClasses([]);
@@ -760,6 +783,44 @@ export default function App() {
     }
     setIsInitialized(true);
   }, []);
+
+  // Auto-sync assignments for special subjects (AICTE Activity / Student Activity) across all classes
+  useEffect(() => {
+    if (!isInitialized || classes.length === 0 || subjects.length === 0) return;
+    const specialSubs = subjects.filter(s => s.isAicteActivity || s.isStudentActivity);
+    if (specialSubs.length === 0) return;
+
+    let changed = false;
+    const updatedAssigns = [...assignments];
+
+    for (const cls of classes) {
+      for (const specSub of specialSubs) {
+        const exists = updatedAssigns.some(a => a.classId === cls.id && a.subjectId === specSub.id);
+        if (!exists) {
+          changed = true;
+          updatedAssigns.push({
+            id: `a_spec_${cls.id}_${specSub.id}`,
+            classId: cls.id,
+            subjectId: specSub.id,
+            facultyId: ''
+          });
+        }
+      }
+    }
+
+    if (changed) {
+      setAssignments(updatedAssigns);
+    }
+  }, [isInitialized, classes, subjects, assignments]);
+
+  // Ensure Saturday is in active days if AICTE Activity subjects exist
+  useEffect(() => {
+    if (!isInitialized || subjects.length === 0) return;
+    const hasAicte = subjects.some(s => s.isAicteActivity);
+    if (hasAicte && !days.includes('Saturday' as DayOfWeek)) {
+      setDays(prev => prev.includes('Saturday' as DayOfWeek) ? prev : [...prev, 'Saturday' as DayOfWeek]);
+    }
+  }, [isInitialized, subjects, days]);
 
   // Save to LocalStorage whenever state changes
   useEffect(() => {
@@ -2076,7 +2137,7 @@ export default function App() {
       day: string;
       pIdx?: number;
       message: string;
-      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision' | 'aicte_day_conflict' | 'mentoring_lunch_conflict';
+      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision' | 'aicte_day_conflict' | 'mentoring_lunch_conflict' | 'saturday_non_aicte_conflict';
     }[] = [];
 
     const activeSlots = timeSlots.filter(s => !s.isBreak);
@@ -2253,7 +2314,7 @@ export default function App() {
             const assign2 = assignments.find(a => a.id === a2Id);
             if (assign1 && assign2 && assign1.subjectId === assign2.subjectId) {
               const sub = subjects.find(s => s.id === assign1.subjectId);
-              if (sub && !sub.isLab && !sub.isAicteActivity) {
+              if (sub && !sub.isLab && !sub.isAicteActivity && !sub.isStudentActivity) {
                 warningsList.push({
                   classId: cls.id,
                   day,
@@ -2272,6 +2333,15 @@ export default function App() {
           if (!sub) continue;
           const count = subjectCounts[subId];
           const weekly = sub.weeklyPeriods;
+
+          if (day === 'Saturday' && !sub.isAicteActivity) {
+            warningsList.push({
+              classId: cls.id,
+              day,
+              message: `Subject ${sub.code} (${sub.name}) is scheduled on Saturday. Saturday is strictly reserved for AICTE Activity subjects.`,
+              type: 'saturday_non_aicte_conflict'
+            });
+          }
 
           if (sub.isLab) {
             if (count === 1) {
@@ -2585,8 +2655,8 @@ export default function App() {
       {/* ========================================== */}
       <header id="app-header" className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0 shadow-sm sticky top-0 z-50">
         <div className="flex flex-col justify-center">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
-          <h1 className="text-base md:text-lg font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
+          <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
+          <h1 className="text-xs md:text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
             Sir M. Visvesvaraya College of Engineering, Raichur
           </h1>
         </div>
@@ -3145,11 +3215,11 @@ service cloud.firestore {
                               <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                             )}
                             <div>
-                              <p className="font-bold text-slate-800">Period 1 to 4 Free-Period Guard</p>
+                              <p className="font-bold text-slate-800">Period 1 to 4 Unscheduled Gap Guard</p>
                               <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
                                 {hasAnyPeriod1To4FreePeriodConflict 
-                                  ? "Optimization Warning: A free-period gap exists in Period 1, 2, 3, or 4." 
-                                  : "Verified: No free period gaps in Period 1, 2, 3, or 4 for any class section!"}
+                                  ? "Optimization Warning: An unscheduled tutorial gap exists in Period 1, 2, 3, or 4." 
+                                  : "Verified: No unscheduled tutorial gaps in Period 1, 2, 3, or 4 for any class section!"}
                               </p>
                             </div>
                           </div>
@@ -3165,17 +3235,17 @@ service cloud.firestore {
                           </div>
 
                           <div className="flex items-start space-x-2.5 text-[11px]">
-                            {scheduleWarnings.some(w => w.type === 'aicte_day_conflict') ? (
+                            {scheduleWarnings.some(w => w.type === 'aicte_day_conflict' || w.type === 'saturday_non_aicte_conflict') ? (
                               <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                             ) : (
                               <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                             )}
                             <div>
-                              <p className="font-bold text-slate-800">AICTE Activity Saturday Rule</p>
+                              <p className="font-bold text-slate-800">Saturday AICTE Activity Exclusive Rule</p>
                               <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
-                                {scheduleWarnings.some(w => w.type === 'aicte_day_conflict')
-                                  ? "Warning: AICTE Activity subjects must be scheduled strictly on Saturday."
-                                  : "Verified: AICTE Activity subjects are scheduled strictly on Saturday."}
+                                {scheduleWarnings.some(w => w.type === 'aicte_day_conflict' || w.type === 'saturday_non_aicte_conflict')
+                                  ? "Warning: Saturday is strictly reserved for AICTE Activity subjects only."
+                                  : "Verified: Saturday is strictly reserved for AICTE Activity subjects, and no other subjects are scheduled on Saturday."}
                               </p>
                             </div>
                           </div>
@@ -3386,9 +3456,7 @@ service cloud.firestore {
                                           className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center space-y-1 bg-amber-50/50 hover:bg-amber-100/40 min-h-[64px] transition-all"
                                         >
                                           {batchItems.map((batchItem) => {
-                                            const assign = assignments.find(a => a.id === batchItem.assignmentId);
-                                            const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
-                                            const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
+                                            const { assign, sub, fac } = getAssignmentDetails(batchItem.assignmentId);
                                             if (!assign || !sub) return null;
 
                                             const palette = getSubjectPalette(sub.id, sub.code, sub.color);
@@ -3416,7 +3484,7 @@ service cloud.firestore {
                                                 </div>
                                                 <div className="font-extrabold truncate leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
                                                 <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
-                                                  👤 {fac ? fac.name : 'Unassigned'}
+                                                  👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                 </div>
                                               </div>
                                             );
@@ -3426,9 +3494,7 @@ service cloud.firestore {
                                     }
 
                                     const assignmentId = typeof cellEntry === 'string' ? cellEntry : null;
-                                    const assign = assignmentId ? assignments.find(a => a.id === assignmentId) : null;
-                                    const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
-                                    const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
+                                    const { assign, sub, fac } = getAssignmentDetails(assignmentId);
 
                                     const isLabCell = sub ? isSubjectLab(sub) : false;
                                     const currentClass = classes.find(c => c.id === selectedClassId);
@@ -3466,7 +3532,7 @@ service cloud.firestore {
                                                 <span className="opacity-80 font-mono">{sub1.code}</span>
                                               </div>
                                               <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
+                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                             </div>
                                           )}
                                           {otherSub && sub2Palette && (
@@ -3490,7 +3556,7 @@ service cloud.firestore {
                                                 <span className="opacity-80 font-mono">{otherSub.code}</span>
                                               </div>
                                               <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : 'Unassigned'}</div>
+                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                             </div>
                                           )}
                                         </div>
@@ -3529,7 +3595,7 @@ service cloud.firestore {
                                             {batchStr}
                                           </span>
                                         )}
-                                        {assign && sub && fac && palette ? (
+                                        {assign && sub && palette ? (
                                           <>
                                             <div>
                                               <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
@@ -3543,19 +3609,19 @@ service cloud.firestore {
                                               <span 
                                                 style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
                                                 className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
-                                                title={fac.name}
+                                                title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                               >
-                                                {fac.name}
+                                                👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                               </span>
                                               <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
-                                                {fac.department}
+                                                {fac ? fac.department : ''}
                                               </span>
                                             </div>
                                           </>
                                         ) : (
-                                          <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-400 bg-slate-50/20 rounded p-1">
-                                            -- Free --
-                                          </div>
+                                          <div className="flex-1 flex items-center justify-center font-bold text-[10px] text-orange-900 bg-orange-100/90 border border-orange-300 rounded p-1 shadow-2xs">
+                                             Tutorial
+                                           </div>
                                         )}
                                       </div>
                                     );
@@ -3842,8 +3908,8 @@ service cloud.firestore {
                                       </div>
                                     </>
                                   ) : (
-                                    <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-400 bg-slate-50/20 rounded p-1">
-                                      -- Free --
+                                    <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-300 bg-slate-50/20 rounded p-1">
+                                      -- Available --
                                     </div>
                                   )}
                                 </div>
@@ -4094,9 +4160,7 @@ service cloud.firestore {
                                     const currentActiveIdx = activePeriodCounter;
                                     const cellEntry = slotsForDay[currentActiveIdx];
                                     const assignmentId = typeof cellEntry === 'string' ? cellEntry : null;
-                                    const assign = assignmentId ? assignments.find(a => a.id === assignmentId) : null;
-                                    const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
-                                    const fac = assign ? faculties.find(f => f.id === assign.facultyId) : null;
+                                    const { assign, sub, fac } = getAssignmentDetails(assignmentId);
 
                                     activePeriodCounter++;
 
@@ -4234,7 +4298,7 @@ service cloud.firestore {
                                                   </div>
                                                   <div className="font-extrabold truncate leading-tight mt-0.5" title={bSub.name}>{bSub.name}</div>
                                                   <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
-                                                    👤 {bFac ? bFac.name : 'Unassigned'}
+                                                    👤 {bFac ? bFac.name : (bSub.isAicteActivity || bSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </div>
                                                 </div>
                                               );
@@ -4277,7 +4341,7 @@ service cloud.firestore {
                                                         <span className="opacity-80 font-mono">{sub1.code}</span>
                                                       </div>
                                                       <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : 'Unassigned'}</div>
+                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                                     </div>
                                                   )}
                                                   {otherSub && sub2Palette && (
@@ -4301,7 +4365,7 @@ service cloud.firestore {
                                                         <span className="opacity-80 font-mono">{otherSub.code}</span>
                                                       </div>
                                                       <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : 'Unassigned'}</div>
+                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                                     </div>
                                                   )}
                                                 </div>
@@ -4326,15 +4390,15 @@ service cloud.firestore {
                                                   <span 
                                                     style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
                                                     className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
-                                                    title={fac ? fac.name : 'Unassigned'}
+                                                    title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   >
-                                                    👤 {fac ? fac.name : 'Unassigned'}
+                                                    👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
                                                 </div>
                                               </>
                                             );
                                           })()
-                                        ) : assign && sub && fac ? (
+                                        ) : assign && sub ? (
                                           (() => {
                                             const palette = getSubjectPalette(sub.id, sub.code, sub.color);
                                             return (
@@ -4358,21 +4422,21 @@ service cloud.firestore {
                                                   <span 
                                                     style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
                                                     className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
-                                                    title={fac.name}
+                                                    title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   >
-                                                    {fac.name}
+                                                    👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
                                                   <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
-                                                    {fac.department}
+                                                    {fac ? fac.department : ''}
                                                   </span>
                                                 </div>
                                               </>
                                             );
                                           })()
                                         ) : (
-                                          <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-400 bg-slate-50/20 rounded p-1">
-                                            -- Free --
-                                          </div>
+                                          <div className="flex-1 flex items-center justify-center font-bold text-[10px] text-orange-900 bg-orange-100/90 border border-orange-300 rounded p-1 shadow-2xs">
+                                             Tutorial
+                                           </div>
                                         )}
                                       </div>
                                     );
