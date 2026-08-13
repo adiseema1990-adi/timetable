@@ -531,6 +531,8 @@ export default function App() {
   const [newSubPeriods, setNewSubPeriods] = useState(4);
   const [newSubIsLab, setNewSubIsLab] = useState(false);
   const [newSubIsProject, setNewSubIsProject] = useState(false);
+  const [newSubIsAicte, setNewSubIsAicte] = useState(false);
+  const [newSubIsMentoring, setNewSubIsMentoring] = useState(false);
   const [newSubColor, setNewSubColor] = useState('');
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [subFormSubmitted, setSubFormSubmitted] = useState(false);
@@ -543,6 +545,8 @@ export default function App() {
   const [editSubPeriods, setEditSubPeriods] = useState(4);
   const [editSubIsLab, setEditSubIsLab] = useState(false);
   const [editSubIsProject, setEditSubIsProject] = useState(false);
+  const [editSubIsAicte, setEditSubIsAicte] = useState(false);
+  const [editSubIsMentoring, setEditSubIsMentoring] = useState(false);
   const [editSubColor, setEditSubColor] = useState('');
   const [editSubFormSubmitted, setEditSubFormSubmitted] = useState(false);
 
@@ -1757,6 +1761,8 @@ export default function App() {
       weeklyPeriods: Number(newSubPeriods),
       isLab: newSubIsLab,
       isProject: newSubIsProject,
+      isAicteActivity: newSubIsAicte,
+      isStudentActivity: newSubIsMentoring,
       color: selectedColor
     };
     setSubjects([...subjects, newSub]);
@@ -1767,6 +1773,8 @@ export default function App() {
     setNewSubPeriods(4);
     setNewSubIsLab(false);
     setNewSubIsProject(false);
+    setNewSubIsAicte(false);
+    setNewSubIsMentoring(false);
     setNewSubColor('');
     setSubFormSubmitted(false);
   };
@@ -1962,6 +1970,8 @@ export default function App() {
     setEditSubPeriods(sub.weeklyPeriods);
     setEditSubIsLab(!!sub.isLab);
     setEditSubIsProject(!!sub.isProject);
+    setEditSubIsAicte(!!sub.isAicteActivity);
+    setEditSubIsMentoring(!!sub.isStudentActivity);
     setEditSubColor(sub.color || '');
     setEditSubFormSubmitted(false);
   };
@@ -1974,6 +1984,8 @@ export default function App() {
     setEditSubPeriods(4);
     setEditSubIsLab(false);
     setEditSubIsProject(false);
+    setEditSubIsAicte(false);
+    setEditSubIsMentoring(false);
     setEditSubColor('');
     setEditSubFormSubmitted(false);
   };
@@ -1993,6 +2005,8 @@ export default function App() {
           weeklyPeriods: Number(editSubPeriods),
           isLab: editSubIsLab,
           isProject: editSubIsProject,
+          isAicteActivity: editSubIsAicte,
+          isStudentActivity: editSubIsMentoring,
           color: editSubColor || getUniqueUnusedColor(subjects.filter(item => item.id !== editingSubjectId))
         };
       }
@@ -2058,7 +2072,7 @@ export default function App() {
       day: string;
       pIdx?: number;
       message: string;
-      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision';
+      type: 'clash' | 'continuity' | 'subject_consecutive' | 'daily_limit' | 'lab_split' | 'gap' | 'batch-collision' | 'aicte_day_conflict';
     }[] = [];
 
     const activeSlots = timeSlots.filter(s => !s.isBreak);
@@ -2235,7 +2249,7 @@ export default function App() {
             const assign2 = assignments.find(a => a.id === a2Id);
             if (assign1 && assign2 && assign1.subjectId === assign2.subjectId) {
               const sub = subjects.find(s => s.id === assign1.subjectId);
-              if (sub && !sub.isLab) {
+              if (sub && !sub.isLab && !sub.isAicteActivity) {
                 warningsList.push({
                   classId: cls.id,
                   day,
@@ -2248,7 +2262,7 @@ export default function App() {
           }
         }
 
-        // Check Daily Limits & Labs
+        // Check Daily Limits & Labs & AICTE Activity
         for (const subId in subjectCounts) {
           const sub = subjects.find(s => s.id === subId);
           if (!sub) continue;
@@ -2280,6 +2294,22 @@ export default function App() {
                 classId: cls.id,
                 day,
                 message: `Lab subject ${sub.code} is scheduled ${count} times on ${day}. Max is 2 periods.`,
+                type: 'daily_limit'
+              });
+            }
+          } else if (sub.isAicteActivity) {
+            if (day !== 'Saturday') {
+              warningsList.push({
+                classId: cls.id,
+                day,
+                message: `AICTE Activity subject ${sub.code} is scheduled on ${day}. AICTE Activity classes must only be scheduled on Saturday.`,
+                type: 'aicte_day_conflict'
+              });
+            } else if (count > weekly) {
+              warningsList.push({
+                classId: cls.id,
+                day,
+                message: `AICTE Activity subject ${sub.code} is scheduled ${count} times on Saturday, exceeding requested ${weekly} periods.`,
                 type: 'daily_limit'
               });
             }
@@ -3106,6 +3136,22 @@ service cloud.firestore {
                               <p className="font-bold text-slate-800">Lab Continuous Block</p>
                               <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
                                 Verified: All Lab / Practical sessions are successfully assigned in contiguous 2-period stretches without split-break interruptions.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start space-x-2.5 text-[11px]">
+                            {scheduleWarnings.some(w => w.type === 'aicte_day_conflict') ? (
+                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-800">AICTE Activity Saturday Rule</p>
+                              <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
+                                {scheduleWarnings.some(w => w.type === 'aicte_day_conflict')
+                                  ? "Warning: AICTE Activity subjects must be scheduled strictly on Saturday."
+                                  : "Verified: AICTE Activity subjects are scheduled strictly on Saturday."}
                               </p>
                             </div>
                           </div>
@@ -4652,7 +4698,7 @@ service cloud.firestore {
                         </div>
                       </div>
 
-                      <div className="pt-1 pb-2">
+                      <div className="pt-1 pb-2 space-y-1.5">
                         <label className="flex items-center space-x-2 cursor-pointer select-none">
                           <input
                             type="checkbox"
@@ -4661,6 +4707,26 @@ service cloud.firestore {
                             className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-amber-500 cursor-pointer"
                           />
                           <span className="text-xs font-bold text-slate-700">Is Project/Seminar/Internship ?</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={editSubIsAicte}
+                            onChange={(e) => setEditSubIsAicte(e.target.checked)}
+                            className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-slate-700">Is AICTE Activity ?</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={editSubIsMentoring}
+                            onChange={(e) => setEditSubIsMentoring(e.target.checked)}
+                            className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-slate-700">Is Student Activity / Mentoring ?</span>
                         </label>
                       </div>
 
@@ -4808,7 +4874,7 @@ service cloud.firestore {
                         </div>
                       </div>
 
-                      <div className="pt-1 pb-2">
+                      <div className="pt-1 pb-2 space-y-1.5">
                         <label className="flex items-center space-x-2 cursor-pointer select-none">
                           <input
                             type="checkbox"
@@ -4817,6 +4883,26 @@ service cloud.firestore {
                             className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-blue-900 cursor-pointer"
                           />
                           <span className="text-xs font-bold text-slate-700">Is Project/Seminar/Internship ?</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={newSubIsAicte}
+                            onChange={(e) => setNewSubIsAicte(e.target.checked)}
+                            className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-blue-900 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-slate-700">Is AICTE Activity ?</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={newSubIsMentoring}
+                            onChange={(e) => setNewSubIsMentoring(e.target.checked)}
+                            className="h-4 w-4 rounded text-blue-900 border-slate-300 focus:ring-blue-900 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-slate-700">Is Student Activity / Mentoring ?</span>
                         </label>
                       </div>
 
@@ -4922,7 +5008,15 @@ service cloud.firestore {
                             <td className="p-2.5 font-bold text-slate-900">{sub.name}</td>
                             <td className="p-2.5 font-semibold text-slate-700">{sub.department}</td>
                             <td className="p-2.5 text-center">
-                              {sub.isProject ? (
+                              {sub.isAicteActivity ? (
+                                <span className="inline-block bg-purple-50 text-purple-700 border border-purple-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                  AICTE Activity
+                                </span>
+                              ) : sub.isStudentActivity ? (
+                                <span className="inline-block bg-teal-50 text-teal-700 border border-teal-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                  Student Activity / Mentoring
+                                </span>
+                              ) : sub.isProject ? (
                                 <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
                                   Project / Sem / Intern
                                 </span>

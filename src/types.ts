@@ -19,6 +19,8 @@ export interface Subject {
   weeklyPeriods: number; // how many periods of this subject per week
   isLab?: boolean;
   isProject?: boolean;
+  isAicteActivity?: boolean;
+  isStudentActivity?: boolean;
   color?: string;
 }
 
