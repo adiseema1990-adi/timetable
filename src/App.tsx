@@ -351,6 +351,28 @@ export const cleanFacultyName = (name?: string): string => {
   return name.replace(/^👤\s*/g, '').replace(/👤/g, '').trim();
 };
 
+export const normalizeDepartment = (dept?: string): string => {
+  if (!dept) return '';
+  const trimmed = dept.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'applied science' || lower === 'basic science' || lower === 'bs') {
+    return 'BS';
+  }
+  if (lower === 'civil' || lower === 'cv') {
+    return 'CV';
+  }
+  if (lower === 'mechanical' || lower === 'me') {
+    return 'ME';
+  }
+  if (lower === 'mba') {
+    return 'MBA';
+  }
+  if (lower === 'cse') return 'CSE';
+  if (lower === 'aiml') return 'AIML';
+  if (lower === 'ece') return 'ECE';
+  return trimmed;
+};
+
 interface SubjectPalette {
   bg: string;
   hoverBg: string;
@@ -764,10 +786,15 @@ export default function App() {
     const savedSolverResult = localStorage.getItem('mvce_solverResult');
 
     if (savedFaculties && savedSubjects && savedClasses && savedAssignments && savedTimeSlots && savedDays) {
-      setFaculties(JSON.parse(savedFaculties));
+      const parsedFaculties = (JSON.parse(savedFaculties) as Faculty[]).map(f => ({
+        ...f,
+        department: normalizeDepartment(f.department)
+      }));
+      setFaculties(parsedFaculties);
       const parsedSubjects = JSON.parse(savedSubjects) as Subject[];
       const subjectsWithColors = parsedSubjects.map((sub, idx) => ({
         ...sub,
+        department: normalizeDepartment(sub.department),
         color: sub.color || UNIQUE_BG_COLORS[idx % UNIQUE_BG_COLORS.length]
       }));
       setSubjects(subjectsWithColors);
@@ -1277,8 +1304,18 @@ export default function App() {
         const data = deserializeFromFirestore(rawData);
         
         // Load states
-        if (data.faculties) setFaculties(data.faculties);
-        if (data.subjects) setSubjects(data.subjects);
+        if (data.faculties) {
+          setFaculties((data.faculties as Faculty[]).map(f => ({
+            ...f,
+            department: normalizeDepartment(f.department)
+          })));
+        }
+        if (data.subjects) {
+          setSubjects((data.subjects as Subject[]).map(s => ({
+            ...s,
+            department: normalizeDepartment(s.department)
+          })));
+        }
         if (data.classes) {
           const updatedClasses = data.classes.map((c: any) => ({ ...c, labBatches: c.labBatches ?? 2 }));
           setClasses(updatedClasses);
@@ -1409,7 +1446,7 @@ export default function App() {
 
     let text = `*Sir M. Visvesvaraya College of Engineering, Raichur*\n`;
     text += `*FACULTY TIMETABLE: ${fac.name.toUpperCase()} (${fac.shortName})*\n`;
-    text += `Department: ${fac.department}\n`;
+    text += `Department: ${normalizeDepartment(fac.department)}\n`;
     text += `==================================\n\n`;
 
     let hasAnyClass = false;
@@ -2084,7 +2121,7 @@ export default function App() {
     setEditingFacultyId(fac.id);
     setEditFacName(fac.name);
     setEditFacShort(fac.shortName);
-    setEditFacDept(fac.department);
+    setEditFacDept(normalizeDepartment(fac.department));
     setEditFacPhone(fac.phone === '--' ? '' : fac.phone);
     setEditFacFormSubmitted(false);
   };
@@ -2149,7 +2186,7 @@ export default function App() {
     setEditingSubjectId(sub.id);
     setEditSubCode(sub.code);
     setEditSubName(sub.name);
-    setEditSubDept(sub.department);
+    setEditSubDept(normalizeDepartment(sub.department));
     setEditSubPeriods(sub.weeklyPeriods);
     setEditSubIsLab(!!sub.isLab);
     setEditSubIsProject(!!sub.isProject);
@@ -3613,7 +3650,7 @@ service cloud.firestore {
                                                   </span>
                                                   {fac?.department && (
                                                     <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
-                                                      {fac.department}
+                                                      {normalizeDepartment(fac.department)}
                                                     </span>
                                                   )}
                                                 </div>
@@ -3669,7 +3706,7 @@ service cloud.firestore {
                                                 </span>
                                                 {fac?.department && (
                                                   <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
-                                                    {fac.department}
+                                                    {normalizeDepartment(fac.department)}
                                                   </span>
                                                 )}
                                               </div>
@@ -3702,7 +3739,7 @@ service cloud.firestore {
                                                 </span>
                                                 {otherFac?.department && (
                                                   <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
-                                                    {otherFac.department}
+                                                    {normalizeDepartment(otherFac.department)}
                                                   </span>
                                                 )}
                                               </div>
@@ -3764,7 +3801,7 @@ service cloud.firestore {
                                               </span>
                                               {fac?.department && (
                                                 <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end`}>
-                                                  {fac.department}
+                                                  {normalizeDepartment(fac.department)}
                                                 </span>
                                               )}
                                             </div>
@@ -4454,7 +4491,7 @@ service cloud.firestore {
                                                     </span>
                                                     {bFac?.department && (
                                                       <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
-                                                        {bFac.department}
+                                                        {normalizeDepartment(bFac.department)}
                                                       </span>
                                                     )}
                                                   </div>
@@ -4505,7 +4542,7 @@ service cloud.firestore {
                                                         </span>
                                                         {fac?.department && (
                                                           <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
-                                                            {fac.department}
+                                                            {normalizeDepartment(fac.department)}
                                                           </span>
                                                         )}
                                                       </div>
@@ -4538,7 +4575,7 @@ service cloud.firestore {
                                                         </span>
                                                         {otherFac?.department && (
                                                           <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
-                                                            {otherFac.department}
+                                                            {normalizeDepartment(otherFac.department)}
                                                           </span>
                                                         )}
                                                       </div>
@@ -4572,7 +4609,7 @@ service cloud.firestore {
                                                   </span>
                                                   {fac?.department && (
                                                     <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end`}>
-                                                      {fac.department}
+                                                      {normalizeDepartment(fac.department)}
                                                     </span>
                                                   )}
                                                 </div>
@@ -4609,7 +4646,7 @@ service cloud.firestore {
                                                   </span>
                                                   {fac?.department && (
                                                     <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end`}>
-                                                      {fac.department}
+                                                      {normalizeDepartment(fac.department)}
                                                     </span>
                                                   )}
                                                 </div>
@@ -4699,9 +4736,10 @@ service cloud.firestore {
                             <option value="CSE">CSE</option>
                             <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
-                            <option value="Applied Science">Applied Science</option>
-                            <option value="Civil">Civil</option>
-                            <option value="Mechanical">Mechanical</option>
+                            <option value="BS">BS</option>
+                            <option value="CV">CV</option>
+                            <option value="ME">ME</option>
+                            <option value="MBA">MBA</option>
                           </select>
                         </div>
                       </div>
@@ -4786,9 +4824,10 @@ service cloud.firestore {
                             <option value="CSE">CSE</option>
                             <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
-                            <option value="Applied Science">Applied Science</option>
-                            <option value="Civil">Civil</option>
-                            <option value="Mechanical">Mechanical</option>
+                            <option value="BS">BS</option>
+                            <option value="CV">CV</option>
+                            <option value="ME">ME</option>
+                            <option value="MBA">MBA</option>
                           </select>
                         </div>
                       </div>
@@ -4858,7 +4897,7 @@ service cloud.firestore {
                                 {fac.shortName}
                               </span>
                             </td>
-                            <td className="p-2.5 font-semibold text-slate-700">{fac.department}</td>
+                            <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(fac.department)}</td>
                             <td className="p-2.5 text-slate-500 font-mono text-[10px]">{fac.phone || '--'}</td>
                             <td className="p-2.5 text-center flex items-center justify-center space-x-2">
                               <button
@@ -4934,9 +4973,10 @@ service cloud.firestore {
                             <option value="CSE">CSE</option>
                             <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
-                            <option value="Applied Science">Applied Science</option>
-                            <option value="Civil">Civil</option>
-                            <option value="Mechanical">Mechanical</option>
+                            <option value="BS">BS</option>
+                            <option value="CV">CV</option>
+                            <option value="ME">ME</option>
+                            <option value="MBA">MBA</option>
                           </select>
                         </div>
                       </div>
@@ -5110,9 +5150,10 @@ service cloud.firestore {
                             <option value="CSE">CSE</option>
                             <option value="AIML">AIML</option>
                             <option value="ECE">ECE</option>
-                            <option value="Applied Science">Applied Science</option>
-                            <option value="Civil">Civil</option>
-                            <option value="Mechanical">Mechanical</option>
+                            <option value="BS">BS</option>
+                            <option value="CV">CV</option>
+                            <option value="ME">ME</option>
+                            <option value="MBA">MBA</option>
                           </select>
                         </div>
                       </div>
@@ -5293,7 +5334,7 @@ service cloud.firestore {
                               </div>
                             </td>
                             <td className="p-2.5 font-bold text-slate-900">{sub.name}</td>
-                            <td className="p-2.5 font-semibold text-slate-700">{sub.department}</td>
+                            <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(sub.department)}</td>
                             <td className="p-2.5 text-center">
                               {sub.isAicteActivity ? (
                                 <span className="inline-block bg-purple-50 text-purple-700 border border-purple-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
@@ -6373,7 +6414,7 @@ service cloud.firestore {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500 font-medium">Department:</span>
-                      <span className="font-semibold text-slate-700">{fac.department}</span>
+                      <span className="font-semibold text-slate-700">{normalizeDepartment(fac.department)}</span>
                     </div>
                   </div>
                 );
