@@ -1508,10 +1508,12 @@ export default function App() {
     const originalMinWidth = element.style.minWidth;
     const originalBorder = element.style.border;
     const originalBoxShadow = element.style.boxShadow;
+    const originalPadding = element.style.padding;
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
+    element.style.padding = '12px 8px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
 
@@ -1560,11 +1562,11 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth - 40;
+      let width = pdfWidth * 0.94; // Exactly 94% coverage across left & right
       let height = width / ratio;
       
-      if (height > (pdfHeight - 40)) {
-        height = pdfHeight - 40;
+      if (height > (pdfHeight * 0.94)) {
+        height = pdfHeight * 0.94;
         width = height * ratio;
       }
       
@@ -1603,6 +1605,7 @@ export default function App() {
       element.style.minWidth = originalMinWidth;
       element.style.border = originalBorder;
       element.style.boxShadow = originalBoxShadow;
+      element.style.padding = originalPadding;
 
       elementsWithShadow.forEach(el => {
         (el as HTMLElement).style.boxShadow = (el as HTMLElement).dataset.originalShadow || '';
@@ -1639,10 +1642,12 @@ export default function App() {
     const originalMinWidth = element.style.minWidth;
     const originalBorder = element.style.border;
     const originalBoxShadow = element.style.boxShadow;
+    const originalPadding = element.style.padding;
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
+    element.style.padding = '12px 8px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
 
@@ -1691,11 +1696,11 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth - 40;
+      let width = pdfWidth * 0.94; // Exactly 94% coverage across left & right
       let height = width / ratio;
       
-      if (height > (pdfHeight - 40)) {
-        height = pdfHeight - 40;
+      if (height > (pdfHeight * 0.94)) {
+        height = pdfHeight * 0.94;
         width = height * ratio;
       }
       
@@ -1734,6 +1739,7 @@ export default function App() {
       element.style.minWidth = originalMinWidth;
       element.style.border = originalBorder;
       element.style.boxShadow = originalBoxShadow;
+      element.style.padding = originalPadding;
 
       elementsWithShadow.forEach(el => {
         (el as HTMLElement).style.boxShadow = (el as HTMLElement).dataset.originalShadow || '';
@@ -1767,10 +1773,12 @@ export default function App() {
     const originalMinWidth = element.style.minWidth;
     const originalBorder = element.style.border;
     const originalBoxShadow = element.style.boxShadow;
+    const originalPadding = element.style.padding;
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
+    element.style.padding = '12px 8px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
 
@@ -1819,11 +1827,11 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth - 40;
+      let width = pdfWidth * 0.94; // Exactly 94% coverage across left & right
       let height = width / ratio;
       
-      if (height > (pdfHeight - 40)) {
-        height = pdfHeight - 40;
+      if (height > (pdfHeight * 0.94)) {
+        height = pdfHeight * 0.94;
         width = height * ratio;
       }
       
@@ -1862,6 +1870,7 @@ export default function App() {
       element.style.minWidth = originalMinWidth;
       element.style.border = originalBorder;
       element.style.boxShadow = originalBoxShadow;
+      element.style.padding = originalPadding;
 
       elementsWithShadow.forEach(el => {
         (el as HTMLElement).style.boxShadow = (el as HTMLElement).dataset.originalShadow || '';
