@@ -346,6 +346,11 @@ const adjustBrightness = (hex: string, percent: number) => {
   }
 };
 
+export const cleanFacultyName = (name?: string): string => {
+  if (!name) return '';
+  return name.replace(/^👤\s*/g, '').replace(/👤/g, '').trim();
+};
+
 interface SubjectPalette {
   bg: string;
   hoverBg: string;
@@ -1139,7 +1144,8 @@ export default function App() {
 
   const formatFacultyName = (rawName: string): string => {
     if (!rawName) return '';
-    return rawName
+    const stripped = rawName.replace(/👤/g, '').trim();
+    return stripped
       .split(/(\s+)/)
       .map((part) => {
         if (!part || /^\s+$/.test(part)) return part;
@@ -3600,9 +3606,16 @@ service cloud.firestore {
                                                   </span>
                                                   <span className="opacity-80 font-mono">{sub.code}</span>
                                                 </div>
-                                                <div className="font-extrabold truncate leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
-                                                <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
-                                                  {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                <div className="font-extrabold break-words leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
+                                                <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                  <span className="break-words leading-tight">
+                                                    {fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                  </span>
+                                                  {fac?.department && (
+                                                    <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
+                                                      {fac.department}
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </div>
                                             );
@@ -3649,8 +3662,17 @@ service cloud.firestore {
                                                 </span>
                                                 <span className="opacity-80 font-mono">{sub1.code}</span>
                                               </div>
-                                              <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                              <div className="font-extrabold break-words leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
+                                              <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                <span className="break-words leading-tight">
+                                                  {fac ? cleanFacultyName(fac.name) : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                </span>
+                                                {fac?.department && (
+                                                  <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
+                                                    {fac.department}
+                                                  </span>
+                                                )}
+                                              </div>
                                             </div>
                                           )}
                                           {otherSub && sub2Palette && (
@@ -3673,8 +3695,17 @@ service cloud.firestore {
                                                 </span>
                                                 <span className="opacity-80 font-mono">{otherSub.code}</span>
                                               </div>
-                                              <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                              <div className="font-extrabold break-words leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
+                                              <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                <span className="break-words leading-tight">
+                                                  {otherFac ? cleanFacultyName(otherFac.name) : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                </span>
+                                                {otherFac?.department && (
+                                                  <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
+                                                    {otherFac.department}
+                                                  </span>
+                                                )}
+                                              </div>
                                             </div>
                                           )}
                                         </div>
@@ -3716,24 +3747,26 @@ service cloud.firestore {
                                         {assign && sub && palette ? (
                                           <>
                                             <div>
-                                              <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
+                                              <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={sub.name}>
                                                 {sub.name}
                                               </div>
                                               <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
                                                 {sub.code}
                                               </div>
                                             </div>
-                                            <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                            <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
                                               <span 
                                                 style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                                className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
-                                                title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
+                                                title={fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                               >
-                                                {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                {fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                               </span>
-                                              <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
-                                                {fac ? fac.department : ''}
-                                              </span>
+                                              {fac?.department && (
+                                                <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end`}>
+                                                  {fac.department}
+                                                </span>
+                                              )}
                                             </div>
                                           </>
                                         ) : (
@@ -4008,17 +4041,17 @@ service cloud.firestore {
                                   {matchDetails && palette ? (
                                     <>
                                       <div>
-                                        <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={matchDetails.sub?.name}>
+                                        <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={matchDetails.sub?.name}>
                                           {matchDetails.sub?.name}
                                         </div>
                                         <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
                                           {matchDetails.sub?.code}
                                         </div>
                                       </div>
-                                      <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                      <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
                                         <span 
                                           style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                          className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1 rounded font-mono truncate max-w-[125px] inline-block align-bottom`} 
+                                          className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
                                           title={`${matchDetails.cls.name} (Sec ${matchDetails.cls.section})`}
                                         >
                                           {matchDetails.cls.name} (Sec {matchDetails.cls.section})
@@ -4414,9 +4447,16 @@ service cloud.firestore {
                                                     </span>
                                                     <span className="opacity-80 font-mono">{bSub.code}</span>
                                                   </div>
-                                                  <div className="font-extrabold truncate leading-tight mt-0.5" title={bSub.name}>{bSub.name}</div>
-                                                  <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
-                                                    {bFac ? bFac.name : (bSub.isAicteActivity || bSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                  <div className="font-extrabold break-words leading-tight mt-0.5" title={bSub.name}>{bSub.name}</div>
+                                                  <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                    <span className="break-words leading-tight">
+                                                      {bFac ? cleanFacultyName(bFac.name) : (bSub.isAicteActivity || bSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    </span>
+                                                    {bFac?.department && (
+                                                      <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
+                                                        {bFac.department}
+                                                      </span>
+                                                    )}
                                                   </div>
                                                 </div>
                                               );
@@ -4458,8 +4498,17 @@ service cloud.firestore {
                                                         </span>
                                                         <span className="opacity-80 font-mono">{sub1.code}</span>
                                                       </div>
-                                                      <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                                      <div className="font-extrabold break-words leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
+                                                      <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                        <span className="break-words leading-tight">
+                                                          {fac ? cleanFacultyName(fac.name) : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                        </span>
+                                                        {fac?.department && (
+                                                          <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
+                                                            {fac.department}
+                                                          </span>
+                                                        )}
+                                                      </div>
                                                     </div>
                                                   )}
                                                   {otherSub && sub2Palette && (
@@ -4482,8 +4531,17 @@ service cloud.firestore {
                                                         </span>
                                                         <span className="opacity-80 font-mono">{otherSub.code}</span>
                                                       </div>
-                                                      <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                                      <div className="font-extrabold break-words leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
+                                                      <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                        <span className="break-words leading-tight">
+                                                          {otherFac ? cleanFacultyName(otherFac.name) : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                        </span>
+                                                        {otherFac?.department && (
+                                                          <span className="text-[7.5px] opacity-75 font-mono text-right ml-auto shrink-0 self-end">
+                                                            {otherFac.department}
+                                                          </span>
+                                                        )}
+                                                      </div>
                                                     </div>
                                                   )}
                                                 </div>
@@ -4500,18 +4558,23 @@ service cloud.firestore {
                                                     </span>
                                                     <span className="font-mono text-[8px] opacity-80">{sub.code}</span>
                                                   </div>
-                                                  <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
+                                                  <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={sub.name}>
                                                     {sub.name}
                                                   </div>
                                                 </div>
-                                                <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                                <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
                                                   <span 
                                                     style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                                    className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
-                                                    title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
+                                                    title={fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   >
-                                                    {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    {fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
+                                                  {fac?.department && (
+                                                    <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end`}>
+                                                      {fac.department}
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </>
                                             );
@@ -4523,7 +4586,7 @@ service cloud.firestore {
                                               <>
                                                 <div>
                                                   <div className="flex items-center justify-between gap-1">
-                                                    <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight line-clamp-1`} title={sub.name}>
+                                                    <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={sub.name}>
                                                       {sub.name}
                                                     </div>
                                                     {hasCellWarning && (
@@ -4536,17 +4599,19 @@ service cloud.firestore {
                                                     {sub.code}
                                                   </div>
                                                 </div>
-                                                <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-center justify-between`}>
+                                                <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
                                                   <span 
                                                     style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                                    className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
-                                                    title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
+                                                    title={fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   >
-                                                    {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    {fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
-                                                  <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
-                                                    {fac ? fac.department : ''}
-                                                  </span>
+                                                  {fac?.department && (
+                                                    <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end`}>
+                                                      {fac.department}
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </>
                                             );
