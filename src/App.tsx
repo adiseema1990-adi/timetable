@@ -3593,7 +3593,7 @@ service cloud.firestore {
                                                 </div>
                                                 <div className="font-extrabold truncate leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
                                                 <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
-                                                  👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                  {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                 </div>
                                               </div>
                                             );
@@ -3641,7 +3641,7 @@ service cloud.firestore {
                                                 <span className="opacity-80 font-mono">{sub1.code}</span>
                                               </div>
                                               <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                             </div>
                                           )}
                                           {otherSub && sub2Palette && (
@@ -3665,7 +3665,7 @@ service cloud.firestore {
                                                 <span className="opacity-80 font-mono">{otherSub.code}</span>
                                               </div>
                                               <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                              <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                             </div>
                                           )}
                                         </div>
@@ -3720,7 +3720,7 @@ service cloud.firestore {
                                                 className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
                                                 title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                               >
-                                                👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                               </span>
                                               <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
                                                 {fac ? fac.department : ''}
@@ -4407,7 +4407,7 @@ service cloud.firestore {
                                                   </div>
                                                   <div className="font-extrabold truncate leading-tight mt-0.5" title={bSub.name}>{bSub.name}</div>
                                                   <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">
-                                                    👤 {bFac ? bFac.name : (bSub.isAicteActivity || bSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    {bFac ? bFac.name : (bSub.isAicteActivity || bSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </div>
                                                 </div>
                                               );
@@ -4450,7 +4450,7 @@ service cloud.firestore {
                                                         <span className="opacity-80 font-mono">{sub1.code}</span>
                                                       </div>
                                                       <div className="font-extrabold truncate leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{fac ? fac.name : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                                     </div>
                                                   )}
                                                   {otherSub && sub2Palette && (
@@ -4474,7 +4474,7 @@ service cloud.firestore {
                                                         <span className="opacity-80 font-mono">{otherSub.code}</span>
                                                       </div>
                                                       <div className="font-extrabold truncate leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">👤 {otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
+                                                      <div className="text-[8px] opacity-90 truncate font-semibold mt-0.5">{otherFac ? otherFac.name : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}</div>
                                                     </div>
                                                   )}
                                                 </div>
@@ -4501,7 +4501,7 @@ service cloud.firestore {
                                                     className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
                                                     title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   >
-                                                    👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
                                                 </div>
                                               </>
@@ -4533,7 +4533,7 @@ service cloud.firestore {
                                                     className={`font-bold ${palette.isCustom ? '' : `${palette.badgeText} ${palette.badgeBg} border ${palette.badgeBorder}`} text-[9px] px-1 rounded font-mono truncate max-w-[95px] inline-block align-bottom`} 
                                                     title={fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   >
-                                                    👤 {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                                    {fac ? fac.name : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
                                                   <span className={`text-[8px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-60 group-hover:opacity-80 font-mono`}>
                                                     {fac ? fac.department : ''}
