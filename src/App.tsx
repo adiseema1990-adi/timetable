@@ -2661,18 +2661,18 @@ export default function App() {
           </h1>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {currentUser && (
-            <div className="flex items-center space-x-2 border-r border-slate-200 pr-3 mr-1">
+            <div className="flex items-center space-x-2 border-r border-slate-200 pr-2 sm:pr-3 mr-0.5 sm:mr-1 shrink-0">
               {currentUser.photoURL ? (
                 <img 
                   src={currentUser.photoURL} 
                   alt={currentUser.displayName || "User"} 
-                  className="h-7 w-7 rounded-full border border-slate-200"
+                  className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0 aspect-square"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="h-7 w-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200">
+                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200 shrink-0 aspect-square">
                   {currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
                 </div>
               )}
@@ -2690,7 +2690,7 @@ export default function App() {
           <button 
             id="btn-signout"
             onClick={() => setShowSignOutModal(true)}
-            className="p-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg bg-white transition shadow-sm cursor-pointer flex items-center justify-center"
+            className="p-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg bg-white transition shadow-sm cursor-pointer flex items-center justify-center shrink-0"
             title="Sign Out"
             aria-label="Sign Out"
           >
@@ -6526,11 +6526,11 @@ service cloud.firestore {
                     <img 
                       src={currentUser.photoURL} 
                       alt={currentUser.displayName || "User"} 
-                      className="h-8 w-8 rounded-full border border-slate-200"
+                      className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0 aspect-square"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200">
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200 shrink-0 aspect-square">
                       {currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
                     </div>
                   )}
