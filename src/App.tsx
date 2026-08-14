@@ -373,6 +373,15 @@ export const normalizeDepartment = (dept?: string): string => {
   return trimmed;
 };
 
+export const format12HourTime = (date: Date = new Date()): string => {
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+};
+
 interface SubjectPalette {
   bg: string;
   hoverBg: string;
@@ -1265,7 +1274,7 @@ export default function App() {
       // Update local states
       setActiveTimetableName(nameToSave);
       localStorage.setItem('mvce_firebase_active_timetable', nameToSave);
-      setLastSyncedTime(new Date().toLocaleTimeString());
+      setLastSyncedTime(format12HourTime());
       setFirebaseError(null); // Clear errors on success
       
       // Refresh list without reloading or switching active timetable
@@ -1331,7 +1340,7 @@ export default function App() {
         
         setActiveTimetableName(nameToLoad);
         localStorage.setItem('mvce_firebase_active_timetable', nameToLoad);
-        setLastSyncedTime(new Date().toLocaleTimeString());
+        setLastSyncedTime(format12HourTime());
         setFirebaseError(null); // Clear errors on success
         
         showAuthNotice(`Timetable "${nameToLoad}" successfully loaded from Firebase Cloud!`);
