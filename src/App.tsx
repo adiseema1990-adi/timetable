@@ -1513,7 +1513,7 @@ export default function App() {
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
-    element.style.padding = '12px 8px';
+    element.style.padding = '8px 0px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
 
@@ -1562,11 +1562,11 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth * 0.94; // Exactly 94% coverage across left & right
+      let width = pdfWidth; // Exactly 100% coverage across left & right (edge-to-edge)
       let height = width / ratio;
       
-      if (height > (pdfHeight * 0.94)) {
-        height = pdfHeight * 0.94;
+      if (height > pdfHeight) {
+        height = pdfHeight;
         width = height * ratio;
       }
       
@@ -1647,7 +1647,7 @@ export default function App() {
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
-    element.style.padding = '12px 8px';
+    element.style.padding = '8px 0px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
 
@@ -1696,11 +1696,11 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth * 0.94; // Exactly 94% coverage across left & right
+      let width = pdfWidth; // Exactly 100% coverage across left & right (edge-to-edge)
       let height = width / ratio;
       
-      if (height > (pdfHeight * 0.94)) {
-        height = pdfHeight * 0.94;
+      if (height > pdfHeight) {
+        height = pdfHeight;
         width = height * ratio;
       }
       
@@ -1778,7 +1778,7 @@ export default function App() {
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
-    element.style.padding = '12px 8px';
+    element.style.padding = '8px 0px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
 
@@ -1827,11 +1827,11 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth * 0.94; // Exactly 94% coverage across left & right
+      let width = pdfWidth; // Exactly 100% coverage across left & right (edge-to-edge)
       let height = width / ratio;
       
-      if (height > (pdfHeight * 0.94)) {
-        height = pdfHeight * 0.94;
+      if (height > pdfHeight) {
+        height = pdfHeight;
         width = height * ratio;
       }
       
