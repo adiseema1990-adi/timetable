@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, FormEvent, CSSProperties } from 'react';
+import React, { useState, useEffect, useMemo, useRef, FormEvent, CSSProperties } from 'react';
 import { 
   Plus, 
   Trash2, 
@@ -477,7 +477,10 @@ export default function App() {
   const [isCloudSaving, setIsCloudSaving] = useState(false);
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [isCloudFetchingList, setIsCloudFetchingList] = useState(false);
-  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(false);
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('mvce_auto_sync') === 'true';
+  });
+  const [isAutoSyncing, setIsAutoSyncing] = useState<boolean>(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
   const [newTimetableNameInput, setNewTimetableNameInput] = useState('');
   const [showFirebaseModal, setShowFirebaseModal] = useState(false);
@@ -488,6 +491,32 @@ export default function App() {
   const [showInlineSaveAs, setShowInlineSaveAs] = useState(false);
   const [inlineSaveAsName, setInlineSaveAsName] = useState('');
   const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
+
+  // Keep a live ref of workspace data to avoid stale closures in debounced auto-sync
+  const workspaceDataRef = useRef({
+    faculties,
+    subjects,
+    classes,
+    assignments,
+    timeSlots,
+    days,
+    customSchedule,
+    solverResult,
+    activeTimetableName
+  });
+
+  // Keep workspace ref synchronously up to date
+  workspaceDataRef.current = {
+    faculties,
+    subjects,
+    classes,
+    assignments,
+    timeSlots,
+    days,
+    customSchedule,
+    solverResult,
+    activeTimetableName
+  };
 
   // --- Firebase Google Auth States ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -712,7 +741,6 @@ export default function App() {
 
   // --- Load Initial Sample Data ---
   useEffect(() => {
-    if (!currentUser) return;
     // Check if the user deliberately cleared the workspace
     const isCleared = localStorage.getItem('mvce_is_cleared');
     if (isCleared === 'true') {
@@ -827,8 +855,10 @@ export default function App() {
     if (!currentUser) return;
     if (!isInitialized) return;
 
+    const hasAnyContent = faculties.length > 0 || subjects.length > 0 || classes.length > 0 || assignments.length > 0;
     const isCleared = localStorage.getItem('mvce_is_cleared');
-    if (isCleared === 'true') {
+
+    if (isCleared === 'true' && !hasAnyContent) {
       // Keep everything empty/cleared in local storage
       localStorage.setItem('mvce_faculties', JSON.stringify([]));
       localStorage.setItem('mvce_subjects', JSON.stringify([]));
@@ -841,26 +871,29 @@ export default function App() {
       return;
     }
 
-    if (faculties.length > 0) {
-      localStorage.setItem('mvce_faculties', JSON.stringify(faculties));
-      localStorage.setItem('mvce_subjects', JSON.stringify(subjects));
-      localStorage.setItem('mvce_classes', JSON.stringify(classes));
-      localStorage.setItem('mvce_assignments', JSON.stringify(assignments));
-      localStorage.setItem('mvce_timeSlots', JSON.stringify(timeSlots));
-      localStorage.setItem('mvce_days', JSON.stringify(days));
-      if (customSchedule) {
-        localStorage.setItem('mvce_customSchedule', JSON.stringify(customSchedule));
-      } else {
-        localStorage.removeItem('mvce_customSchedule');
-      }
-      if (solverResult) {
-        localStorage.setItem('mvce_solverResult', JSON.stringify(solverResult));
-      } else {
-        localStorage.removeItem('mvce_solverResult');
-      }
-      setIsDataStale(true);
+    // If user has added items, remove the cleared flag so changes persist
+    if (hasAnyContent && isCleared === 'true') {
+      localStorage.removeItem('mvce_is_cleared');
     }
-  }, [isInitialized, faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult]);
+
+    localStorage.setItem('mvce_faculties', JSON.stringify(faculties));
+    localStorage.setItem('mvce_subjects', JSON.stringify(subjects));
+    localStorage.setItem('mvce_classes', JSON.stringify(classes));
+    localStorage.setItem('mvce_assignments', JSON.stringify(assignments));
+    localStorage.setItem('mvce_timeSlots', JSON.stringify(timeSlots));
+    localStorage.setItem('mvce_days', JSON.stringify(days));
+    if (customSchedule) {
+      localStorage.setItem('mvce_customSchedule', JSON.stringify(customSchedule));
+    } else {
+      localStorage.removeItem('mvce_customSchedule');
+    }
+    if (solverResult) {
+      localStorage.setItem('mvce_solverResult', JSON.stringify(solverResult));
+    } else {
+      localStorage.removeItem('mvce_solverResult');
+    }
+    setIsDataStale(true);
+  }, [isInitialized, currentUser, faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult]);
 
   // Run Solver
   const handleGenerate = () => {
@@ -923,8 +956,17 @@ export default function App() {
     sched[srcDay][srcSlotIdx] = sched[destDay][destSlotIdx];
     sched[destDay][destSlotIdx] = temp;
 
+    const updatedSolverResult: SolverResult = {
+      success: true,
+      schedule: updated,
+      message: "Optimized (Manual changes applied)"
+    };
+
     setCustomSchedule(updated);
-    showAuthNotice(`Swapped slot of ${srcDay} with ${destDay}. Check warnings panel for any rule updates.`);
+    setSolverResult(updatedSolverResult);
+    localStorage.setItem('mvce_customSchedule', JSON.stringify(updated));
+    localStorage.setItem('mvce_solverResult', JSON.stringify(updatedSolverResult));
+    showAuthNotice(`Swapped slot of ${srcDay} with ${destDay}. Saved & synchronized.`);
   };
 
   const handleUndo = () => {
@@ -936,6 +978,15 @@ export default function App() {
     setRedoStack(prev => [...prev, JSON.parse(JSON.stringify(customSchedule))]);
     setUndoStack(newUndoStack);
     setCustomSchedule(previous);
+
+    const updatedSolverResult: SolverResult = {
+      success: true,
+      schedule: previous,
+      message: "Optimized (Manual changes applied)"
+    };
+    setSolverResult(updatedSolverResult);
+    localStorage.setItem('mvce_customSchedule', JSON.stringify(previous));
+    localStorage.setItem('mvce_solverResult', JSON.stringify(updatedSolverResult));
     showAuthNotice("Undo manual swap successful.");
   };
 
@@ -948,6 +999,15 @@ export default function App() {
     setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(customSchedule))]);
     setRedoStack(newRedoStack);
     setCustomSchedule(next);
+
+    const updatedSolverResult: SolverResult = {
+      success: true,
+      schedule: next,
+      message: "Optimized (Manual changes applied)"
+    };
+    setSolverResult(updatedSolverResult);
+    localStorage.setItem('mvce_customSchedule', JSON.stringify(next));
+    localStorage.setItem('mvce_solverResult', JSON.stringify(updatedSolverResult));
     showAuthNotice("Redo manual swap successful.");
   };
 
@@ -968,6 +1028,8 @@ export default function App() {
           setRedoStack([]);
         }
         setCustomSchedule(JSON.parse(JSON.stringify(result.schedule)));
+        localStorage.setItem('mvce_customSchedule', JSON.stringify(result.schedule));
+        localStorage.setItem('mvce_solverResult', JSON.stringify(result));
       }
       showAuthNotice("No saved timetable found. Reset to newly generated optimized timetable!");
     }
@@ -1119,16 +1181,6 @@ export default function App() {
       }
       setFirebaseTimetables(names);
       setFirebaseError(null); // Clear errors on successful fetch
-
-      // Auto-switch to the first authorized timetable if current one is not allowed
-      if (names.length > 0) {
-        const lastActive = localStorage.getItem('mvce_firebase_active_timetable') || activeTimetableName;
-        if (!names.includes(lastActive)) {
-          setActiveTimetableName(names[0]);
-          localStorage.setItem('mvce_firebase_active_timetable', names[0]);
-          loadTimetableFromFirebase(names[0]);
-        }
-      }
     } catch (error: any) {
       console.error("Error fetching timetables from Firestore:", error);
       setFirebaseError(error?.message || String(error));
@@ -1143,24 +1195,30 @@ export default function App() {
       showAuthNotice("Please enter a valid name for the timetable.");
       return;
     }
-    if (!isAuto) setIsCloudSaving(true);
+    if (!isAuto) {
+      setIsCloudSaving(true);
+    } else {
+      setIsAutoSyncing(true);
+    }
     try {
       const user = auth.currentUser;
       if (!user) {
         throw new Error("No authenticated user found.");
       }
+      
+      const liveData = workspaceDataRef.current;
       const timetableData = {
         name: nameToSave,
         updatedAt: new Date().toISOString(),
         userId: user.uid,
-        faculties,
-        subjects,
-        classes,
-        assignments,
-        timeSlots,
-        days,
-        customSchedule: customSchedule || null,
-        solverResult: solverResult || null
+        faculties: liveData.faculties,
+        subjects: liveData.subjects,
+        classes: liveData.classes,
+        assignments: liveData.assignments,
+        timeSlots: liveData.timeSlots,
+        days: liveData.days,
+        customSchedule: liveData.customSchedule || null,
+        solverResult: liveData.solverResult || null
       };
       
       const serializedData = serializeForFirestore(timetableData);
@@ -1177,7 +1235,7 @@ export default function App() {
       setLastSyncedTime(new Date().toLocaleTimeString());
       setFirebaseError(null); // Clear errors on success
       
-      // Refresh list
+      // Refresh list without reloading or switching active timetable
       await fetchFirebaseTimetablesList(true);
       
       if (!isAuto) {
@@ -1186,9 +1244,12 @@ export default function App() {
     } catch (error: any) {
       console.error("Error saving to Firestore:", error);
       setFirebaseError(error?.message || String(error));
-      showAuthNotice(`Failed to save to Firebase: ${error?.message || error}`);
+      if (!isAuto) {
+        showAuthNotice(`Failed to save to Firebase: ${error?.message || error}`);
+      }
     } finally {
       if (!isAuto) setIsCloudSaving(false);
+      setIsAutoSyncing(false);
     }
   };
 
@@ -1282,15 +1343,45 @@ export default function App() {
     }
   }, [currentUser]);
 
+  const handleToggleAutoSync = () => {
+    const nextState = !isAutoSyncEnabled;
+    setIsAutoSyncEnabled(nextState);
+    localStorage.setItem('mvce_auto_sync', String(nextState));
+    if (nextState) {
+      showAuthNotice("Live Auto-Sync Activated: All additions, edits, and schedule adjustments will automatically save to Firebase Cloud.");
+      if (activeTimetableName && currentUser) {
+        saveTimetableToFirebase(activeTimetableName, true);
+      }
+    } else {
+      showAuthNotice("Live Auto-Sync Deactivated. Timetables will now only be saved when you click 'Save to Cloud'.");
+    }
+  };
+
   // Auto-Sync to Firebase when data changes (debounced)
   useEffect(() => {
-    if (isAutoSyncEnabled && activeTimetableName && isInitialized && faculties.length > 0) {
-      const delayDebounce = setTimeout(() => {
-        saveTimetableToFirebase(activeTimetableName, true);
-      }, 1500); // 1.5-second debounce
-      return () => clearTimeout(delayDebounce);
-    }
-  }, [faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult, isAutoSyncEnabled, activeTimetableName, isInitialized]);
+    if (!currentUser || !isAutoSyncEnabled || !activeTimetableName) return;
+
+    setIsAutoSyncing(true);
+    const delayDebounce = setTimeout(() => {
+      saveTimetableToFirebase(activeTimetableName, true);
+    }, 1000); // 1.0-second debounce
+
+    return () => {
+      clearTimeout(delayDebounce);
+    };
+  }, [
+    faculties,
+    subjects,
+    classes,
+    assignments,
+    timeSlots,
+    days,
+    customSchedule,
+    solverResult,
+    isAutoSyncEnabled,
+    activeTimetableName,
+    currentUser
+  ]);
 
   const handlePrint = () => {
     const isIframe = window.self !== window.top;
@@ -2790,8 +2881,14 @@ export default function App() {
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Cloud Storage</h3>
-                {isAutoSyncEnabled ? (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest animate-pulse">
+                {isAutoSyncing ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-widest animate-pulse">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    Saving changes...
+                  </span>
+                ) : isAutoSyncEnabled ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest">
+                    <Check className="h-2.5 w-2.5" />
                     Live Auto-Sync On
                   </span>
                 ) : (
@@ -2925,7 +3022,7 @@ export default function App() {
 
               <button
                 type="button"
-                onClick={() => setIsAutoSyncEnabled(!isAutoSyncEnabled)}
+                onClick={handleToggleAutoSync}
                 className={`px-3 py-1.5 border font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm ${
                   isAutoSyncEnabled
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
@@ -2934,7 +3031,7 @@ export default function App() {
                 title="Toggle live auto-saving to Firestore on every update"
               >
                 <span>Auto-Sync</span>
-                <span className={`w-2 h-2 rounded-full ${isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
               </button>
 
               <button
