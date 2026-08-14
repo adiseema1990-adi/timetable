@@ -993,10 +993,22 @@ export default function App() {
     setUndoStack([]);
     setRedoStack([]);
     setIsDataStale(false);
-    setActiveTimetableName('Main Timetable');
-    localStorage.clear();
+    
+    // Preserve the currently active/selected timetable name
+    const currentActive = activeTimetableName || 'Main Timetable';
+    setActiveTimetableName(currentActive);
+    
+    // Clear local storage items for workspace data without wiping user session / active timetable selection
     localStorage.setItem('mvce_is_cleared', 'true');
-    showAuthNotice("Workspace cleared. You can now build from scratch.");
+    localStorage.setItem('mvce_faculties', JSON.stringify([]));
+    localStorage.setItem('mvce_subjects', JSON.stringify([]));
+    localStorage.setItem('mvce_classes', JSON.stringify([]));
+    localStorage.setItem('mvce_assignments', JSON.stringify([]));
+    localStorage.removeItem('mvce_customSchedule');
+    localStorage.removeItem('mvce_solverResult');
+    localStorage.setItem('mvce_firebase_active_timetable', currentActive);
+    
+    showAuthNotice(`Workspace for "${currentActive}" cleared. You can now build from scratch.`);
   };
 
   const createNewTimetableTemplate = (name: string) => {
@@ -6313,7 +6325,7 @@ service cloud.firestore {
                     </div>
                   </div>
                   <p className="text-slate-700 text-xs leading-relaxed">
-                    Are you absolutely sure you want to clear the entire workspace and build from scratch?
+                    Are you absolutely sure you want to clear the workspace for <strong className="text-slate-900 font-mono bg-slate-100 px-1 py-0.5 rounded">"{activeTimetableName}"</strong> and build from scratch?
                   </p>
                 </div>
               ) : (
