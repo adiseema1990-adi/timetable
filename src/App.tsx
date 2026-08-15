@@ -1756,6 +1756,11 @@ export default function App() {
     if (pdfSignatures) {
       pdfSignatures.classList.remove('hidden');
     }
+
+    const pdfSubjectLegend = element.querySelector('.pdf-subject-legend');
+    if (pdfSubjectLegend) {
+      pdfSubjectLegend.classList.remove('hidden');
+    }
     
     // Allow browser to repaint with the new landscape styles
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -1834,6 +1839,9 @@ export default function App() {
       if (pdfSignatures) {
         pdfSignatures.classList.add('hidden');
       }
+      if (pdfSubjectLegend) {
+        pdfSubjectLegend.classList.add('hidden');
+      }
       setIsExportingFacultyPDF(false);
     }
   };
@@ -1886,6 +1894,11 @@ export default function App() {
     const pdfSignatures = element.querySelector('.pdf-signatures');
     if (pdfSignatures) {
       pdfSignatures.classList.remove('hidden');
+    }
+
+    const pdfSubjectLegend = element.querySelector('.pdf-subject-legend');
+    if (pdfSubjectLegend) {
+      pdfSubjectLegend.classList.remove('hidden');
     }
     
     // Allow browser to repaint with the new landscape styles
@@ -1965,6 +1978,9 @@ export default function App() {
       if (pdfSignatures) {
         pdfSignatures.classList.add('hidden');
       }
+      if (pdfSubjectLegend) {
+        pdfSubjectLegend.classList.add('hidden');
+      }
       setIsExportingPDF(false);
     }
   };
@@ -2014,6 +2030,11 @@ export default function App() {
     const pdfSignatures = element.querySelector('.pdf-signatures');
     if (pdfSignatures) {
       pdfSignatures.classList.remove('hidden');
+    }
+
+    const pdfSubjectLegend = element.querySelector('.pdf-subject-legend');
+    if (pdfSubjectLegend) {
+      pdfSubjectLegend.classList.remove('hidden');
     }
     
     // Allow browser to repaint with the new landscape styles
@@ -2092,6 +2113,9 @@ export default function App() {
       });
       if (pdfSignatures) {
         pdfSignatures.classList.add('hidden');
+      }
+      if (pdfSubjectLegend) {
+        pdfSubjectLegend.classList.add('hidden');
       }
       setIsDownloadingPDF(false);
     }
@@ -4396,31 +4420,17 @@ service cloud.firestore {
                     if (rows.length === 0) return null;
 
                     return (
-                      <div className="mt-3 pt-2 border-t border-slate-300 pdf-subject-legend">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Course & Faculty Allocation Details</h4>
-                          <span className="text-[9px] text-slate-500 font-semibold">{rows.length} Courses Assigned</span>
+                      <div className="mt-2.5 pt-2 border-t border-slate-300 pdf-subject-legend hidden">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[8.5px] leading-tight text-slate-800">
+                          {rows.map((row) => (
+                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                              <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
+                              <span className="font-medium text-slate-800 truncate">{row.subject.name}</span>
+                              <span className="text-slate-400 shrink-0">-</span>
+                              <span className="font-semibold text-slate-900 shrink-0">{row.facultiesList.join(' | ')}</span>
+                            </div>
+                          ))}
                         </div>
-                        <table className="w-full border-collapse border border-slate-300 text-left text-[9px] leading-tight">
-                          <thead>
-                            <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase text-[8px] tracking-wider border-b border-slate-300">
-                              <th className="border border-slate-300 px-2 py-1 w-12 text-center">Sl. No.</th>
-                              <th className="border border-slate-300 px-2 py-1 w-24">Subject Code</th>
-                              <th className="border border-slate-300 px-2 py-1">Subject / Course Name</th>
-                              <th className="border border-slate-300 px-2 py-1 w-72">Assigned Faculty Name</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map((row, idx) => (
-                              <tr key={row.subject.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                <td className="border border-slate-300 px-2 py-1 text-center font-bold text-slate-600">{idx + 1}</td>
-                                <td className="border border-slate-300 px-2 py-1 font-mono font-bold text-blue-900">{row.subject.code}</td>
-                                <td className="border border-slate-300 px-2 py-1 font-bold text-slate-800">{row.subject.name}</td>
-                                <td className="border border-slate-300 px-2 py-1 font-medium text-slate-900">{row.facultiesList.join(' | ')}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
                       </div>
                     );
                   })()}
@@ -4729,31 +4739,17 @@ service cloud.firestore {
                     if (rows.length === 0) return null;
 
                     return (
-                      <div className="mt-3 pt-2 border-t border-slate-300 pdf-subject-legend">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Assigned Courses & Classes</h4>
-                          <span className="text-[9px] text-slate-500 font-semibold">{rows.length} Courses</span>
+                      <div className="mt-2.5 pt-2 border-t border-slate-300 pdf-subject-legend hidden">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[8.5px] leading-tight text-slate-800">
+                          {rows.map((row) => (
+                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                              <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
+                              <span className="font-medium text-slate-800 truncate">{row.subject.name}</span>
+                              <span className="text-slate-400 shrink-0">-</span>
+                              <span className="font-semibold text-slate-900 shrink-0">{row.classNames.join(' | ')}</span>
+                            </div>
+                          ))}
                         </div>
-                        <table className="w-full border-collapse border border-slate-300 text-left text-[9px] leading-tight">
-                          <thead>
-                            <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase text-[8px] tracking-wider border-b border-slate-300">
-                              <th className="border border-slate-300 px-2 py-1 w-12 text-center">Sl. No.</th>
-                              <th className="border border-slate-300 px-2 py-1 w-24">Subject Code</th>
-                              <th className="border border-slate-300 px-2 py-1">Subject / Course Name</th>
-                              <th className="border border-slate-300 px-2 py-1 w-72">Assigned Class & Section</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map((row, idx) => (
-                              <tr key={row.subject.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                <td className="border border-slate-300 px-2 py-1 text-center font-bold text-slate-600">{idx + 1}</td>
-                                <td className="border border-slate-300 px-2 py-1 font-mono font-bold text-blue-900">{row.subject.code}</td>
-                                <td className="border border-slate-300 px-2 py-1 font-bold text-slate-800">{row.subject.name}</td>
-                                <td className="border border-slate-300 px-2 py-1 font-medium text-slate-900">{row.classNames.join(' | ')}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
                       </div>
                     );
                   })()}
