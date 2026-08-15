@@ -4004,7 +4004,12 @@ service cloud.firestore {
                 <div id="class-roster-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card transition-all duration-300 hover:shadow-md hover:border-slate-300">
                   {/* Print-only Header */}
                   {currentClassObj && (
-                    <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4">
+                    <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4 relative">
+                      <img 
+                        src="/college_logo.svg" 
+                        alt="College Logo" 
+                        className="absolute left-2 top-0 h-14 w-auto object-contain" 
+                      />
                       <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
                       <h1 className="text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
                         Sir M. Visvesvaraya College of Engineering, Raichur
@@ -4465,7 +4470,12 @@ service cloud.firestore {
               <div id="faculty-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card">
                 {/* Print-only Header */}
                 {selectedFacultyId && (
-                  <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4">
+                  <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4 relative">
+                    <img 
+                      src="/college_logo.svg" 
+                      alt="College Logo" 
+                      className="absolute left-2 top-0 h-14 w-auto object-contain" 
+                    />
                     <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
                     <h1 className="text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
                       Sir M. Visvesvaraya College of Engineering, Raichur
