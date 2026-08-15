@@ -4157,7 +4157,7 @@ service cloud.firestore {
                                             return (
                                               <div 
                                                 key={batchItem.batchName} 
-                                                className={`p-1 rounded border text-left text-[9px] shadow-2xs transition-all ${
+                                                className={`p-1.5 rounded border text-left text-[9px] shadow-2xs transition-all ${
                                                   palette.isCustom ? '' : `${palette.bg} ${palette.border} ${palette.text}`
                                                 }`}
                                                 style={palette.isCustom ? {
@@ -4166,17 +4166,17 @@ service cloud.firestore {
                                                   color: palette.styles.text
                                                 } : undefined}
                                               >
-                                                <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                <div className="flex items-center justify-between gap-1 font-black uppercase text-[7.5px] tracking-wide mb-1 leading-none">
                                                   <span 
                                                     style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                                    className={`px-1 py-0.2 rounded font-extrabold ${palette.isCustom ? 'border' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`}`}
+                                                    className={`px-1.5 py-0.5 rounded font-extrabold whitespace-nowrap shrink-0 inline-flex items-center leading-none ${palette.isCustom ? 'border' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`}`}
                                                   >
                                                     Batch {batchItem.batchName}
                                                   </span>
-                                                  <span className="opacity-80 font-mono">{sub.code}</span>
+                                                  <span className="opacity-80 font-mono text-[7.5px] whitespace-nowrap shrink-0 ml-auto leading-none">{sub.code}</span>
                                                 </div>
-                                                <div className="font-extrabold break-words leading-tight mt-0.5" title={sub.name}>{sub.name}</div>
-                                                <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                                <div className="font-extrabold text-[9px] break-words leading-tight" title={sub.name}>{sub.name}</div>
+                                                <div className="text-[8px] opacity-90 font-semibold mt-1 flex items-end justify-between gap-1">
                                                   <span className="break-words leading-tight">
                                                     {fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                   </span>
@@ -4213,7 +4213,7 @@ service cloud.firestore {
                                         <div key={slot.id} className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center space-y-1 bg-amber-50/50 hover:bg-amber-100/40 min-h-[64px] transition-all">
                                           {sub1 && sub1Palette && (
                                             <div 
-                                              className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                              className={`p-1.5 rounded border text-left text-[9px] shadow-2xs ${
                                                 sub1Palette.isCustom ? '' : `${sub1Palette.bg} ${sub1Palette.border} ${sub1Palette.text}`
                                               }`}
                                               style={sub1Palette.isCustom ? {
@@ -4222,17 +4222,17 @@ service cloud.firestore {
                                                 color: sub1Palette.styles.text
                                               } : undefined}
                                             >
-                                              <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                              <div className="flex items-center justify-between gap-1 font-black uppercase text-[7.5px] tracking-wide mb-1 leading-none">
                                                 <span 
                                                   style={sub1Palette.isCustom ? { backgroundColor: sub1Palette.styles.badgeBg, color: sub1Palette.styles.badgeText, borderColor: sub1Palette.styles.badgeBorder } : undefined}
-                                                  className={`px-1 py-0.2 rounded font-extrabold ${sub1Palette.isCustom ? 'border' : `${sub1Palette.badgeBg} ${sub1Palette.badgeText} border ${sub1Palette.badgeBorder}`}`}
+                                                  className={`px-1.5 py-0.5 rounded font-extrabold whitespace-nowrap shrink-0 inline-flex items-center leading-none ${sub1Palette.isCustom ? 'border' : `${sub1Palette.badgeBg} ${sub1Palette.badgeText} border ${sub1Palette.badgeBorder}`}`}
                                                 >
                                                   Batch {sec}1
                                                 </span>
-                                                <span className="opacity-80 font-mono">{sub1.code}</span>
+                                                <span className="opacity-80 font-mono text-[7.5px] whitespace-nowrap shrink-0 ml-auto leading-none">{sub1.code}</span>
                                               </div>
-                                              <div className="font-extrabold break-words leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
-                                              <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                              <div className="font-extrabold text-[9px] break-words leading-tight" title={sub1.name}>{sub1.name}</div>
+                                              <div className="text-[8px] opacity-90 font-semibold mt-1 flex items-end justify-between gap-1">
                                                 <span className="break-words leading-tight">
                                                   {fac ? cleanFacultyName(fac.name) : (sub1.isAicteActivity || sub1.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                 </span>
@@ -4246,7 +4246,7 @@ service cloud.firestore {
                                           )}
                                           {otherSub && sub2Palette && (
                                             <div 
-                                              className={`p-1 rounded border text-left text-[9px] shadow-2xs ${
+                                              className={`p-1.5 rounded border text-left text-[9px] shadow-2xs ${
                                                 sub2Palette.isCustom ? '' : `${sub2Palette.bg} ${sub2Palette.border} ${sub2Palette.text}`
                                               }`}
                                               style={sub2Palette.isCustom ? {
@@ -4255,17 +4255,17 @@ service cloud.firestore {
                                                 color: sub2Palette.styles.text
                                               } : undefined}
                                             >
-                                              <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                              <div className="flex items-center justify-between gap-1 font-black uppercase text-[7.5px] tracking-wide mb-1 leading-none">
                                                 <span 
                                                   style={sub2Palette.isCustom ? { backgroundColor: sub2Palette.styles.badgeBg, color: sub2Palette.styles.badgeText, borderColor: sub2Palette.styles.badgeBorder } : undefined}
-                                                  className={`px-1 py-0.2 rounded font-extrabold ${sub2Palette.isCustom ? 'border' : `${sub2Palette.badgeBg} ${sub2Palette.badgeText} border ${sub2Palette.badgeBorder}`}`}
+                                                  className={`px-1.5 py-0.5 rounded font-extrabold whitespace-nowrap shrink-0 inline-flex items-center leading-none ${sub2Palette.isCustom ? 'border' : `${sub2Palette.badgeBg} ${sub2Palette.badgeText} border ${sub2Palette.badgeBorder}`}`}
                                                 >
                                                   Batch {sec}2
                                                 </span>
-                                                <span className="opacity-80 font-mono">{otherSub.code}</span>
+                                                <span className="opacity-80 font-mono text-[7.5px] whitespace-nowrap shrink-0 ml-auto leading-none">{otherSub.code}</span>
                                               </div>
-                                              <div className="font-extrabold break-words leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
-                                              <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
+                                              <div className="font-extrabold text-[9px] break-words leading-tight" title={otherSub.name}>{otherSub.name}</div>
+                                              <div className="text-[8px] opacity-90 font-semibold mt-1 flex items-end justify-between gap-1">
                                                 <span className="break-words leading-tight">
                                                   {otherFac ? cleanFacultyName(otherFac.name) : (otherSub.isAicteActivity || otherSub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
                                                 </span>
@@ -4303,7 +4303,7 @@ service cloud.firestore {
                                           }`} />
                                         )}
                                         {batchStr && assign && (
-                                          <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1 py-0.2 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 ${
+                                          <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1.5 py-0.5 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 whitespace-nowrap inline-flex items-center ${
                                             batchStr === 'A1' ? 'bg-amber-100 text-amber-800 border-amber-300' :
                                             batchStr === 'A2' ? 'bg-blue-100 text-blue-800 border-blue-300' :
                                             batchStr === 'B1' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
@@ -4654,11 +4654,11 @@ service cloud.firestore {
                                     }`} />
                                   )}
                                   {batchStr && matchDetails && (
-                                    <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1 py-0.2 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 ${
-                                      batchStr === 'A1' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                                      batchStr === 'A2' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                                      batchStr === 'B1' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                                      batchStr === 'B2' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                    <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1.5 py-0.5 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 whitespace-nowrap inline-flex items-center ${
+                                      batchStr === 'A1' || batchStr.includes('A1') ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                      batchStr === 'A2' || batchStr.includes('A2') ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                      batchStr === 'B1' || batchStr.includes('B1') ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                      batchStr === 'B2' || batchStr.includes('B2') ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
                                       'bg-slate-100 text-slate-800 border-slate-300'
                                     }`}>
                                       {batchStr}
@@ -5119,11 +5119,11 @@ service cloud.firestore {
                                           }`} />
                                         )}
                                         {batchStr && assign && (
-                                          <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1 py-0.2 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 ${
-                                            batchStr === 'A1' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                                            batchStr === 'A2' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                                            batchStr === 'B1' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                                            batchStr === 'B2' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                          <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1.5 py-0.5 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 whitespace-nowrap inline-flex items-center ${
+                                            batchStr === 'A1' || batchStr.includes('A1') ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                            batchStr === 'A2' || batchStr.includes('A2') ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                            batchStr === 'B1' || batchStr.includes('B1') ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                            batchStr === 'B2' || batchStr.includes('B2') ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
                                             'bg-slate-100 text-slate-800 border-slate-300'
                                           }`}>
                                             {batchStr}
@@ -5151,14 +5151,14 @@ service cloud.firestore {
                                                     color: palette.styles.text
                                                   } : undefined}
                                                 >
-                                                  <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                  <div className="flex items-center justify-between gap-1 font-black uppercase text-[7.5px] tracking-wide mb-1 leading-none">
                                                     <span 
                                                       style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                                      className={`px-1 py-0.2 rounded font-extrabold ${palette.isCustom ? 'border' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`}`}
+                                                      className={`px-1.5 py-0.5 rounded font-extrabold whitespace-nowrap shrink-0 inline-flex items-center leading-none ${palette.isCustom ? 'border' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`}`}
                                                     >
                                                       Batch {batchItem.batchName}
                                                     </span>
-                                                    <span className="opacity-80 font-mono">{bSub.code}</span>
+                                                    <span className="opacity-80 font-mono text-[7.5px] whitespace-nowrap shrink-0 ml-auto leading-none">{bSub.code}</span>
                                                   </div>
                                                   <div className="font-extrabold break-words leading-tight mt-0.5" title={bSub.name}>{bSub.name}</div>
                                                   <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
@@ -5202,14 +5202,14 @@ service cloud.firestore {
                                                         color: sub1Palette.styles.text
                                                       } : undefined}
                                                     >
-                                                      <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                      <div className="flex items-center justify-between gap-1 font-black uppercase text-[7.5px] tracking-wide mb-1 leading-none">
                                                         <span 
                                                           style={sub1Palette.isCustom ? { backgroundColor: sub1Palette.styles.badgeBg, color: sub1Palette.styles.badgeText, borderColor: sub1Palette.styles.badgeBorder } : undefined}
-                                                          className={`px-1 py-0.2 rounded font-extrabold ${sub1Palette.isCustom ? 'border' : `${sub1Palette.badgeBg} ${sub1Palette.badgeText} border ${sub1Palette.badgeBorder}`}`}
+                                                          className={`px-1.5 py-0.5 rounded font-extrabold whitespace-nowrap shrink-0 inline-flex items-center leading-none ${sub1Palette.isCustom ? 'border' : `${sub1Palette.badgeBg} ${sub1Palette.badgeText} border ${sub1Palette.badgeBorder}`}`}
                                                         >
                                                           Batch {sec}1
                                                         </span>
-                                                        <span className="opacity-80 font-mono">{sub1.code}</span>
+                                                        <span className="opacity-80 font-mono text-[7.5px] whitespace-nowrap shrink-0 ml-auto leading-none">{sub1.code}</span>
                                                       </div>
                                                       <div className="font-extrabold break-words leading-tight mt-0.5" title={sub1.name}>{sub1.name}</div>
                                                       <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
@@ -5235,14 +5235,14 @@ service cloud.firestore {
                                                         color: sub2Palette.styles.text
                                                       } : undefined}
                                                     >
-                                                      <div className="flex items-center justify-between font-black uppercase text-[8px] tracking-wider">
+                                                      <div className="flex items-center justify-between gap-1 font-black uppercase text-[7.5px] tracking-wide mb-1 leading-none">
                                                         <span 
                                                           style={sub2Palette.isCustom ? { backgroundColor: sub2Palette.styles.badgeBg, color: sub2Palette.styles.badgeText, borderColor: sub2Palette.styles.badgeBorder } : undefined}
-                                                          className={`px-1 py-0.2 rounded font-extrabold ${sub2Palette.isCustom ? 'border' : `${sub2Palette.badgeBg} ${sub2Palette.badgeText} border ${sub2Palette.badgeBorder}`}`}
+                                                          className={`px-1.5 py-0.5 rounded font-extrabold whitespace-nowrap shrink-0 inline-flex items-center leading-none ${sub2Palette.isCustom ? 'border' : `${sub2Palette.badgeBg} ${sub2Palette.badgeText} border ${sub2Palette.badgeBorder}`}`}
                                                         >
                                                           Batch {sec}2
                                                         </span>
-                                                        <span className="opacity-80 font-mono">{otherSub.code}</span>
+                                                        <span className="opacity-80 font-mono text-[7.5px] whitespace-nowrap shrink-0 ml-auto leading-none">{otherSub.code}</span>
                                                       </div>
                                                       <div className="font-extrabold break-words leading-tight mt-0.5" title={otherSub.name}>{otherSub.name}</div>
                                                       <div className="text-[8px] opacity-90 font-semibold mt-0.5 flex items-end justify-between gap-1">
@@ -5265,11 +5265,11 @@ service cloud.firestore {
                                             return (
                                               <>
                                                 <div>
-                                                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                                                    <span className="px-1 py-0.2 rounded font-extrabold bg-amber-200 text-amber-900 text-[8px] uppercase tracking-wider">
+                                                  <div className="flex items-center justify-between gap-1 mb-1 leading-none">
+                                                    <span className="px-1.5 py-0.5 rounded font-extrabold bg-amber-200 text-amber-900 text-[7.5px] uppercase tracking-wide whitespace-nowrap shrink-0 inline-flex items-center leading-none">
                                                       Batch {sec}1 & {sec}2
                                                     </span>
-                                                    <span className="font-mono text-[8px] opacity-80">{sub.code}</span>
+                                                    <span className="font-mono text-[7.5px] opacity-80 whitespace-nowrap shrink-0 ml-auto leading-none">{sub.code}</span>
                                                   </div>
                                                   <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={sub.name}>
                                                     {sub.name}
