@@ -119,3 +119,20 @@
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Optimized compact layout during PDF rasterization */
+.is-pdf-exporting {
+  background-color: #ffffff !important;
+}
+
+.is-pdf-exporting [class*="min-h-[64px]"] {
+  min-height: 42px !important;
+}
+
+.is-pdf-exporting .pdf-subject-legend {
+  display: block !important;
+}
+
+.is-pdf-exporting .pdf-signatures {
+  display: flex !important;
+}
+

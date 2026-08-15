@@ -1725,11 +1725,15 @@ export default function App() {
     const originalPadding = element.style.padding;
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
+    element.classList.add('is-pdf-exporting');
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
-    element.style.padding = '8px 0px';
+    element.style.padding = '8px 12px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
+    element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
+    element.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
+    element.style.setProperty('text-rendering', 'geometricPrecision', 'important');
 
     const elementsWithShadow = element.querySelectorAll('[class*="shadow"]');
     elementsWithShadow.forEach(el => {
@@ -1762,8 +1766,15 @@ export default function App() {
       pdfSubjectLegend.classList.remove('hidden');
     }
     
-    // Allow browser to repaint with the new landscape styles
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // Ensure all font glyphs and layout are fully ready before capture
+    if (document.fonts) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Continue if font ready check fails
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
       const currentFacultyObj = faculties.find(f => f.id === selectedFacultyId);
@@ -1771,8 +1782,13 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 2.0,
-        skipFonts: true
+        pixelRatio: 4.0,
+        quality: 1.0,
+        cacheBust: true,
+        skipFonts: true,
+        style: {
+          transform: 'none'
+        }
       });
       
       const imgWidth = 1120; // Forced width
@@ -1782,19 +1798,25 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      const width = pdfWidth; // Exactly 100% width across the PDF page (edge-to-edge)
-      const height = width / ratio;
+      let width = pdfWidth; // Default to 100% width across the PDF page (edge-to-edge)
+      let height = width / ratio;
+      
+      if (height > pdfHeight) {
+        height = pdfHeight;
+        width = height * ratio;
+      }
       
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'pt',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
-      const x = 0;
-      const y = Math.max(0, (pdfHeight - height) / 2);
+      const x = (pdfWidth - width) / 2;
+      const y = (pdfHeight - height) / 2;
       
-      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
+      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'SLOW');
       
       // Add timestamp to the top right (date only)
       const now = new Date();
@@ -1814,6 +1836,7 @@ export default function App() {
       showAuthNotice("PDF generation failed. Please try again.");
     } finally {
       // Restore original style values
+      element.classList.remove('is-pdf-exporting');
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
       element.style.border = originalBorder;
@@ -1862,11 +1885,15 @@ export default function App() {
     const originalPadding = element.style.padding;
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
+    element.classList.add('is-pdf-exporting');
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
-    element.style.padding = '8px 0px';
+    element.style.padding = '8px 12px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
+    element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
+    element.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
+    element.style.setProperty('text-rendering', 'geometricPrecision', 'important');
 
     const elementsWithShadow = element.querySelectorAll('[class*="shadow"]');
     elementsWithShadow.forEach(el => {
@@ -1899,8 +1926,15 @@ export default function App() {
       pdfSubjectLegend.classList.remove('hidden');
     }
     
-    // Allow browser to repaint with the new landscape styles
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // Ensure all font glyphs and layout are fully ready before capture
+    if (document.fonts) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Continue if font ready check fails
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
       const currentClassObj = classes.find(c => c.id === selectedClassId);
@@ -1908,8 +1942,13 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 2.0,
-        skipFonts: true
+        pixelRatio: 4.0,
+        quality: 1.0,
+        cacheBust: true,
+        skipFonts: true,
+        style: {
+          transform: 'none'
+        }
       });
       
       const imgWidth = 1120; // Forced width
@@ -1919,19 +1958,25 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      const width = pdfWidth; // Exactly 100% width across the PDF page (edge-to-edge)
-      const height = width / ratio;
+      let width = pdfWidth; // Default to 100% width across the PDF page (edge-to-edge)
+      let height = width / ratio;
+      
+      if (height > pdfHeight) {
+        height = pdfHeight;
+        width = height * ratio;
+      }
       
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'pt',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
-      const x = 0;
-      const y = Math.max(0, (pdfHeight - height) / 2);
+      const x = (pdfWidth - width) / 2;
+      const y = (pdfHeight - height) / 2;
       
-      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
+      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'SLOW');
       
       // Add timestamp to the top right (date only)
       const now = new Date();
@@ -1951,6 +1996,7 @@ export default function App() {
       showAuthNotice("PDF generation failed. Please try again.");
     } finally {
       // Restore original style values
+      element.classList.remove('is-pdf-exporting');
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
       element.style.border = originalBorder;
@@ -1995,11 +2041,15 @@ export default function App() {
     const originalPadding = element.style.padding;
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
+    element.classList.add('is-pdf-exporting');
     element.style.width = '1120px';
     element.style.minWidth = '1120px';
-    element.style.padding = '8px 0px';
+    element.style.padding = '8px 12px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
+    element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
+    element.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
+    element.style.setProperty('text-rendering', 'geometricPrecision', 'important');
 
     const elementsWithShadow = element.querySelectorAll('[class*="shadow"]');
     elementsWithShadow.forEach(el => {
@@ -2032,8 +2082,15 @@ export default function App() {
       pdfSubjectLegend.classList.remove('hidden');
     }
     
-    // Allow browser to repaint with the new landscape styles
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // Ensure all font glyphs and layout are fully ready before capture
+    if (document.fonts) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Continue if font ready check fails
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
       const currentClassObj = classes.find(c => c.id === selectedClassId);
@@ -2041,8 +2098,13 @@ export default function App() {
       
       const imgData = await toPng(element, {
         backgroundColor: '#ffffff',
-        pixelRatio: 2.0,
-        skipFonts: true
+        pixelRatio: 4.0,
+        quality: 1.0,
+        cacheBust: true,
+        skipFonts: true,
+        style: {
+          transform: 'none'
+        }
       });
       
       const imgWidth = 1120; // Forced width
@@ -2052,19 +2114,25 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      const width = pdfWidth; // Exactly 100% width across the PDF page (edge-to-edge)
-      const height = width / ratio;
+      let width = pdfWidth; // Default to 100% width across the PDF page (edge-to-edge)
+      let height = width / ratio;
+      
+      if (height > pdfHeight) {
+        height = pdfHeight;
+        width = height * ratio;
+      }
       
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'pt',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
-      const x = 0;
-      const y = Math.max(0, (pdfHeight - height) / 2);
+      const x = (pdfWidth - width) / 2;
+      const y = (pdfHeight - height) / 2;
       
-      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
+      pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'SLOW');
 
       // Add timestamp to the top right (date only)
       const now = new Date();
@@ -2084,6 +2152,7 @@ export default function App() {
       showAuthNotice("Failed to download PDF locally.");
     } finally {
       // Restore original style values
+      element.classList.remove('is-pdf-exporting');
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
       element.style.border = originalBorder;
@@ -4412,17 +4481,17 @@ service cloud.firestore {
                     if (rows.length === 0) return null;
 
                     return (
-                      <div className="mt-3 pt-2.5 border-t border-slate-300 pdf-subject-legend hidden">
-                        <div className="text-[11.5pt] font-extrabold uppercase tracking-wider text-slate-800 mb-1.5 flex items-center gap-2">
+                      <div className="mt-2.5 pt-2 border-t-2 border-slate-400 pdf-subject-legend hidden">
+                        <div className="text-[11pt] font-black uppercase tracking-wider text-slate-900 mb-1 flex items-center gap-2">
                           <span>Course &amp; Faculty Allocation</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11.5pt] leading-snug text-slate-800">
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800">
                           {rows.map((row) => (
-                            <div key={row.subject.id} className="flex items-baseline space-x-2 overflow-hidden text-[11.5pt]">
+                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
                               <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                              <span className="font-medium text-slate-800 truncate">{row.subject.name}</span>
+                              <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
                               <span className="text-slate-400 shrink-0">-</span>
-                              <span className="font-semibold text-slate-900 shrink-0">{row.facultiesList.join(' | ')}</span>
+                              <span className="font-bold text-slate-800 shrink-0">{row.facultiesList.join(' | ')}</span>
                             </div>
                           ))}
                         </div>
@@ -4431,18 +4500,18 @@ service cloud.firestore {
                   })()}
 
                   {selectedClassId && (
-                    <div className="mt-8 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
+                    <div className="mt-4 pt-1 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
                       <div className="flex flex-col items-center">
-                        <div className="w-40 border-b border-slate-800 mb-1"></div>
-                        <span className="font-bold text-[11pt] text-slate-900 uppercase">Co-ordinator</span>
+                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">Co-ordinator</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-40 border-b border-slate-800 mb-1"></div>
-                        <span className="font-bold text-[11pt] text-slate-900 uppercase">HOD</span>
+                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">HOD</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-40 border-b border-slate-800 mb-1"></div>
-                        <span className="font-bold text-[11pt] text-slate-900 uppercase">PRINCIPAL</span>
+                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">PRINCIPAL</span>
                       </div>
                     </div>
                   )}
@@ -4734,17 +4803,17 @@ service cloud.firestore {
                     if (rows.length === 0) return null;
 
                     return (
-                      <div className="mt-3 pt-2.5 border-t border-slate-300 pdf-subject-legend hidden">
-                        <div className="text-[11.5pt] font-extrabold uppercase tracking-wider text-slate-800 mb-1.5 flex items-center gap-2">
+                      <div className="mt-2.5 pt-2 border-t-2 border-slate-400 pdf-subject-legend hidden">
+                        <div className="text-[11pt] font-black uppercase tracking-wider text-slate-900 mb-1 flex items-center gap-2">
                           <span>Course &amp; Faculty Allocation</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11.5pt] leading-snug text-slate-800">
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800">
                           {rows.map((row) => (
-                            <div key={row.subject.id} className="flex items-baseline space-x-2 overflow-hidden text-[11.5pt]">
+                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
                               <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                              <span className="font-medium text-slate-800 truncate">{row.subject.name}</span>
+                              <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
                               <span className="text-slate-400 shrink-0">-</span>
-                              <span className="font-semibold text-slate-900 shrink-0">{row.classNames.join(' | ')}</span>
+                              <span className="font-bold text-slate-800 shrink-0">{row.classNames.join(' | ')}</span>
                             </div>
                           ))}
                         </div>
@@ -4753,18 +4822,18 @@ service cloud.firestore {
                   })()}
 
                   {selectedFacultyId && (
-                    <div className="mt-8 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
+                    <div className="mt-4 pt-1 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
                       <div className="flex flex-col items-center">
-                        <div className="w-40 border-b border-slate-800 mb-1"></div>
-                        <span className="font-bold text-[11pt] text-slate-900 uppercase">Co-ordinator</span>
+                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">Co-ordinator</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-40 border-b border-slate-800 mb-1"></div>
-                        <span className="font-bold text-[11pt] text-slate-900 uppercase">HOD</span>
+                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">HOD</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-40 border-b border-slate-800 mb-1"></div>
-                        <span className="font-bold text-[11pt] text-slate-900 uppercase">PRINCIPAL</span>
+                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">PRINCIPAL</span>
                       </div>
                     </div>
                   )}
