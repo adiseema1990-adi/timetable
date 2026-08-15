@@ -4325,18 +4325,19 @@ service cloud.firestore {
                                   key={slot.id} 
                                   className={`text-center border-r border-slate-600 last:border-r-0 flex flex-col justify-center ${
                                     slot.isBreak 
-                                      ? 'bg-amber-600/10 text-amber-300 [writing-mode:vertical-lr] rotate-180 select-none items-center justify-center p-1 py-3' 
+                                      ? 'bg-amber-600/10 text-amber-300 select-none items-center justify-center p-0.5' 
                                       : 'p-2'
                                   }`}
                                 >
                                   {slot.isBreak ? (
-                                    <div className="flex flex-col items-center leading-none">
-                                      <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
-                                      <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
+                                    <div className="flex flex-col items-center justify-center leading-tight py-0.5">
+                                      <span className="text-[7.5px] font-mono font-semibold whitespace-nowrap text-amber-200">{formatTime12(slot.startTime)}</span>
+                                      <span className="text-[6.5px] font-mono text-amber-400/80 leading-none my-0.5">to</span>
+                                      <span className="text-[7.5px] font-mono font-semibold whitespace-nowrap text-amber-200">{formatTime12(slot.endTime)}</span>
                                     </div>
                                   ) : (
                                     <>
-                                      <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
+                                      <span className="font-bold text-[13px] tracking-wide">{slot.label}</span>
                                       <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                                     </>
                                   )}
@@ -4805,18 +4806,19 @@ service cloud.firestore {
                             key={slot.id} 
                             className={`text-center border-r border-slate-600 last:border-r-0 flex flex-col justify-center ${
                               slot.isBreak 
-                                ? 'bg-amber-600/10 text-amber-300 [writing-mode:vertical-lr] rotate-180 select-none items-center justify-center p-1 py-3' 
+                                ? 'bg-amber-600/10 text-amber-300 select-none items-center justify-center p-0.5' 
                                 : 'p-2'
                             }`}
                           >
                             {slot.isBreak ? (
-                              <div className="flex flex-col items-center leading-none">
-                                <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
-                                <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
+                              <div className="flex flex-col items-center justify-center leading-tight py-0.5">
+                                <span className="text-[7.5px] font-mono font-semibold whitespace-nowrap text-amber-200">{formatTime12(slot.startTime)}</span>
+                                <span className="text-[6.5px] font-mono text-amber-400/80 leading-none my-0.5">to</span>
+                                <span className="text-[7.5px] font-mono font-semibold whitespace-nowrap text-amber-200">{formatTime12(slot.endTime)}</span>
                               </div>
                             ) : (
                               <>
-                                <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
+                                <span className="font-bold text-[13px] tracking-wide">{slot.label}</span>
                                 <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                               </>
                             )}
@@ -5267,18 +5269,19 @@ service cloud.firestore {
                                   key={slot.id} 
                                   className={`text-center border-r border-slate-600 last:border-r-0 flex flex-col justify-center ${
                                     slot.isBreak 
-                                      ? 'bg-amber-600/10 text-amber-300 [writing-mode:vertical-lr] rotate-180 select-none items-center justify-center p-1 py-3' 
+                                      ? 'bg-amber-600/10 text-amber-300 select-none items-center justify-center p-0.5' 
                                       : 'p-2'
                                   }`}
                                 >
                                   {slot.isBreak ? (
-                                    <div className="flex flex-col items-center leading-none">
-                                      <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
-                                      <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
+                                    <div className="flex flex-col items-center justify-center leading-tight py-0.5">
+                                      <span className="text-[7.5px] font-mono font-semibold whitespace-nowrap text-amber-200">{formatTime12(slot.startTime)}</span>
+                                      <span className="text-[6.5px] font-mono text-amber-400/80 leading-none my-0.5">to</span>
+                                      <span className="text-[7.5px] font-mono font-semibold whitespace-nowrap text-amber-200">{formatTime12(slot.endTime)}</span>
                                     </div>
                                   ) : (
                                     <>
-                                      <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
+                                      <span className="font-bold text-[13px] tracking-wide">{slot.label}</span>
                                       <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                                     </>
                                   )}
