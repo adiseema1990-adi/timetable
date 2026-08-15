@@ -243,40 +243,133 @@ const UNIQUE_BG_COLORS = [
   '#a7f3d0', // emerald-200
   '#bef264', // lime-200
   '#fde047', // yellow-300
+  '#fecdd3', // rose-200
+  '#fde68a', // amber-200
+  '#bae6fd', // sky-200
+  '#e9d5ff', // purple-200
+  '#f5d0fe', // fuchsia-200
+  '#fed7d7', // coral-soft
+  '#e2e8f0', // slate-200
+  '#ede9fe', // periwinkle
+  '#dcfce7', // mint-light
+  '#d9f99d', // chartreuse-light
+  '#fee2e2', // red-100
+  '#fce7f3', // pink-100
+  '#e0e7ff', // blue-indigo
+  '#c4b5fd', // iris-soft
+  '#a5f3fc', // aqua-soft
 ];
 
-const COLOR_FAMILIES = [
+export const QUICK_PRESET_COLORS = [
+  { name: 'Sky Blue', hex: '#e0f2fe' },
+  { name: 'Teal Pastel', hex: '#ccfbf1' },
+  { name: 'Emerald', hex: '#d1fae5' },
+  { name: 'Lime Pear', hex: '#ecfccb' },
+  { name: 'Sunny Gold', hex: '#fef08a' },
+  { name: 'Warm Amber', hex: '#fef3c7' },
+  { name: 'Soft Orange', hex: '#ffedd5' },
+  { name: 'Blush Rose', hex: '#ffe4e6' },
+  { name: 'Flamingo Pink', hex: '#fbcfe8' },
+  { name: 'Fuchsia', hex: '#fae8ff' },
+  { name: 'Soft Purple', hex: '#f3e8ff' },
+  { name: 'Royal Indigo', hex: '#e0e7ff' },
+  { name: 'Aqua Mint', hex: '#a5f3fc' },
+  { name: 'Warm Coral', hex: '#fed7aa' },
+  { name: 'Lavender Mist', hex: '#ede9fe' },
+  { name: 'Soft Slate', hex: '#e2e8f0' },
+];
+
+export interface ColorFamilyGroup {
+  name: string;
+  category: 'warm' | 'cool' | 'pastel' | 'vibrant' | 'neutral';
+  shades: string[];
+}
+
+const COLOR_FAMILIES: ColorFamilyGroup[] = [
   {
-    name: 'Red/Rose',
-    shades: ['#fff1f2', '#ffe4e6', '#fecdd3', '#fda4af', '#f43f5e', '#9f1239']
+    name: 'Sky & Ice Blue',
+    category: 'cool',
+    shades: ['#f0f9ff', '#e0f2fe', '#bae6fd', '#7dd3fc', '#38bdf8', '#0284c7']
   },
   {
-    name: 'Orange',
-    shades: ['#fff7ed', '#ffedd5', '#fed7aa', '#fdba74', '#f97316', '#c2410c']
+    name: 'Indigo & Royal Blue',
+    category: 'cool',
+    shades: ['#eef2ff', '#e0e7ff', '#c7d2fe', '#a5b4fc', '#6366f1', '#3730a3']
   },
   {
-    name: 'Yellow/Amber',
+    name: 'Cyan & Aqua',
+    category: 'cool',
+    shades: ['#ecfeff', '#cffafe', '#a5f3fc', '#67e8f9', '#06b6d4', '#0e7490']
+  },
+  {
+    name: 'Teal & Seafoam',
+    category: 'cool',
+    shades: ['#f0fdfa', '#ccfbf1', '#99f6e4', '#5eead4', '#14b8a6', '#0f766e']
+  },
+  {
+    name: 'Emerald & Mint',
+    category: 'cool',
+    shades: ['#f0fdf4', '#d1fae5', '#a7f3d0', '#6ee7b7', '#10b981', '#047857']
+  },
+  {
+    name: 'Lime & Chartreuse',
+    category: 'warm',
+    shades: ['#f7fee7', '#ecfccb', '#d9f99d', '#bef264', '#84cc16', '#4d7c0f']
+  },
+  {
+    name: 'Yellow & Canary',
+    category: 'warm',
     shades: ['#fefce8', '#fef9c3', '#fef08a', '#fde047', '#eab308', '#a16207']
   },
   {
-    name: 'Green/Emerald',
-    shades: ['#f0fdf4', '#d1fae5', '#a7f3d0', '#34d399', '#10b981', '#047857']
+    name: 'Warm Amber & Gold',
+    category: 'warm',
+    shades: ['#fffbeb', '#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#b45309']
   },
   {
-    name: 'Cyan/Teal',
-    shades: ['#f0fdfa', '#ccfbf1', '#99f6e4', '#2dd4bf', '#0d9488', '#115e59']
+    name: 'Orange & Tangerine',
+    category: 'warm',
+    shades: ['#fff7ed', '#ffedd5', '#fed7aa', '#fdba74', '#f97316', '#c2410c']
   },
   {
-    name: 'Blue/Sky',
-    shades: ['#f0f9ff', '#e0f2fe', '#bae6fd', '#38bdf8', '#3b82f6', '#1d4ed8']
+    name: 'Coral & Peach',
+    category: 'warm',
+    shades: ['#fff5f5', '#fed7d7', '#fca5a5', '#fb923c', '#ea580c', '#9a3412']
   },
   {
-    name: 'Lavender/Purple',
-    shades: ['#faf5ff', '#f3e8ff', '#e9d5ff', '#c084fc', '#a855f7', '#6b21a8']
+    name: 'Red & Crimson',
+    category: 'warm',
+    shades: ['#fff1f2', '#ffe4e6', '#fecdd3', '#fda4af', '#f43f5e', '#9f1239']
   },
   {
-    name: 'Slate/Grey',
-    shades: ['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1', '#64748b', '#334155']
+    name: 'Rose & Blush',
+    category: 'warm',
+    shades: ['#fff1f5', '#fce7f3', '#fbcfe8', '#f472b6', '#db2777', '#831843']
+  },
+  {
+    name: 'Fuchsia & Magenta',
+    category: 'vibrant',
+    shades: ['#fdf4ff', '#fae8ff', '#f5d0fe', '#f0abfc', '#d946ef', '#a21caf']
+  },
+  {
+    name: 'Purple & Lavender',
+    category: 'cool',
+    shades: ['#faf5ff', '#f3e8ff', '#e9d5ff', '#d8b4fe', '#a855f7', '#6b21a8']
+  },
+  {
+    name: 'Violet & Periwinkle',
+    category: 'cool',
+    shades: ['#f5f3ff', '#ede9fe', '#ddd6fe', '#c4b5fd', '#8b5cf6', '#5b21b6']
+  },
+  {
+    name: 'Warm Earth & Latte',
+    category: 'neutral',
+    shades: ['#fafaf9', '#f5f5f4', '#e7e5e4', '#d6d3d1', '#a8a29e', '#57534e']
+  },
+  {
+    name: 'Cool Slate & Silver',
+    category: 'neutral',
+    shades: ['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1', '#94a3b8', '#334155']
   }
 ];
 
@@ -671,6 +764,8 @@ export default function App() {
   const [newSubIsMentoring, setNewSubIsMentoring] = useState(false);
   const [newSubColor, setNewSubColor] = useState('');
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [colorModalSubjectId, setColorModalSubjectId] = useState<string | null>(null);
+  const [colorCategoryFilter, setColorCategoryFilter] = useState<'all' | 'cool' | 'warm' | 'vibrant' | 'neutral'>('all');
   const [subFormSubmitted, setSubFormSubmitted] = useState(false);
 
   // Subject Editing State
@@ -2409,6 +2504,17 @@ export default function App() {
     cancelEditingSubject();
   };
 
+  const openColorModalForSubject = (subjectId: string) => {
+    setColorModalSubjectId(subjectId);
+    setIsColorModalOpen(true);
+  };
+
+  const updateSubjectColorDirectly = (subjectId: string, color: string) => {
+    setSubjects(prevSubs => prevSubs.map(s => s.id === subjectId ? { ...s, color } : s));
+    const sub = subjects.find(s => s.id === subjectId);
+    showAuthNotice(`Color updated for "${sub?.name || 'Subject'}".`);
+  };
+
   const deleteClass = (id: string) => {
     if (editingClassId === id) {
       cancelEditingClass();
@@ -2611,31 +2717,7 @@ export default function App() {
           }
         }
 
-        // Check Multi-subject Faculty Continuity Check
-        for (let pIdx = 0; pIdx < totalPeriods - 1; pIdx++) {
-          const a1Id = slots[pIdx];
-          const a2Id = slots[pIdx + 1];
-          if (a1Id && a2Id) {
-            const assign1 = assignments.find(a => a.id === a1Id);
-            const assign2 = assignments.find(a => a.id === a2Id);
-            if (assign1 && assign2 && assign1.facultyId && assign1.facultyId === assign2.facultyId) {
-              const facId = assign1.facultyId;
-              const facAssigns = assignments.filter(a => a.classId === cls.id && a.facultyId === facId);
-              if (facAssigns.length > 1) {
-                const fac = faculties.find(f => f.id === facId);
-                warningsList.push({
-                  classId: cls.id,
-                  day,
-                  pIdx,
-                  message: `Faculty ${fac ? fac.shortName : 'Staff'} has consecutive periods of different subjects in ${cls.name} on ${day}.`,
-                  type: 'continuity'
-                });
-              }
-            }
-          }
-        }
-
-        // Check Subject Consecutive Periods for non-labs
+        // Check Subject Consecutive Periods for non-labs (in same class)
         for (let pIdx = 0; pIdx < totalPeriods - 1; pIdx++) {
           const a1Id = slots[pIdx];
           const a2Id = slots[pIdx + 1];
@@ -2777,28 +2859,118 @@ export default function App() {
       }
     }
 
+    // Global Faculty Continuous Lecture Restrictor (Cross-Section & Same-Section)
+    for (const fac of faculties) {
+      for (const day of days) {
+        for (let pIdx = 0; pIdx < totalPeriods - 1; pIdx++) {
+          let facSlot1: { cls: ClassSection; assign: Assignment; sub: Subject } | null = null;
+          let facSlot2: { cls: ClassSection; assign: Assignment; sub: Subject } | null = null;
+
+          for (const cls of classes) {
+            const classSched = customSchedule?.[cls.id];
+            if (!classSched || !classSched[day]) continue;
+
+            const cell1 = classSched[day][pIdx];
+            if (cell1) {
+              const aIds1 = getAssignmentIdsFromCell(cell1);
+              for (const aId of aIds1) {
+                const a = assignments.find(asgn => asgn.id === aId);
+                if (a && a.facultyId === fac.id) {
+                  const s = subjects.find(sub => sub.id === a.subjectId);
+                  if (s) facSlot1 = { cls, assign: a, sub: s };
+                }
+              }
+            }
+
+            const cell2 = classSched[day][pIdx + 1];
+            if (cell2) {
+              const aIds2 = getAssignmentIdsFromCell(cell2);
+              for (const aId of aIds2) {
+                const a = assignments.find(asgn => asgn.id === aId);
+                if (a && a.facultyId === fac.id) {
+                  const s = subjects.find(sub => sub.id === a.subjectId);
+                  if (s) facSlot2 = { cls, assign: a, sub: s };
+                }
+              }
+            }
+          }
+
+          if (facSlot1 && facSlot2) {
+            // Consecutive 2-period lab block for the same section is valid
+            const isSameClassLab = facSlot1.cls.id === facSlot2.cls.id && facSlot1.sub.id === facSlot2.sub.id && facSlot1.sub.isLab;
+            const isAicteExempt = facSlot1.sub.isAicteActivity && facSlot2.sub.isAicteActivity;
+
+            if (!isSameClassLab && !isAicteExempt) {
+              const isDifferentSections = facSlot1.cls.id !== facSlot2.cls.id;
+              const msg = isDifferentSections
+                ? `Faculty ${fac.shortName || fac.name} has continuous back-to-back lectures across different sections on ${day}: Period ${pIdx + 1} in ${facSlot1.cls.name} (Sec ${facSlot1.cls.section}) [${facSlot1.sub.code}] followed by Period ${pIdx + 2} in ${facSlot2.cls.name} (Sec ${facSlot2.cls.section}) [${facSlot2.sub.code}].`
+                : `Faculty ${fac.shortName || fac.name} has continuous back-to-back lectures in ${facSlot1.cls.name} (Sec ${facSlot1.cls.section}) on ${day}: Period ${pIdx + 1} [${facSlot1.sub.code}] and Period ${pIdx + 2} [${facSlot2.sub.code}].`;
+
+              warningsList.push({
+                classId: facSlot1.cls.id,
+                day,
+                pIdx,
+                message: msg,
+                type: 'continuity'
+              });
+            }
+          }
+        }
+      }
+    }
+
     return warningsList;
   }, [customSchedule, days, timeSlots, classes, assignments, subjects, faculties]);
 
-  // Check if a faculty has continuous classes in the selected class timetable
-  const checkContinuityConflict = (classId: string, schedObj: TimetableSchedule | null = solverResult?.schedule) => {
-    if (!schedObj || !schedObj[classId]) return false;
-    const classSched = schedObj[classId];
-    
-    for (const day of days) {
-      const periods = classSched[day];
-      if (!periods) continue;
-      for (let pIdx = 0; pIdx < periods.length - 1; pIdx++) {
-        const assign1Id = periods[pIdx];
-        const assign2Id = periods[pIdx + 1];
-        if (assign1Id && assign2Id) {
-          const assign1 = assignments.find(a => a.id === assign1Id);
-          const assign2 = assignments.find(a => a.id === assign2Id);
-          if (assign1 && assign2 && assign1.facultyId === assign2.facultyId) {
-            const facId = assign1.facultyId;
-            const facAssigns = assignments.filter(a => a.classId === classId && a.facultyId === facId);
-            if (facAssigns.length > 1) {
-              return true;
+  // Check if a faculty has continuous classes in a class or across any sections
+  const checkContinuityConflict = (classId?: string, schedObj: TimetableSchedule | null = solverResult?.schedule): boolean => {
+    if (!schedObj) return false;
+    const activeSlots = timeSlots.filter(s => !s.isBreak);
+    const totalPeriods = activeSlots.length;
+
+    for (const fac of faculties) {
+      for (const day of days) {
+        for (let pIdx = 0; pIdx < totalPeriods - 1; pIdx++) {
+          let facSlot1: { cls: ClassSection; assign: Assignment; sub: Subject } | null = null;
+          let facSlot2: { cls: ClassSection; assign: Assignment; sub: Subject } | null = null;
+
+          for (const cls of classes) {
+            const classSched = schedObj[cls.id];
+            if (!classSched || !classSched[day]) continue;
+
+            const cell1 = classSched[day][pIdx];
+            if (cell1) {
+              const aIds1 = getAssignmentIdsFromCell(cell1);
+              for (const aId of aIds1) {
+                const a = assignments.find(asgn => asgn.id === aId);
+                if (a && a.facultyId === fac.id) {
+                  const s = subjects.find(sub => sub.id === a.subjectId);
+                  if (s) facSlot1 = { cls, assign: a, sub: s };
+                }
+              }
+            }
+
+            const cell2 = classSched[day][pIdx + 1];
+            if (cell2) {
+              const aIds2 = getAssignmentIdsFromCell(cell2);
+              for (const aId of aIds2) {
+                const a = assignments.find(asgn => asgn.id === aId);
+                if (a && a.facultyId === fac.id) {
+                  const s = subjects.find(sub => sub.id === a.subjectId);
+                  if (s) facSlot2 = { cls, assign: a, sub: s };
+                }
+              }
+            }
+          }
+
+          if (facSlot1 && facSlot2) {
+            const isSameClassLab = facSlot1.cls.id === facSlot2.cls.id && facSlot1.sub.id === facSlot2.sub.id && facSlot1.sub.isLab;
+            const isAicteExempt = facSlot1.sub.isAicteActivity && facSlot2.sub.isAicteActivity;
+
+            if (!isSameClassLab && !isAicteExempt) {
+              if (!classId || facSlot1.cls.id === classId || facSlot2.cls.id === classId) {
+                return true;
+              }
             }
           }
         }
@@ -2857,14 +3029,14 @@ export default function App() {
       totalClasses: classes.length,
       totalAssignments: assignments.length,
       noClashes: solverResult.success,
-      continuityCheck: !classes.some(c => checkContinuityConflict(c.id, solverResult.schedule)),
+      continuityCheck: !checkContinuityConflict(undefined, solverResult.schedule),
     };
     return stats;
-  }, [solverResult, faculties, subjects, classes, assignments]);
+  }, [solverResult, faculties, subjects, classes, assignments, days, timeSlots]);
 
   const hasAnyContinuityConflict = useMemo(() => {
-    return classes.some(c => checkContinuityConflict(c.id, solverResult?.schedule));
-  }, [classes, solverResult, assignments, days]);
+    return checkContinuityConflict(undefined, solverResult?.schedule);
+  }, [classes, faculties, solverResult, assignments, subjects, days, timeSlots]);
 
   const hasAnyPeriod1To4FreePeriodConflict = useMemo(() => {
     return classes.some(c => checkPeriod1To4FreePeriod(c.id, solverResult?.schedule));
@@ -3623,7 +3795,7 @@ service cloud.firestore {
                             <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-500">No Continuous Lectures</span>
+                            <span className="text-slate-500">No Continuous Lectures (All Sections)</span>
                             <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -3688,11 +3860,11 @@ service cloud.firestore {
                               <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                             )}
                             <div>
-                              <p className="font-bold text-slate-800">Continuous Lecture Restrictor</p>
+                              <p className="font-bold text-slate-800">Continuous Lecture Restrictor (Cross-Section & Same Class)</p>
                               <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
                                 {hasAnyContinuityConflict 
-                                  ? "Warning: Some multi-course teachers are scheduled back-to-back." 
-                                  : "Verified: Teachers taking multiple subjects in the same class have balanced workloads."}
+                                  ? "Warning: Some teachers are scheduled back-to-back across different sections or classes." 
+                                  : "Verified: Teachers taking multiple subjects in the same class or across different sections have balanced workloads without continuous back-to-back lectures."}
                               </p>
                             </div>
                           </div>
@@ -5429,41 +5601,85 @@ service cloud.firestore {
                       <div className="border-t border-slate-100 pt-3">
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
                           <span>Background Color Accent</span>
+                          <span className="text-[9px] text-slate-400 font-normal">Timetable cell styling</span>
                         </label>
-                        <div className="flex items-center justify-between bg-amber-50/10 border border-slate-200 rounded p-2">
-                          <div className="flex items-center space-x-2">
-                            <div 
-                              className="w-5.5 h-5.5 rounded-full border border-slate-300 shadow-inner flex-shrink-0 transition-all"
-                              style={{ backgroundColor: editSubColor || '#cbd5e1' }}
-                              title={editSubColor || 'Auto-assigned color'}
-                            />
-                            <div>
-                              <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
-                                {editSubColor ? editSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
-                              </p>
-                              <p className="text-[8px] text-slate-400 font-medium">
-                                {editSubColor ? 'Custom color accent' : 'Unique system pastel'}
-                              </p>
+                        <div className="bg-amber-50/20 border border-slate-200 rounded p-2.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-6 h-6 rounded-md border border-slate-300 shadow-sm flex items-center justify-center flex-shrink-0 transition-all cursor-pointer hover:scale-105"
+                                style={{ backgroundColor: editSubColor || '#cbd5e1' }}
+                                onClick={() => {
+                                  setColorModalSubjectId(null);
+                                  setIsColorModalOpen(true);
+                                }}
+                                title={editSubColor ? `Selected: ${editSubColor.toUpperCase()} (Click to change)` : 'Auto-assigned color'}
+                              >
+                                {editSubColor && (
+                                  <span className="text-[9px] font-bold" style={{ color: getContrastTextColor(editSubColor) }}>✓</span>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-mono font-bold text-slate-800 leading-tight">
+                                  {editSubColor ? editSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
+                                </p>
+                                <p className="text-[8px] text-slate-400 font-medium">
+                                  {editSubColor ? 'Custom color selected' : 'Unique pastel auto-assigned'}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center space-x-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setIsColorModalOpen(true)}
-                              className="py-1 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
-                            >
-                              <Palette className="h-2.5 w-2.5 text-slate-500" />
-                              <span>Choose Color</span>
-                            </button>
-                            {editSubColor && (
+                            <div className="flex items-center space-x-1.5">
                               <button
                                 type="button"
-                                onClick={() => setEditSubColor('')}
-                                className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                                onClick={() => {
+                                  setColorModalSubjectId(null);
+                                  setIsColorModalOpen(true);
+                                }}
+                                className="py-1 px-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
                               >
-                                Reset
+                                <Palette className="h-3 w-3 text-amber-600" />
+                                <span>Palette Modal</span>
                               </button>
-                            )}
+                              {editSubColor && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditSubColor('')}
+                                  className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                                >
+                                  Reset
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Swatches Bar */}
+                          <div>
+                            <p className="text-[9px] font-semibold text-slate-500 mb-1">Quick Select Shades:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {QUICK_PRESET_COLORS.map((preset) => {
+                                const isSelected = editSubColor.toLowerCase() === preset.hex.toLowerCase();
+                                return (
+                                  <button
+                                    key={preset.hex}
+                                    type="button"
+                                    onClick={() => setEditSubColor(preset.hex)}
+                                    className={`w-5 h-5 rounded border transition-all flex items-center justify-center cursor-pointer ${
+                                      isSelected
+                                        ? 'ring-2 ring-slate-800 ring-offset-1 scale-110 border-slate-800 z-10'
+                                        : 'border-slate-300 hover:scale-105 hover:border-slate-500'
+                                    }`}
+                                    style={{ backgroundColor: preset.hex }}
+                                    title={`${preset.name} (${preset.hex.toUpperCase()})`}
+                                  >
+                                    {isSelected && (
+                                      <span className="text-[8px] font-bold leading-none" style={{ color: getContrastTextColor(preset.hex) }}>
+                                        ✓
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -5606,41 +5822,85 @@ service cloud.firestore {
                       <div className="border-t border-slate-100 pt-3">
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center justify-between">
                           <span>Background Color Accent</span>
+                          <span className="text-[9px] text-slate-400 font-normal">Timetable cell styling</span>
                         </label>
-                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2">
-                          <div className="flex items-center space-x-2">
-                            <div 
-                              className="w-5.5 h-5.5 rounded-full border border-slate-300 shadow-inner flex-shrink-0 transition-all"
-                              style={{ backgroundColor: newSubColor || '#cbd5e1' }}
-                              title={newSubColor || 'Auto-assigned color'}
-                            />
-                            <div>
-                              <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
-                                {newSubColor ? newSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
-                              </p>
-                              <p className="text-[8px] text-slate-400 font-medium">
-                                {newSubColor ? 'Custom color accent' : 'Unique system pastel'}
-                              </p>
+                        <div className="bg-slate-50 border border-slate-200 rounded p-2.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-6 h-6 rounded-md border border-slate-300 shadow-sm flex items-center justify-center flex-shrink-0 transition-all cursor-pointer hover:scale-105"
+                                style={{ backgroundColor: newSubColor || '#cbd5e1' }}
+                                onClick={() => {
+                                  setColorModalSubjectId(null);
+                                  setIsColorModalOpen(true);
+                                }}
+                                title={newSubColor ? `Selected: ${newSubColor.toUpperCase()} (Click to change)` : 'Auto-assigned color'}
+                              >
+                                {newSubColor && (
+                                  <span className="text-[9px] font-bold" style={{ color: getContrastTextColor(newSubColor) }}>✓</span>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
+                                  {newSubColor ? newSubColor.toUpperCase() : 'AUTO-ASSIGNED'}
+                                </p>
+                                <p className="text-[8px] text-slate-400 font-medium">
+                                  {newSubColor ? 'Custom color selected' : 'Unique pastel auto-assigned'}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center space-x-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setIsColorModalOpen(true)}
-                              className="py-1 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
-                            >
-                              <Palette className="h-2.5 w-2.5 text-slate-500" />
-                              <span>Choose Color</span>
-                            </button>
-                            {newSubColor && (
+                            <div className="flex items-center space-x-1.5">
                               <button
                                 type="button"
-                                onClick={() => setNewSubColor('')}
-                                className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                                onClick={() => {
+                                  setColorModalSubjectId(null);
+                                  setIsColorModalOpen(true);
+                                }}
+                                className="py-1 px-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1 shadow-sm"
                               >
-                                Reset
+                                <Palette className="h-3 w-3 text-slate-500" />
+                                <span>Palette Modal</span>
                               </button>
-                            )}
+                              {newSubColor && (
+                                <button
+                                  type="button"
+                                  onClick={() => setNewSubColor('')}
+                                  className="text-[9px] text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
+                                >
+                                  Reset
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Swatches Bar */}
+                          <div>
+                            <p className="text-[9px] font-semibold text-slate-500 mb-1">Quick Select Shades:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {QUICK_PRESET_COLORS.map((preset) => {
+                                const isSelected = newSubColor.toLowerCase() === preset.hex.toLowerCase();
+                                return (
+                                  <button
+                                    key={preset.hex}
+                                    type="button"
+                                    onClick={() => setNewSubColor(preset.hex)}
+                                    className={`w-5 h-5 rounded border transition-all flex items-center justify-center cursor-pointer ${
+                                      isSelected
+                                        ? 'ring-2 ring-slate-800 ring-offset-1 scale-110 border-slate-800 z-10'
+                                        : 'border-slate-300 hover:scale-105 hover:border-slate-500'
+                                    }`}
+                                    style={{ backgroundColor: preset.hex }}
+                                    title={`${preset.name} (${preset.hex.toUpperCase()})`}
+                                  >
+                                    {isSelected && (
+                                      <span className="text-[8px] font-bold leading-none" style={{ color: getContrastTextColor(preset.hex) }}>
+                                        ✓
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -5662,11 +5922,13 @@ service cloud.firestore {
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
                   <div>
                     <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Syllabus & Subjects</h3>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Registered courses with prescribed weekly lecture slots.</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Registered courses with customizable background themes and lecture slots.</p>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded">
-                    TOTAL: {subjects.length}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded">
+                      TOTAL: {subjects.length}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded">
@@ -5674,7 +5936,7 @@ service cloud.firestore {
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[10px] uppercase tracking-wider">
                       <tr>
                         <th className="p-2.5">Subject Code</th>
-                        <th className="p-2.5">Color</th>
+                        <th className="p-2.5">Background Color</th>
                         <th className="p-2.5">Course Title</th>
                         <th className="p-2.5">Department</th>
                         <th className="p-2.5 text-center">Type</th>
@@ -5684,74 +5946,99 @@ service cloud.firestore {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {subjects.length > 0 ? (
-                        subjects.map((sub) => (
-                          <tr 
-                            key={sub.id} 
-                            className={`transition ${
-                              editingSubjectId === sub.id ? 'bg-amber-50/30 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'
-                            }`}
-                          >
-                            <td className="p-2.5 font-mono font-bold text-slate-900">{sub.code}</td>
-                            <td className="p-2.5">
-                              <div className="flex items-center space-x-1.5">
+                        subjects.map((sub) => {
+                          const displayColor = sub.color || '#cbd5e1';
+                          const textColor = getContrastTextColor(displayColor);
+                          return (
+                            <tr 
+                              key={sub.id} 
+                              className={`transition ${
+                                editingSubjectId === sub.id ? 'bg-amber-50/30 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'
+                              }`}
+                            >
+                              <td className="p-2.5 font-mono font-bold text-slate-900">{sub.code}</td>
+                              <td className="p-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openColorModalForSubject(sub.id)}
+                                  className="group flex items-center space-x-1.5 py-1 px-1.5 rounded-md border border-slate-200 hover:border-slate-400 bg-white hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+                                  title={`Click to change color for ${sub.name}`}
+                                >
+                                  <div 
+                                    className="w-4.5 h-4.5 rounded border border-slate-300/80 shadow-xs flex items-center justify-center flex-shrink-0 transition group-hover:scale-110"
+                                    style={{ backgroundColor: displayColor }}
+                                  >
+                                    <Palette className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: textColor }} />
+                                  </div>
+                                  <span className="text-[10px] font-mono text-slate-600 font-semibold uppercase group-hover:text-slate-900">
+                                    {sub.color ? sub.color.toUpperCase() : '#AUTO'}
+                                  </span>
+                                  <Pencil className="h-2.5 w-2.5 text-slate-400 group-hover:text-slate-600" />
+                                </button>
+                              </td>
+                              <td className="p-2.5">
+                                <div className="font-bold text-slate-900">{sub.name}</div>
                                 <div 
-                                  className="w-4 h-4 rounded border border-slate-300 shadow-inner flex-shrink-0"
-                                  style={{ backgroundColor: sub.color || '#cbd5e1' }}
-                                  title={sub.color || 'Default color'}
-                                />
-                                <span className="text-[10px] font-mono text-slate-500 font-medium uppercase">{sub.color || '#CBD5E1'}</span>
-                              </div>
-                            </td>
-                            <td className="p-2.5 font-bold text-slate-900">{sub.name}</td>
-                            <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(sub.department)}</td>
-                            <td className="p-2.5 text-center">
-                              {sub.isAicteActivity ? (
-                                <span className="inline-block bg-purple-50 text-purple-700 border border-purple-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
-                                  AICTE Activity
+                                  className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold border"
+                                  style={{
+                                    backgroundColor: displayColor,
+                                    borderColor: adjustBrightness(displayColor, -25),
+                                    color: textColor
+                                  }}
+                                >
+                                  Preview: {sub.code}
+                                </div>
+                              </td>
+                              <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(sub.department)}</td>
+                              <td className="p-2.5 text-center">
+                                {sub.isAicteActivity ? (
+                                  <span className="inline-block bg-purple-50 text-purple-700 border border-purple-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                    AICTE Activity
+                                  </span>
+                                ) : sub.isStudentActivity ? (
+                                  <span className="inline-block bg-teal-50 text-teal-700 border border-teal-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                    Student Activity / Mentoring
+                                  </span>
+                                ) : sub.isProject ? (
+                                  <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                    Project / Sem / Intern
+                                  </span>
+                                ) : sub.isLab ? (
+                                  <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                    Lab / Practical
+                                  </span>
+                                ) : (
+                                  <span className="inline-block bg-slate-50 text-slate-500 border border-slate-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                    Theory
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className="font-bold bg-amber-50 text-amber-800 border border-amber-100 px-2 py-0.5 rounded text-[10px]">
+                                  {sub.weeklyPeriods} periods
                                 </span>
-                              ) : sub.isStudentActivity ? (
-                                <span className="inline-block bg-teal-50 text-teal-700 border border-teal-200 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
-                                  Student Activity / Mentoring
-                                </span>
-                              ) : sub.isProject ? (
-                                <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
-                                  Project / Sem / Intern
-                                </span>
-                              ) : sub.isLab ? (
-                                <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
-                                  Lab / Practical
-                                </span>
-                              ) : (
-                                <span className="inline-block bg-slate-50 text-slate-500 border border-slate-100 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
-                                  Theory
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <span className="font-bold bg-amber-50 text-amber-800 border border-amber-100 px-2 py-0.5 rounded text-[10px]">
-                                {sub.weeklyPeriods} periods
-                              </span>
-                            </td>
-                            <td className="p-2.5 text-center flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => startEditingSubject(sub)}
-                                className={`p-1 transition cursor-pointer ${
-                                  editingSubjectId === sub.id ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-blue-900'
-                                }`}
-                                title="Edit subject details"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => deleteSubject(sub.id)}
-                                className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
-                                title="Delete subject"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                              </td>
+                              <td className="p-2.5 text-center flex items-center justify-center space-x-2">
+                                <button
+                                  onClick={() => startEditingSubject(sub)}
+                                  className={`p-1 transition cursor-pointer ${
+                                    editingSubjectId === sub.id ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-blue-900'
+                                  }`}
+                                  title="Edit subject details"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deleteSubject(sub.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                                  title="Delete subject"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td colSpan={7} className="p-8 text-center text-slate-400 font-medium italic">
@@ -6570,49 +6857,235 @@ service cloud.firestore {
       {/* BACKGROUND COLOR ACCENT SELECTOR MODAL     */}
       {/* ========================================== */}
       {isColorModalOpen && (() => {
-        const activeColor = editingSubjectId ? editSubColor : newSubColor;
-        const setActiveColor = editingSubjectId ? setEditSubColor : setNewSubColor;
+        let activeColor = '';
+        let targetTitle = 'New Subject';
+        let targetCode = 'COURSE';
+
+        if (colorModalSubjectId) {
+          const targetSub = subjects.find(s => s.id === colorModalSubjectId);
+          activeColor = targetSub?.color || '';
+          targetTitle = targetSub?.name || 'Subject';
+          targetCode = targetSub?.code || 'SUB';
+        } else if (editingSubjectId) {
+          activeColor = editSubColor;
+          targetTitle = editSubName || 'Editing Course';
+          targetCode = editSubCode || 'SUB';
+        } else {
+          activeColor = newSubColor;
+          targetTitle = newSubName || 'New Course';
+          targetCode = newSubCode || 'SUB';
+        }
+
+        const handleSelectColor = (color: string) => {
+          if (colorModalSubjectId) {
+            updateSubjectColorDirectly(colorModalSubjectId, color);
+          } else if (editingSubjectId) {
+            setEditSubColor(color);
+          } else {
+            setNewSubColor(color);
+          }
+        };
+
+        const filteredFamilies = colorCategoryFilter === 'all'
+          ? COLOR_FAMILIES
+          : COLOR_FAMILIES.filter(f => f.category === colorCategoryFilter);
+
+        const previewColor = activeColor || '#cbd5e1';
+        const previewTextColor = getContrastTextColor(previewColor);
+        const previewBorderColor = adjustBrightness(previewColor, -25);
+        const previewBadgeBg = adjustBrightness(previewColor, -15);
+
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white border border-slate-200 rounded-xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+              {/* Modal Header */}
               <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Palette className="h-4 w-4 text-slate-700" />
-                  <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Choose Accent Color</h3>
+                  <div className="p-1.5 bg-blue-100/60 text-blue-900 rounded-lg">
+                    <Palette className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">Subject Color Palette</h3>
+                    <p className="text-[10px] text-slate-500 font-medium truncate max-w-xs">
+                      Styling for: <span className="font-bold text-slate-700">{targetCode} — {targetTitle}</span>
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsColorModalOpen(false)}
-                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  onClick={() => {
+                    setIsColorModalOpen(false);
+                    setColorModalSubjectId(null);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
                   title="Close modal"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              
-              <div className="p-4 space-y-4 overflow-y-auto">
-                <p className="text-xs text-slate-500">
-                  Select a shade below from light to dark. This color accent will highlight the subject card on the timetable schedule.
-                </p>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2">
-                  {COLOR_FAMILIES.map((family) => (
-                    <div key={family.name} className="flex items-center space-x-3 py-1 border-b border-slate-100 last:border-0 last:pb-0">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 w-20 truncate" title={family.name}>
+              {/* Modal Body */}
+              <div className="p-4 space-y-3.5 overflow-y-auto">
+                {/* Live Timetable Preview Card */}
+                <div className="bg-slate-50/80 border border-slate-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center space-x-1">
+                      <Sparkles className="h-3 w-3 text-amber-500" />
+                      <span>Live Timetable Grid Preview</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-slate-200 bg-white text-slate-700">
+                      {activeColor ? activeColor.toUpperCase() : 'AUTO-ASSIGNED'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Timetable Cell Preview */}
+                    <div 
+                      className="p-3 rounded-lg border-2 shadow-xs transition-all flex flex-col justify-between min-h-[75px]"
+                      style={{ 
+                        backgroundColor: previewColor,
+                        borderColor: previewBorderColor,
+                        color: previewTextColor
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-xs">{targetCode || '21CS51'}</span>
+                        <span 
+                          className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+                          style={{
+                            backgroundColor: previewBadgeBg,
+                            color: previewTextColor
+                          }}
+                        >
+                          Room 304
+                        </span>
+                      </div>
+                      <div className="font-bold text-xs leading-tight line-clamp-1 mt-1">
+                        {targetTitle || 'Computer Networks'}
+                      </div>
+                      <div className="text-[10px] font-medium opacity-90 mt-1 flex items-center justify-between">
+                        <span>Prof. H. R. Sharma</span>
+                        <span className="text-[9px] opacity-75">10:00 - 11:00 AM</span>
+                      </div>
+                    </div>
+
+                    {/* Small Badge & Tag previews */}
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5 flex flex-col justify-center space-y-1.5">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Badge Previews</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span 
+                          className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                          style={{ 
+                            backgroundColor: previewColor, 
+                            borderColor: previewBorderColor,
+                            color: previewTextColor
+                          }}
+                        >
+                          {targetCode}
+                        </span>
+                        <span 
+                          className="px-2 py-0.5 rounded text-[9px] font-bold border"
+                          style={{ 
+                            backgroundColor: previewColor, 
+                            borderColor: previewBorderColor,
+                            color: previewTextColor
+                          }}
+                        >
+                          Theory (4p)
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-slate-500 leading-relaxed">
+                        High-contrast text ({previewTextColor === '#0f172a' ? 'Dark text' : 'Light text'}) automatically calculated for maximum legibility.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets Row */}
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5 block">
+                    Recommended Timetable Pastels & Accents
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_PRESET_COLORS.map((preset) => {
+                      const isSelected = activeColor.toLowerCase() === preset.hex.toLowerCase();
+                      return (
+                        <button
+                          key={preset.hex}
+                          type="button"
+                          onClick={() => handleSelectColor(preset.hex)}
+                          className={`w-7 h-7 rounded-md border transition-all flex items-center justify-center cursor-pointer ${
+                            isSelected 
+                              ? 'ring-2 ring-slate-900 ring-offset-1 scale-110 border-slate-900 shadow-md z-10' 
+                              : 'border-slate-300 hover:scale-105 hover:border-slate-500'
+                          }`}
+                          style={{ backgroundColor: preset.hex }}
+                          title={`${preset.name}: ${preset.hex.toUpperCase()}`}
+                        >
+                          {isSelected && (
+                            <span 
+                              className="text-[10px] font-bold leading-none select-none" 
+                              style={{ color: getContrastTextColor(preset.hex) }}
+                            >
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Category Tabs */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                      All Shade Palettes (100+ Choices)
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-2">
+                    {[
+                      { id: 'all', label: 'All Shades' },
+                      { id: 'cool', label: 'Cool Tones' },
+                      { id: 'warm', label: 'Warm Tones' },
+                      { id: 'vibrant', label: 'Vibrant' },
+                      { id: 'neutral', label: 'Neutrals' },
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setColorCategoryFilter(cat.id as any)}
+                        className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition cursor-pointer ${
+                          colorCategoryFilter === cat.id
+                            ? 'bg-slate-800 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Extended Color Families Grid */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2 max-h-56 overflow-y-auto">
+                  {filteredFamilies.map((family) => (
+                    <div key={family.name} className="flex items-center space-x-2 py-1 border-b border-slate-100 last:border-0 last:pb-0">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 w-28 truncate" title={family.name}>
                         {family.name}
                       </span>
-                      <div className="flex items-center space-x-1 flex-1 justify-between">
+                      <div className="flex items-center space-x-1 flex-1 justify-end sm:justify-start">
                         {family.shades.map((shade) => {
                           const isSelected = activeColor.toLowerCase() === shade.toLowerCase();
                           return (
                             <button
                               key={shade}
                               type="button"
-                              onClick={() => setActiveColor(shade)}
-                              className={`w-5.5 h-5.5 rounded-full border transition-all duration-150 flex items-center justify-center cursor-pointer ${
+                              onClick={() => handleSelectColor(shade)}
+                              className={`w-6 h-6 rounded-md border transition-all duration-150 flex items-center justify-center cursor-pointer ${
                                 isSelected 
-                                  ? 'ring-2 ring-slate-800 ring-offset-1 scale-110 border-slate-800 shadow-md z-10' 
-                                  : 'border-slate-300 hover:scale-105 hover:border-slate-500 hover:shadow-sm'
+                                  ? 'ring-2 ring-slate-900 ring-offset-1 scale-115 border-slate-900 shadow-md z-10' 
+                                  : 'border-slate-300 hover:scale-110 hover:border-slate-500 hover:shadow-xs'
                               }`}
                               style={{ backgroundColor: shade }}
                               title={`${family.name} shade: ${shade.toUpperCase()}`}
@@ -6633,44 +7106,59 @@ service cloud.firestore {
                   ))}
                 </div>
 
-                <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+                {/* Custom Color & Hex Input Row */}
+                <div className="border-t border-slate-200 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div className="flex items-center space-x-2">
                     <input
                       type="color"
                       id="modal_custom_color_picker"
-                      value={activeColor || '#ffffff'}
-                      onChange={(e) => setActiveColor(e.target.value)}
+                      value={activeColor || '#cbd5e1'}
+                      onChange={(e) => handleSelectColor(e.target.value)}
                       className="h-8 w-10 rounded border border-slate-300 p-0.5 cursor-pointer bg-white"
                     />
-                    <label htmlFor="modal_custom_color_picker" className="text-xs font-semibold text-slate-600 cursor-pointer hover:underline">
-                      Custom Color...
+                    <label htmlFor="modal_custom_color_picker" className="text-xs font-semibold text-slate-700 cursor-pointer hover:underline">
+                      Custom Color Picker
                     </label>
                   </div>
-                  {activeColor && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                        {activeColor.toUpperCase()}
-                      </span>
+
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Hex:</span>
+                    <input
+                      type="text"
+                      placeholder="#FFFFFF"
+                      maxLength={7}
+                      value={activeColor}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleSelectColor(val);
+                      }}
+                      className="w-24 text-xs font-mono font-bold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 uppercase focus:outline-none focus:ring-1 focus:ring-slate-800"
+                    />
+                    {activeColor && (
                       <button
                         type="button"
-                        onClick={() => setActiveColor('')}
-                        className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer"
+                        onClick={() => handleSelectColor('')}
+                        className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline cursor-pointer px-1"
                       >
                         Reset
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
+              {/* Modal Footer */}
               <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                 <span className="text-[10px] text-slate-500 italic">
-                  {activeColor ? 'Custom color selected' : 'Unique color will be auto-assigned'}
+                  {activeColor ? 'Color selected & applied immediately' : 'Unique pastel will be auto-assigned'}
                 </span>
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
-                    onClick={() => setIsColorModalOpen(false)}
+                    onClick={() => {
+                      setIsColorModalOpen(false);
+                      setColorModalSubjectId(null);
+                    }}
                     className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition cursor-pointer"
                   >
                     Done

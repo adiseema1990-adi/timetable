@@ -762,15 +762,27 @@ export function generateTimetable(
         if (schedule[classId][day][periodIdx] !== null || schedule[classId][day][periodIdx + 1] !== null) continue;
         if (!arePeriodsConsecutive(periodIdx, periodIdx + 1)) continue;
 
-        // Check if all faculties are free
+        // Check if all faculties are free and prevent back-to-back continuous lectures across sections
         let anyFacultyBusy = false;
+        let anyFacultyContinuous = false;
         for (const b of batchAssignments) {
           if (teacherBusy[b.facultyId][day][periodIdx] || teacherBusy[b.facultyId][day][periodIdx + 1]) {
             anyFacultyBusy = true;
             break;
           }
+          if (b.facultyId) {
+            // Lab is 2 periods: check if faculty already has lecture before (periodIdx - 1) or after (periodIdx + 2)
+            if (periodIdx > 0 && teacherBusy[b.facultyId][day][periodIdx - 1]) {
+              anyFacultyContinuous = true;
+              break;
+            }
+            if (periodIdx + 2 < totalPeriods && teacherBusy[b.facultyId][day][periodIdx + 2]) {
+              anyFacultyContinuous = true;
+              break;
+            }
+          }
         }
-        if (anyFacultyBusy) continue;
+        if (anyFacultyBusy || anyFacultyContinuous) continue;
 
         // Check if class already has lab on this day
         if (hasClassLabOnDay(classId, day)) continue;
@@ -837,10 +849,11 @@ export function generateTimetable(
           if (origIdx1 <= lunchBreakIdx) continue;
         }
 
-        // Multi subject continuous constraint
-        if (facultyId && isMultiSubject && !sub?.isAicteActivity) {
-          if (periodIdx > 0 && getFacultiesAt(classId, day, periodIdx - 1).includes(facultyId)) continue;
-          if (periodIdx + duration < totalPeriods && getFacultiesAt(classId, day, periodIdx + duration).includes(facultyId)) continue;
+        // Continuous Lecture Restrictor (Enforce across SAME and DIFFERENT sections)
+        if (facultyId && !sub?.isAicteActivity && !sub?.isStudentActivity) {
+          // Check if faculty already has a lecture in ANY section/class at the period immediately before or after
+          if (periodIdx > 0 && teacherBusy[facultyId][day][periodIdx - 1]) continue;
+          if (periodIdx + duration < totalPeriods && teacherBusy[facultyId][day][periodIdx + duration]) continue;
         }
 
         // 1. Same subject continuous check (unless AICTE activity or Student activity)
@@ -1076,13 +1089,24 @@ function greedyFallback(
         if (!arePeriodsConsecutive(pIdx, pIdx + 1)) continue;
 
         let anyFacultyBusy = false;
+        let anyFacultyContinuous = false;
         for (const b of batchAssignments) {
           if (teacherBusy[b.facultyId][day][pIdx] || teacherBusy[b.facultyId][day][pIdx + 1]) {
             anyFacultyBusy = true;
             break;
           }
+          if (b.facultyId) {
+            if (pIdx > 0 && teacherBusy[b.facultyId][day][pIdx - 1]) {
+              anyFacultyContinuous = true;
+              break;
+            }
+            if (pIdx + 2 < totalPeriods && teacherBusy[b.facultyId][day][pIdx + 2]) {
+              anyFacultyContinuous = true;
+              break;
+            }
+          }
         }
-        if (anyFacultyBusy) continue;
+        if (anyFacultyBusy || anyFacultyContinuous) continue;
 
         if (hasClassLabOnDay(classId, day)) continue;
 
@@ -1137,9 +1161,10 @@ function greedyFallback(
           if (origIdx1 <= lunchBreakIdx) continue;
         }
 
-        if (facultyId && isMultiSubject && !sub?.isAicteActivity) {
-          if (pIdx > 0 && getFacultiesAt(classId, day, pIdx - 1).includes(facultyId)) continue;
-          if (pIdx + duration < totalPeriods && getFacultiesAt(classId, day, pIdx + duration).includes(facultyId)) continue;
+        // Continuous Lecture Restrictor (Enforce across SAME and DIFFERENT sections)
+        if (facultyId && !sub?.isAicteActivity && !sub?.isStudentActivity) {
+          if (pIdx > 0 && teacherBusy[facultyId][day][pIdx - 1]) continue;
+          if (pIdx + duration < totalPeriods && teacherBusy[facultyId][day][pIdx + duration]) continue;
         }
 
         if (!sub?.isAicteActivity && !sub?.isStudentActivity) {
