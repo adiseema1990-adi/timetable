@@ -1782,13 +1782,8 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth; // Exactly 100% coverage across left & right (edge-to-edge)
-      let height = width / ratio;
-      
-      if (height > pdfHeight) {
-        height = pdfHeight;
-        width = height * ratio;
-      }
+      const width = pdfWidth; // Exactly 100% width across the PDF page (edge-to-edge)
+      const height = width / ratio;
       
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -1796,8 +1791,8 @@ export default function App() {
         format: 'a4'
       });
       
-      const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
+      const x = 0;
+      const y = Math.max(0, (pdfHeight - height) / 2);
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
       
@@ -1924,13 +1919,8 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth; // Exactly 100% coverage across left & right (edge-to-edge)
-      let height = width / ratio;
-      
-      if (height > pdfHeight) {
-        height = pdfHeight;
-        width = height * ratio;
-      }
+      const width = pdfWidth; // Exactly 100% width across the PDF page (edge-to-edge)
+      const height = width / ratio;
       
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -1938,8 +1928,8 @@ export default function App() {
         format: 'a4'
       });
       
-      const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
+      const x = 0;
+      const y = Math.max(0, (pdfHeight - height) / 2);
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
       
@@ -2062,13 +2052,8 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth; // Exactly 100% coverage across left & right (edge-to-edge)
-      let height = width / ratio;
-      
-      if (height > pdfHeight) {
-        height = pdfHeight;
-        width = height * ratio;
-      }
+      const width = pdfWidth; // Exactly 100% width across the PDF page (edge-to-edge)
+      const height = width / ratio;
       
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -2076,8 +2061,8 @@ export default function App() {
         format: 'a4'
       });
       
-      const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
+      const x = 0;
+      const y = Math.max(0, (pdfHeight - height) / 2);
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
 
@@ -4427,10 +4412,13 @@ service cloud.firestore {
                     if (rows.length === 0) return null;
 
                     return (
-                      <div className="mt-2.5 pt-2 border-t border-slate-300 pdf-subject-legend hidden">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[8.5px] leading-tight text-slate-800">
+                      <div className="mt-3 pt-2.5 border-t border-slate-300 pdf-subject-legend hidden">
+                        <div className="text-[11.5pt] font-extrabold uppercase tracking-wider text-slate-800 mb-1.5 flex items-center gap-2">
+                          <span>Course &amp; Faculty Allocation</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11.5pt] leading-snug text-slate-800">
                           {rows.map((row) => (
-                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                            <div key={row.subject.id} className="flex items-baseline space-x-2 overflow-hidden text-[11.5pt]">
                               <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
                               <span className="font-medium text-slate-800 truncate">{row.subject.name}</span>
                               <span className="text-slate-400 shrink-0">-</span>
@@ -4746,10 +4734,13 @@ service cloud.firestore {
                     if (rows.length === 0) return null;
 
                     return (
-                      <div className="mt-2.5 pt-2 border-t border-slate-300 pdf-subject-legend hidden">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[8.5px] leading-tight text-slate-800">
+                      <div className="mt-3 pt-2.5 border-t border-slate-300 pdf-subject-legend hidden">
+                        <div className="text-[11.5pt] font-extrabold uppercase tracking-wider text-slate-800 mb-1.5 flex items-center gap-2">
+                          <span>Course &amp; Faculty Allocation</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11.5pt] leading-snug text-slate-800">
                           {rows.map((row) => (
-                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                            <div key={row.subject.id} className="flex items-baseline space-x-2 overflow-hidden text-[11.5pt]">
                               <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
                               <span className="font-medium text-slate-800 truncate">{row.subject.name}</span>
                               <span className="text-slate-400 shrink-0">-</span>
