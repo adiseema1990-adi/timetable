@@ -1230,9 +1230,9 @@ export function getSampleData() {
     { id: 'ts3', label: 'Tea Break', startTime: '11:00', endTime: '11:15', isBreak: true },
     { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
     { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
-    { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:15', isBreak: true },
-    { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
-    { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
+    { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:00', isBreak: true },
+    { id: 'ts7', label: 'Period 5', startTime: '14:00', endTime: '15:00', isBreak: false },
+    { id: 'ts8', label: 'Period 6', startTime: '15:00', endTime: '16:00', isBreak: false },
   ];
 
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

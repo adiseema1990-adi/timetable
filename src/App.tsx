@@ -280,6 +280,76 @@ const COLOR_FAMILIES = [
   }
 ];
 
+export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
+  { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
+  { id: 'ts2', label: 'Period 2', startTime: '10:00', endTime: '11:00', isBreak: false },
+  { id: 'ts3', label: 'Tea Break', startTime: '11:00', endTime: '11:15', isBreak: true },
+  { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
+  { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
+  { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:00', isBreak: true },
+  { id: 'ts7', label: 'Period 5', startTime: '14:00', endTime: '15:00', isBreak: false },
+  { id: 'ts8', label: 'Period 6', startTime: '15:00', endTime: '16:00', isBreak: false },
+];
+
+export const normalizeTimeSlotsWithDefaults = (slots: TimeSlot[]): TimeSlot[] => {
+  if (!slots || !Array.isArray(slots) || slots.length === 0) return DEFAULT_TIME_SLOTS;
+  return slots.map(slot => {
+    // 1. Lunch Break: 13:15 to 14:00 (45 mins)
+    if (
+      (slot.id === 'ts6' || slot.label.toLowerCase().includes('lunch')) &&
+      slot.startTime === '13:15' &&
+      slot.endTime === '14:15'
+    ) {
+      return { ...slot, endTime: '14:00' };
+    }
+    // 2. Period 5: 14:00 to 15:00
+    if (
+      (slot.id === 'ts7' || slot.label.toLowerCase() === 'period 5' || slot.label.toLowerCase().includes('period 5')) &&
+      slot.startTime === '14:15'
+    ) {
+      return { ...slot, startTime: '14:00', endTime: '15:00' };
+    }
+    // 3. Period 6: 15:00 to 16:00
+    if (
+      (slot.id === 'ts8' || slot.label.toLowerCase() === 'period 6' || slot.label.toLowerCase().includes('period 6')) &&
+      slot.startTime === '15:15'
+    ) {
+      return { ...slot, startTime: '15:00', endTime: '16:00' };
+    }
+    // General fallback: if slot has 14:15 to 15:15
+    if (slot.startTime === '14:15' && slot.endTime === '15:15') {
+      return { ...slot, startTime: '14:00', endTime: '15:00' };
+    }
+    // General fallback: if slot has 15:15 to 16:15
+    if (slot.startTime === '15:15' && slot.endTime === '16:15') {
+      return { ...slot, startTime: '15:00', endTime: '16:00' };
+    }
+    // General fallback: if break starts at 13:15 and ends at 14:15
+    if (slot.isBreak && slot.startTime === '13:15' && slot.endTime === '14:15') {
+      return { ...slot, endTime: '14:00' };
+    }
+    return slot;
+  });
+};
+
+export const formatTime12 = (timeStr: string): string => {
+  if (!timeStr) return '';
+  const parts = timeStr.trim().split(':');
+  if (parts.length < 2) return timeStr;
+  let hour = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  if (isNaN(hour)) return timeStr;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minutes} ${ampm}`;
+};
+
+export const formatTimeRange12 = (startTime: string, endTime: string): string => {
+  if (!startTime || !endTime) return '';
+  return `${formatTime12(startTime)} - ${formatTime12(endTime)}`;
+};
+
 const hslToHex = (h: number, s: number, l: number) => {
   l /= 100;
   const a = (s * Math.min(l, 1 - l)) / 100;
@@ -478,6 +548,7 @@ export default function App() {
   const [isOptimizerOpen, setIsOptimizerOpen] = useState(false);
   const [isConstraintsOpen, setIsConstraintsOpen] = useState(false);
   const [isGuidelinesOpen, setIsGuidelinesOpen] = useState(false);
+  const [isRosterWarningsOpen, setIsRosterWarningsOpen] = useState(false);
 
   // Clear selected cell on tab or class change
   useEffect(() => {
@@ -630,6 +701,7 @@ export default function App() {
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
 
   // Time Slot Form
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [newSlotLabel, setNewSlotLabel] = useState('');
   const [newSlotStart, setNewSlotStart] = useState('09:00');
   const [newSlotEnd, setNewSlotEnd] = useState('10:00');
@@ -810,7 +882,7 @@ export default function App() {
       const parsedClasses = JSON.parse(savedClasses).map((c: any) => ({ ...c, labBatches: c.labBatches ?? 2 }));
       setClasses(parsedClasses);
       setAssignments(JSON.parse(savedAssignments));
-      setTimeSlots(JSON.parse(savedTimeSlots));
+      setTimeSlots(normalizeTimeSlotsWithDefaults(JSON.parse(savedTimeSlots)));
       setDays(JSON.parse(savedDays));
       
       if (parsedClasses.length > 0) {
@@ -829,22 +901,12 @@ export default function App() {
         });
       }
     } else {
-      const defaultSlots: TimeSlot[] = [
-        { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
-        { id: 'ts2', label: 'Period 2', startTime: '10:00', endTime: '11:00', isBreak: false },
-        { id: 'ts3', label: 'Tea Break', startTime: '11:00', endTime: '11:15', isBreak: true },
-        { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
-        { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
-        { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:15', isBreak: true },
-        { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
-        { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
-      ];
       const defaultDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       setFaculties([]);
       setSubjects([]);
       setClasses([]);
       setAssignments([]);
-      setTimeSlots(defaultSlots);
+      setTimeSlots(DEFAULT_TIME_SLOTS);
       setDays(defaultDays);
       setSelectedClassId('');
       setSolverResult(null);
@@ -852,6 +914,24 @@ export default function App() {
     }
     setIsInitialized(true);
   }, []);
+
+  // Auto-migrate legacy default time slots (Lunch: 13:15-14:00 45mins, Period 5: 14:00-15:00, Period 6: 15:00-16:00)
+  useEffect(() => {
+    if (!isInitialized || timeSlots.length === 0) return;
+    const hasLegacySlots = timeSlots.some(s => 
+      (s.startTime === '13:15' && s.endTime === '14:15') ||
+      (s.startTime === '14:15' && s.endTime === '15:15') ||
+      (s.startTime === '15:15' && s.endTime === '16:15') ||
+      ((s.id === 'ts6' || s.label.toLowerCase().includes('lunch')) && s.endTime === '14:15') ||
+      ((s.id === 'ts7' || s.label.toLowerCase() === 'period 5') && s.startTime === '14:15') ||
+      ((s.id === 'ts8' || s.label.toLowerCase() === 'period 6') && s.startTime === '15:15')
+    );
+    if (hasLegacySlots) {
+      const normalized = normalizeTimeSlotsWithDefaults(timeSlots);
+      setTimeSlots(normalized);
+      localStorage.setItem('mvce_timeSlots', JSON.stringify(normalized));
+    }
+  }, [isInitialized, timeSlots]);
 
   // Auto-sync assignments for special subjects (AICTE Activity / Student Activity) across all classes
   useEffect(() => {
@@ -1082,14 +1162,8 @@ export default function App() {
     setSubjects([]);
     setClasses([]);
     setAssignments([]);
-    setTimeSlots([
-      { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
-      { id: 'ts2', label: 'Period 2', startTime: '10:00', endTime: '11:00', isBreak: false },
-      { id: 'ts3', label: 'Break', startTime: '11:00', endTime: '11:15', isBreak: true },
-      { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
-      { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
-    ]);
-    setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+    setTimeSlots(DEFAULT_TIME_SLOTS);
+    setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
     setSelectedClassId('');
     setSolverResult(null);
     setCustomSchedule(null);
@@ -1107,6 +1181,8 @@ export default function App() {
     localStorage.setItem('mvce_subjects', JSON.stringify([]));
     localStorage.setItem('mvce_classes', JSON.stringify([]));
     localStorage.setItem('mvce_assignments', JSON.stringify([]));
+    localStorage.setItem('mvce_timeSlots', JSON.stringify(DEFAULT_TIME_SLOTS));
+    localStorage.setItem('mvce_days', JSON.stringify(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']));
     localStorage.removeItem('mvce_customSchedule');
     localStorage.removeItem('mvce_solverResult');
     localStorage.setItem('mvce_firebase_active_timetable', currentActive);
@@ -1116,21 +1192,11 @@ export default function App() {
 
   const createNewTimetableTemplate = (name: string) => {
     setIsAutoSyncEnabled(false);
-    const defaultSlots: TimeSlot[] = [
-      { id: 'ts1', label: 'Period 1', startTime: '09:00', endTime: '10:00', isBreak: false },
-      { id: 'ts2', label: 'Period 2', startTime: '10:00', endTime: '11:00', isBreak: false },
-      { id: 'ts3', label: 'Tea Break', startTime: '11:00', endTime: '11:15', isBreak: true },
-      { id: 'ts4', label: 'Period 3', startTime: '11:15', endTime: '12:15', isBreak: false },
-      { id: 'ts5', label: 'Period 4', startTime: '12:15', endTime: '13:15', isBreak: false },
-      { id: 'ts6', label: 'Lunch Break', startTime: '13:15', endTime: '14:15', isBreak: true },
-      { id: 'ts7', label: 'Period 5', startTime: '14:15', endTime: '15:15', isBreak: false },
-      { id: 'ts8', label: 'Period 6', startTime: '15:15', endTime: '16:15', isBreak: false },
-    ];
     setFaculties([]);
     setSubjects([]);
     setClasses([]);
     setAssignments([]);
-    setTimeSlots(defaultSlots);
+    setTimeSlots(DEFAULT_TIME_SLOTS);
     setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
     setSelectedClassId('');
     setSolverResult(null);
@@ -1144,7 +1210,7 @@ export default function App() {
     
     localStorage.clear();
     localStorage.setItem('mvce_is_cleared', 'true');
-    localStorage.setItem('mvce_timeSlots', JSON.stringify(defaultSlots));
+    localStorage.setItem('mvce_timeSlots', JSON.stringify(DEFAULT_TIME_SLOTS));
     localStorage.setItem('mvce_days', JSON.stringify(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']));
     localStorage.setItem('mvce_firebase_active_timetable', finalName);
     
@@ -1333,7 +1399,7 @@ export default function App() {
           }
         }
         if (data.assignments) setAssignments(data.assignments);
-        if (data.timeSlots) setTimeSlots(data.timeSlots);
+        if (data.timeSlots) setTimeSlots(normalizeTimeSlotsWithDefaults(data.timeSlots));
         if (data.days) setDays(data.days);
         if (data.customSchedule) setCustomSchedule(data.customSchedule);
         if (data.solverResult) setSolverResult(data.solverResult);
@@ -1467,7 +1533,7 @@ export default function App() {
 
       timeSlots.forEach((slot) => {
         if (slot.isBreak) {
-          daySlots.push(`• *${slot.startTime} - ${slot.endTime}*: _${slot.label}_`);
+          daySlots.push(`• *${formatTimeRange12(slot.startTime, slot.endTime)}*: _${slot.label}_`);
           return;
         }
 
@@ -1484,7 +1550,7 @@ export default function App() {
                   const assign = assignments.find(a => a.id === cellEntry);
                   if (assign && assign.facultyId === facId) {
                     const sub = subjects.find(s => s.id === assign.subjectId);
-                    daySlots.push(`• *${slot.startTime} - ${slot.endTime}* (${slot.label}): ${cls.name} (Sec ${cls.section}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
+                    daySlots.push(`• *${formatTimeRange12(slot.startTime, slot.endTime)}* (${slot.label}): ${cls.name} (Sec ${cls.section}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
                     dayHasClasses = true;
                   }
                 } else {
@@ -1494,7 +1560,7 @@ export default function App() {
                       const assign = assignments.find(a => a.id === batchItem.assignmentId);
                       if (assign && assign.facultyId === facId) {
                         const sub = subjects.find(s => s.id === assign.subjectId);
-                        daySlots.push(`• *${slot.startTime} - ${slot.endTime}* (${slot.label}): ${cls.name} (Sec ${cls.section}, Batch ${batchItem.batchName}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
+                        daySlots.push(`• *${formatTimeRange12(slot.startTime, slot.endTime)}* (${slot.label}): ${cls.name} (Sec ${cls.section}, Batch ${batchItem.batchName}) - *${sub ? sub.name : 'Subject'}* [${sub ? sub.code : ''}]`);
                         dayHasClasses = true;
                       }
                     }
@@ -2109,6 +2175,26 @@ export default function App() {
     e.preventDefault();
     setTimeFormSubmitted(true);
     if (!newSlotLabel || !newSlotStart || !newSlotEnd) return;
+
+    if (editingSlotId) {
+      const updated = timeSlots.map(s => s.id === editingSlotId ? {
+        ...s,
+        label: newSlotLabel,
+        startTime: newSlotStart,
+        endTime: newSlotEnd,
+        isBreak: newSlotIsBreak
+      } : s).sort((a, b) => a.startTime.localeCompare(b.startTime));
+      setTimeSlots(updated);
+      setEditingSlotId(null);
+      setNewSlotLabel('');
+      setNewSlotStart('09:00');
+      setNewSlotEnd('10:00');
+      setNewSlotIsBreak(false);
+      setTimeFormSubmitted(false);
+      showAuthNotice("Time slot updated successfully.");
+      return;
+    }
+
     const newSlot: TimeSlot = {
       id: 'ts_' + Date.now(),
       label: newSlotLabel,
@@ -2122,7 +2208,25 @@ export default function App() {
     setNewSlotLabel('');
     setNewSlotIsBreak(false);
     setTimeFormSubmitted(false);
-    showAuthNotice("Time slot updated.");
+    showAuthNotice("Time slot added.");
+  };
+
+  const startEditingSlot = (slot: TimeSlot) => {
+    setEditingSlotId(slot.id);
+    setNewSlotLabel(slot.label);
+    setNewSlotStart(slot.startTime);
+    setNewSlotEnd(slot.endTime);
+    setNewSlotIsBreak(slot.isBreak);
+    setTimeFormSubmitted(false);
+  };
+
+  const cancelEditingSlot = () => {
+    setEditingSlotId(null);
+    setNewSlotLabel('');
+    setNewSlotStart('09:00');
+    setNewSlotEnd('10:00');
+    setNewSlotIsBreak(false);
+    setTimeFormSubmitted(false);
   };
 
   // --- Deletion Handlers ---
@@ -2280,7 +2384,7 @@ export default function App() {
     const slot = timeSlots.find(t => t.id === id);
     setTimeSlots(timeSlots.filter(t => t.id !== id));
     if (slot) {
-      showAuthNotice(`Time slot "${slot.label}" (${slot.startTime} - ${slot.endTime}) deleted successfully.`);
+      showAuthNotice(`Time slot "${slot.label}" (${formatTimeRange12(slot.startTime, slot.endTime)}) deleted successfully.`);
     }
   };
 
@@ -2934,56 +3038,64 @@ export default function App() {
         {/* ========================================== */}
         {/* FIREBASE CLOUD PERSISTENCE PANEL           */}
         {/* ========================================== */}
-        <div className="bg-white border border-slate-200/95 shadow-sm rounded-xl p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-t-4 border-t-blue-600">
-          <div className="flex items-center space-x-3.5">
-            <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 flex-shrink-0">
-              <Database className="h-5 w-5" />
-            </div>
-            <div>
+        <div className="bg-white border border-slate-200/95 shadow-sm rounded-xl p-3 sm:p-4 mb-4 border-t-4 border-t-blue-600">
+          
+          {/* MOBILE-ONLY OPTIMIZED VIEW (hidden on sm and above) */}
+          <div className="flex flex-col gap-2.5 sm:hidden">
+            <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Cloud Storage</h3>
-                {isAutoSyncing ? (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-widest animate-pulse">
-                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                    Saving changes...
-                  </span>
-                ) : isAutoSyncEnabled ? (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest">
-                    <Check className="h-2.5 w-2.5" />
-                    Live Auto-Sync On
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
-                    Manual Sync
-                  </span>
-                )}
+                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-md flex-shrink-0">
+                  <Database className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Cloud Storage</h3>
+                    {isAutoSyncing ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-widest animate-pulse">
+                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        Saving...
+                      </span>
+                    ) : isAutoSyncEnabled ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest">
+                        Live Auto-Sync On
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
+                        Manual Sync
+                      </span>
+                    )}
+                  </div>
+                  {lastSyncedTime && (
+                    <div className="text-[9.5px] text-slate-400 mt-0.5">
+                      Last synced: {lastSyncedTime}
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5 flex items-center flex-wrap gap-2">
-                <span>Active Timetable:</span>
-                <span className="font-mono font-bold text-blue-950 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                  {activeTimetableName}
-                </span>
-                {lastSyncedTime && (
-                  <span className="text-slate-400 text-[10px] font-medium">
-                    (Last synced: {lastSyncedTime})
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Timetable Selector dropdown */}
-            <div className="flex items-center space-x-1.5">
-              <label htmlFor="firebase_timetable_select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Switch:
-              </label>
+              <button
+                type="button"
+                onClick={() => setShowFirebaseModal(true)}
+                className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 rounded transition cursor-pointer flex items-center justify-center"
+                title="Manage Cloud Database"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Active timetable info row */}
+            <div className="text-[11px] text-slate-600 flex items-center space-x-1.5 bg-slate-50 px-2.5 py-1.5 rounded border border-slate-100">
+              <span className="font-semibold text-slate-500">Active:</span>
+              <span className="font-mono font-bold text-blue-950 truncate flex-1">{activeTimetableName}</span>
+            </div>
+
+            {/* Switcher & Create New */}
+            <div className="flex items-center gap-1.5">
               <select
-                id="firebase_timetable_select"
                 value={activeTimetableName}
                 onChange={(e) => loadTimetableFromFirebase(e.target.value)}
                 disabled={isCloudLoading || firebaseTimetables.length === 0}
-                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded px-2.5 py-1.5 font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                className="flex-1 text-xs bg-slate-50 border border-slate-300 rounded px-2.5 py-2 font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
               >
                 {firebaseTimetables.length === 0 ? (
                   <option value="">No Cloud Timetables Found</option>
@@ -3001,97 +3113,45 @@ export default function App() {
                   setNewTemplateName('New Timetable');
                   setShowNewTemplateConfirmModal(true);
                 }}
-                className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded transition cursor-pointer flex items-center justify-center font-bold shadow-sm"
-                title="Create a fresh timetable template"
+                className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded transition cursor-pointer flex items-center justify-center font-bold shadow-sm"
+                title="Create new timetable"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Sync actions */}
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* 2x2 Action Buttons Grid */}
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               <button
                 type="button"
                 onClick={() => saveTimetableToFirebase(activeTimetableName)}
                 disabled={isCloudSaving || isCloudLoading}
-                className="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm hover:shadow disabled:opacity-50"
-                title={`Save state to cloud document: "${activeTimetableName}"`}
+                className="py-2 px-2 bg-blue-900 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm disabled:opacity-50"
               >
-                {isCloudSaving ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Cloud className="h-3 w-3" />
-                )}
-                <span>Save to Cloud</span>
+                {isCloudSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
+                <span className="truncate">Save Cloud</span>
               </button>
 
-              {showInlineSaveAs ? (
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg animate-fadeIn">
-                  <input
-                    type="text"
-                    placeholder="New name"
-                    value={inlineSaveAsName}
-                    onChange={(e) => setInlineSaveAsName(e.target.value)}
-                    className="text-xs px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-[120px] font-medium"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && inlineSaveAsName.trim()) {
-                        saveTimetableToFirebase(inlineSaveAsName.trim());
-                        setShowInlineSaveAs(false);
-                        setInlineSaveAsName('');
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (inlineSaveAsName.trim()) {
-                        await saveTimetableToFirebase(inlineSaveAsName.trim());
-                        setShowInlineSaveAs(false);
-                        setInlineSaveAsName('');
-                      }
-                    }}
-                    disabled={!inlineSaveAsName.trim()}
-                    className="px-2 py-1 bg-blue-800 text-white rounded text-[10px] font-bold uppercase hover:bg-blue-900 disabled:opacity-40 cursor-pointer"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowInlineSaveAs(false);
-                      setInlineSaveAsName('');
-                    }}
-                    className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase hover:bg-slate-300 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInlineSaveAsName(activeTimetableName + " Copy");
-                    setShowInlineSaveAs(true);
-                  }}
-                  disabled={isCloudSaving || isCloudLoading}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
-                  title="Save this configuration as a new Firestore document"
-                >
-                  <span>Save As...</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setInlineSaveAsName(activeTimetableName + " Copy");
+                  setShowInlineSaveAs(true);
+                }}
+                disabled={isCloudSaving || isCloudLoading}
+                className="py-2 px-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center shadow-sm disabled:opacity-50"
+              >
+                <span className="truncate">Save As...</span>
+              </button>
 
               <button
                 type="button"
                 onClick={handleToggleAutoSync}
-                className={`px-3 py-1.5 border font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm ${
-                  isAutoSyncEnabled
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                className={`py-2 px-2 border rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm ${
+                  isAutoSyncEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-600'
                 }`}
-                title="Toggle live auto-saving to Firestore on every update"
               >
-                <span>Auto-Sync</span>
+                <span className="truncate">Auto-Sync</span>
                 <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
               </button>
 
@@ -3103,21 +3163,235 @@ export default function App() {
                   setClearPasswordError(null);
                   setShowClearConfirmModal(true);
                 }}
-                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
-                title="Clear loaded timetable, sample data, and empty workspace"
+                className="py-2 px-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm"
               >
-                <Trash2 className="h-3 w-3" />
-                <span>Clear Workspace</span>
+                <Trash2 className="h-3.5 w-3.5 text-red-600 flex-shrink-0" />
+                <span className="truncate">Clear</span>
               </button>
+            </div>
 
-              <button
-                type="button"
-                onClick={() => setShowFirebaseModal(true)}
-                className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-700 rounded transition cursor-pointer"
-                title="Manage Cloud Database & documents"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
+            {showInlineSaveAs && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-2 rounded-lg mt-1">
+                <input
+                  type="text"
+                  placeholder="New timetable name"
+                  value={inlineSaveAsName}
+                  onChange={(e) => setInlineSaveAsName(e.target.value)}
+                  className="text-xs px-2 py-1.5 border border-slate-300 rounded focus:outline-none flex-1 font-medium bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (inlineSaveAsName.trim()) {
+                      await saveTimetableToFirebase(inlineSaveAsName.trim());
+                      setShowInlineSaveAs(false);
+                      setInlineSaveAsName('');
+                    }
+                  }}
+                  disabled={!inlineSaveAsName.trim()}
+                  className="px-2.5 py-1.5 bg-blue-800 text-white rounded text-[10px] font-bold uppercase hover:bg-blue-900 disabled:opacity-40"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowInlineSaveAs(false);
+                    setInlineSaveAsName('');
+                  }}
+                  className="px-2 py-1.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase hover:bg-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* DESKTOP & TABLET PRISTINE VIEW (hidden on mobile, visible on sm and above) */}
+          <div className="hidden sm:flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3.5">
+              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 flex-shrink-0">
+                <Database className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Cloud Storage</h3>
+                  {isAutoSyncing ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-widest animate-pulse">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      Saving changes...
+                    </span>
+                  ) : isAutoSyncEnabled ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest">
+                      Live Auto-Sync On
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
+                      Manual Sync
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center flex-wrap gap-2">
+                  <span>Active Timetable:</span>
+                  <span className="font-mono font-bold text-blue-950 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                    {activeTimetableName}
+                  </span>
+                  {lastSyncedTime && (
+                    <span className="text-slate-400 text-[10px] font-medium">
+                      (Last synced: {lastSyncedTime})
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Timetable Selector dropdown */}
+              <div className="flex items-center space-x-1.5">
+                <label htmlFor="firebase_timetable_select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Switch:
+                </label>
+                <select
+                  id="firebase_timetable_select"
+                  value={activeTimetableName}
+                  onChange={(e) => loadTimetableFromFirebase(e.target.value)}
+                  disabled={isCloudLoading || firebaseTimetables.length === 0}
+                  className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded px-2.5 py-1.5 font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                >
+                  {firebaseTimetables.length === 0 ? (
+                    <option value="">No Cloud Timetables Found</option>
+                  ) : (
+                    firebaseTimetables.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTemplateName('New Timetable');
+                    setShowNewTemplateConfirmModal(true);
+                  }}
+                  className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded transition cursor-pointer flex items-center justify-center font-bold shadow-sm"
+                  title="Create a fresh timetable template"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Sync actions */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => saveTimetableToFirebase(activeTimetableName)}
+                  disabled={isCloudSaving || isCloudLoading}
+                  className="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm hover:shadow disabled:opacity-50"
+                  title={`Save state to cloud document: "${activeTimetableName}"`}
+                >
+                  {isCloudSaving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Cloud className="h-3 w-3" />
+                  )}
+                  <span>Save to Cloud</span>
+                </button>
+
+                {showInlineSaveAs ? (
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg animate-fadeIn">
+                    <input
+                      type="text"
+                      placeholder="New name"
+                      value={inlineSaveAsName}
+                      onChange={(e) => setInlineSaveAsName(e.target.value)}
+                      className="text-xs px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-[120px] font-medium"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && inlineSaveAsName.trim()) {
+                          saveTimetableToFirebase(inlineSaveAsName.trim());
+                          setShowInlineSaveAs(false);
+                          setInlineSaveAsName('');
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (inlineSaveAsName.trim()) {
+                          await saveTimetableToFirebase(inlineSaveAsName.trim());
+                          setShowInlineSaveAs(false);
+                          setInlineSaveAsName('');
+                        }
+                      }}
+                      disabled={!inlineSaveAsName.trim()}
+                      className="px-2 py-1 bg-blue-800 text-white rounded text-[10px] font-bold uppercase hover:bg-blue-900 disabled:opacity-40 cursor-pointer"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInlineSaveAs(false);
+                        setInlineSaveAsName('');
+                      }}
+                      className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase hover:bg-slate-300 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInlineSaveAsName(activeTimetableName + " Copy");
+                      setShowInlineSaveAs(true);
+                    }}
+                    disabled={isCloudSaving || isCloudLoading}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+                    title="Save this configuration as a new Firestore document"
+                  >
+                    <span>Save As...</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleToggleAutoSync}
+                  className={`px-3 py-1.5 border font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm ${
+                    isAutoSyncEnabled
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  title="Toggle live auto-saving to Firestore on every update"
+                >
+                  <span>Auto-Sync</span>
+                  <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClearConfirmStep(1);
+                    setClearAdminPassword('');
+                    setClearPasswordError(null);
+                    setShowClearConfirmModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
+                  title="Clear loaded timetable, sample data, and empty workspace"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Clear</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFirebaseModal(true)}
+                  className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-700 rounded transition cursor-pointer"
+                  title="Manage Cloud Database & documents"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3205,13 +3479,6 @@ service cloud.firestore {
               );
             })}
           </nav>
-
-          {isDataStale && solverResult && (
-            <div className="inline-flex items-center space-x-1 text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200 font-bold uppercase tracking-wider">
-              <AlertCircle className="h-3 w-3 text-amber-600" />
-              <span>Data changed! Re-generate roster.</span>
-            </div>
-          )}
         </div>
 
         {/* Tab Contents */}
@@ -3574,12 +3841,12 @@ service cloud.firestore {
                                   {slot.isBreak ? (
                                     <div className="flex flex-col items-center leading-none">
                                       <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
-                                      <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{slot.startTime} - {slot.endTime}</span>
+                                      <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                                     </div>
                                   ) : (
                                     <>
                                       <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
-                                      <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{slot.startTime} - {slot.endTime}</span>
+                                      <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                                     </>
                                   )}
                                 </div>
@@ -3973,12 +4240,12 @@ service cloud.firestore {
                             {slot.isBreak ? (
                               <div className="flex flex-col items-center leading-none">
                                 <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
-                                <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{slot.startTime} - {slot.endTime}</span>
+                                <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                               </div>
                             ) : (
                               <>
                                 <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
-                                <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{slot.startTime} - {slot.endTime}</span>
+                                <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                               </>
                             )}
                           </div>
@@ -4201,65 +4468,96 @@ service cloud.firestore {
               {/* Stacked layout: Warnings Panel above Interactive Grid Viewer */}
               <div className="flex flex-col gap-4">
                 
-                {/* Warnings Panel */}
-                <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    <span>Roster Warnings & Rules ({scheduleWarnings.length})</span>
-                  </h3>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    {/* Warnings List */}
-                    <div className="lg:col-span-8">
+                {/* Warnings Panel (Accordion, default closed) */}
+                <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsRosterWarningsOpen(!isRosterWarningsOpen)}
+                    className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <AlertTriangle className={`h-4 w-4 ${scheduleWarnings.length === 0 ? 'text-emerald-500' : 'text-amber-500'}`} />
+                      <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                        Roster Warnings & Rules ({scheduleWarnings.length})
+                      </span>
                       {scheduleWarnings.length === 0 ? (
-                        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded text-center h-full flex flex-col justify-center items-center">
-                          <CheckCircle2 className="h-7 w-7 text-emerald-600 mb-1.5 animate-bounce" />
-                          <p className="font-bold text-emerald-800 text-[11px] uppercase tracking-wider">Roster is Conflict-Free</p>
-                          <p className="text-[10px] text-emerald-600 mt-1 max-w-xl">
-                            All manual adjustments satisfy teacher workloads, avoid back-to-back classes, and prevent teacher clashes across sections!
-                          </p>
-                        </div>
+                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold px-2 py-0.5 rounded text-[10px]">
+                          Conflict-Free
+                        </span>
                       ) : (
-                        <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                          {scheduleWarnings.map((warning, idx) => {
-                            // Find the class details for the warning
-                            const cls = classes.find(c => c.id === warning.classId);
-                            const className = cls ? `${cls.name} (Sec ${cls.section})` : '';
-                            
-                            return (
-                              <div 
-                                key={idx} 
-                                className="p-2.5 rounded border border-amber-200 bg-amber-50/50 text-[10.5px] leading-relaxed text-amber-900 flex items-start space-x-2 shadow-sm"
-                              >
-                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
-                                <div className="flex-1">
-                                  <span className="font-extrabold text-amber-950 uppercase text-[9px] tracking-wider block mb-0.5">
-                                    {className} {warning.day && `• ${warning.day}`} {warning.pIdx !== undefined && `• Slot ${warning.pIdx + 1}`}
-                                  </span>
-                                  <p className="text-slate-700 font-medium">{warning.message}</p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <span className="bg-amber-50 text-amber-700 border border-amber-200 font-semibold px-2 py-0.5 rounded text-[10px]">
+                          {scheduleWarnings.length} {scheduleWarnings.length === 1 ? 'Warning' : 'Warnings'}
+                        </span>
                       )}
                     </div>
+                    <div className="flex items-center space-x-1.5 text-slate-400 hover:text-slate-600">
+                      <span className="text-[11px] text-slate-500 hidden sm:inline">
+                        {isRosterWarningsOpen ? 'Hide' : 'Show'}
+                      </span>
+                      {isRosterWarningsOpen ? (
+                        <ChevronUp className="h-4 w-4 text-slate-500" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-slate-500" />
+                      )}
+                    </div>
+                  </button>
 
-                    {/* Rules Enforced */}
-                    <div className="lg:col-span-4 bg-slate-50 border border-slate-100 rounded p-3 text-[10px] text-slate-500 flex flex-col justify-between">
-                      <div>
-                        <p className="font-bold text-slate-600 uppercase tracking-widest text-[8.5px] mb-1.5">Rules Enforced:</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-x-3 gap-y-1">
-                          <p>• Teacher cannot teach two classes in the same slot.</p>
-                          <p>• Subject cannot exceed daily period limits.</p>
-                          <p>• Staff cannot have consecutive multi-subject periods.</p>
-                          <p>• Non-lab subjects cannot have consecutive periods.</p>
-                          <p>• Lab subjects must be continuous 2-period blocks.</p>
-                          <p>• Avoid free period gaps in Periods 1 to 4.</p>
+                  {isRosterWarningsOpen && (
+                    <div className="p-4 pt-2 border-t border-slate-100">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                        {/* Warnings List */}
+                        <div className="lg:col-span-8">
+                          {scheduleWarnings.length === 0 ? (
+                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded text-center h-full flex flex-col justify-center items-center">
+                              <CheckCircle2 className="h-7 w-7 text-emerald-600 mb-1.5 animate-bounce" />
+                              <p className="font-bold text-emerald-800 text-[11px] uppercase tracking-wider">Roster is Conflict-Free</p>
+                              <p className="text-[10px] text-emerald-600 mt-1 max-w-xl">
+                                All manual adjustments satisfy teacher workloads, avoid back-to-back classes, and prevent teacher clashes across sections!
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                              {scheduleWarnings.map((warning, idx) => {
+                                // Find the class details for the warning
+                                const cls = classes.find(c => c.id === warning.classId);
+                                const className = cls ? `${cls.name} (Sec ${cls.section})` : '';
+                                
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className="p-2.5 rounded border border-amber-200 bg-amber-50/50 text-[10.5px] leading-relaxed text-amber-900 flex items-start space-x-2 shadow-sm"
+                                  >
+                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                      <span className="font-extrabold text-amber-950 uppercase text-[9px] tracking-wider block mb-0.5">
+                                        {className} {warning.day && `• ${warning.day}`} {warning.pIdx !== undefined && `• Slot ${warning.pIdx + 1}`}
+                                      </span>
+                                      <p className="text-slate-700 font-medium">{warning.message}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Rules Enforced */}
+                        <div className="lg:col-span-4 bg-slate-50 border border-slate-100 rounded p-3 text-[10px] text-slate-500 flex flex-col justify-between">
+                          <div>
+                            <p className="font-bold text-slate-600 uppercase tracking-widest text-[8.5px] mb-1.5">Rules Enforced:</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-x-3 gap-y-1">
+                              <p>• Teacher cannot teach two classes in the same slot.</p>
+                              <p>• Subject cannot exceed daily period limits.</p>
+                              <p>• Staff cannot have consecutive multi-subject periods.</p>
+                              <p>• Non-lab subjects cannot have consecutive periods.</p>
+                              <p>• Lab subjects must be continuous 2-period blocks.</p>
+                              <p>• Avoid free period gaps in Periods 1 to 4.</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Timetable View */}
@@ -4313,12 +4611,12 @@ service cloud.firestore {
                                   {slot.isBreak ? (
                                     <div className="flex flex-col items-center leading-none">
                                       <span className="font-bold text-[9px] uppercase tracking-widest">{getCleanBreakLabel(slot.label)}</span>
-                                      <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{slot.startTime} - {slot.endTime}</span>
+                                      <span className="text-[7.5px] opacity-75 font-mono mt-1 font-medium whitespace-nowrap">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                                     </div>
                                   ) : (
                                     <>
                                       <span className="font-bold text-[10px] tracking-wide">{slot.label}</span>
-                                      <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{slot.startTime} - {slot.endTime}</span>
+                                      <span className="text-[9px] opacity-75 font-mono mt-0.5 font-medium">{formatTimeRange12(slot.startTime, slot.endTime)}</span>
                                     </>
                                   )}
                                 </div>
@@ -5891,11 +6189,24 @@ service cloud.firestore {
               <div className="space-y-4 self-start">
                 {/* Left Form: Add Time Slot */}
                 <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                    <Clock className="h-4 w-4 text-blue-900" />
-                    <span>Configure Hour / Break</span>
+                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                    <div className="flex items-center space-x-1.5">
+                      <Clock className="h-4 w-4 text-blue-900" />
+                      <span>{editingSlotId ? 'Edit Time Slot' : 'Configure Hour / Break'}</span>
+                    </div>
+                    {editingSlotId && (
+                      <button
+                        type="button"
+                        onClick={cancelEditingSlot}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-wider cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </h3>
-                  <p className="text-[11px] text-slate-500 mb-3">Specify durations of lectures or institutional breaks.</p>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    {editingSlotId ? 'Update timings or duration for this slot.' : 'Specify durations of lectures or institutional breaks.'}
+                  </p>
 
                   <form onSubmit={addTimeSlot} className="space-y-3" noValidate>
                     <div>
@@ -5903,7 +6214,7 @@ service cloud.firestore {
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Period 1, Tea Break, Lunch"
+                        placeholder="e.g. Period 1, Tea Break, Lunch Break"
                         value={newSlotLabel}
                         onChange={(e) => setNewSlotLabel(e.target.value)}
                         className={`w-full bg-slate-50 border ${
@@ -5914,7 +6225,9 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Start Time</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          Start Time <span className="text-slate-400 font-normal text-[9px] lowercase">({formatTime12(newSlotStart)})</span>
+                        </label>
                         <input
                           type="time"
                           required
@@ -5926,7 +6239,9 @@ service cloud.firestore {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">End Time</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          End Time <span className="text-slate-400 font-normal text-[9px] lowercase">({formatTime12(newSlotEnd)})</span>
+                        </label>
                         <input
                           type="time"
                           required
@@ -5952,13 +6267,33 @@ service cloud.firestore {
                       </label>
                     </div>
 
-                    <button
-                      type="submit"
-                      className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <Plus className="h-3.5 w-3.5 text-amber-300" />
-                      <span>Save Slot</span>
-                    </button>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <button
+                        type="submit"
+                        className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                      >
+                        {editingSlotId ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Update Slot</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-3.5 w-3.5 text-amber-300" />
+                            <span>Save Slot</span>
+                          </>
+                        )}
+                      </button>
+                      {editingSlotId && (
+                        <button
+                          type="button"
+                          onClick={cancelEditingSlot}
+                          className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -6001,9 +6336,23 @@ service cloud.firestore {
                 
                 {/* Time Slots Table */}
                 <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <div className="border-b border-slate-100 pb-2 mb-3">
-                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">College Daily Time Grid</h3>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Prescribed periods and recess intervals ordered chronologically.</p>
+                  <div className="border-b border-slate-100 pb-2 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">College Daily Time Grid</h3>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Prescribed periods and recess intervals ordered chronologically.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTimeSlots(DEFAULT_TIME_SLOTS);
+                        showAuthNotice("Reset time slots to standard timetable grid (Lunch 13:15-14:00, Period 5 14:00-15:00, Period 6 15:00-16:00).");
+                      }}
+                      className="inline-flex items-center space-x-1 text-[11px] font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded border border-blue-200 transition cursor-pointer self-start sm:self-auto"
+                      title="Reset grid to default schedule with 45-min Lunch Break"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>Reset Standard Timing</span>
+                    </button>
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 rounded">
@@ -6011,7 +6360,7 @@ service cloud.firestore {
                       <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[10px] uppercase tracking-wider">
                         <tr>
                           <th className="p-2.5">Label</th>
-                          <th className="p-2.5 text-center">Timings</th>
+                          <th className="p-2.5 text-center">Timings (12-Hr)</th>
                           <th className="p-2.5 text-center">Duration</th>
                           <th className="p-2.5 text-center">Type</th>
                           <th className="p-2.5 text-center">Actions</th>
@@ -6023,13 +6372,20 @@ service cloud.firestore {
                           const [eH, eM] = slot.endTime.split(':').map(Number);
                           const minutes = (eH * 60 + eM) - (sH * 60 + sM);
                           const hoursText = minutes > 0 
-                            ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+                            ? (minutes % 60 === 0 ? `${Math.floor(minutes / 60)}h 0m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`)
                             : '--';
 
+                          const isEditingThis = editingSlotId === slot.id;
+
                           return (
-                            <tr key={slot.id} className="hover:bg-slate-50/50 transition">
-                              <td className="p-2.5 font-bold text-slate-900">{slot.label}</td>
-                              <td className="p-2.5 text-center font-mono font-bold text-slate-800">{slot.startTime} - {slot.endTime}</td>
+                            <tr key={slot.id} className={`transition ${isEditingThis ? 'bg-amber-50/70 font-semibold' : 'hover:bg-slate-50/50'}`}>
+                              <td className="p-2.5 font-bold text-slate-900">
+                                {slot.label}
+                                {isEditingThis && (
+                                  <span className="ml-2 text-[9px] text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded font-bold uppercase">Editing</span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-center font-mono font-bold text-slate-800">{formatTimeRange12(slot.startTime, slot.endTime)}</td>
                               <td className="p-2.5 text-center text-slate-500 font-mono font-medium">{hoursText}</td>
                               <td className="p-2.5 text-center">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
@@ -6041,13 +6397,22 @@ service cloud.firestore {
                                 </span>
                               </td>
                               <td className="p-2.5 text-center">
-                                <button
-                                  onClick={() => deleteTimeSlot(slot.id)}
-                                  className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
-                                  title="Delete time slot"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                <div className="flex items-center justify-center space-x-1">
+                                  <button
+                                    onClick={() => startEditingSlot(slot)}
+                                    className="p-1 text-slate-400 hover:text-amber-600 transition cursor-pointer"
+                                    title="Edit slot timing"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteTimeSlot(slot.id)}
+                                    className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                                    title="Delete time slot"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
