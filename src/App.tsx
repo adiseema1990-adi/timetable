@@ -4354,19 +4354,90 @@ service cloud.firestore {
                     </div>
                   )}
 
+                  {/* Subject-Faculty Mapping Legend Table (for print / export & reference) */}
+                  {selectedClassId && (() => {
+                    const currentClass = classes.find(c => c.id === selectedClassId);
+                    if (!currentClass) return null;
+
+                    const classAssignments = assignments.filter(a => a.classId === selectedClassId);
+                    if (classAssignments.length === 0) return null;
+
+                    // Group by subject
+                    const subjectMap = new Map<string, { subject: Subject; facultiesList: string[] }>();
+
+                    classAssignments.forEach(asgn => {
+                      const sub = subjects.find(s => s.id === asgn.subjectId);
+                      if (!sub) return;
+
+                      let facDesc = '';
+                      if (asgn.isLabBatch && asgn.batchAssignments && asgn.batchAssignments.length > 0) {
+                        const batchParts = asgn.batchAssignments.map(b => {
+                          const f = faculties.find(fac => fac.id === b.facultyId);
+                          const fName = f ? cleanFacultyName(f.name) : 'Unassigned';
+                          return `Batch ${b.batchName}: ${fName}`;
+                        });
+                        facDesc = batchParts.join(', ');
+                      } else {
+                        const f = faculties.find(fac => fac.id === asgn.facultyId);
+                        facDesc = f ? cleanFacultyName(f.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned');
+                      }
+
+                      if (!subjectMap.has(sub.id)) {
+                        subjectMap.set(sub.id, { subject: sub, facultiesList: [facDesc] });
+                      } else {
+                        const existing = subjectMap.get(sub.id)!;
+                        if (!existing.facultiesList.includes(facDesc)) {
+                          existing.facultiesList.push(facDesc);
+                        }
+                      }
+                    });
+
+                    const rows = Array.from(subjectMap.values());
+                    if (rows.length === 0) return null;
+
+                    return (
+                      <div className="mt-3 pt-2 border-t border-slate-300 pdf-subject-legend">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Course & Faculty Allocation Details</h4>
+                          <span className="text-[9px] text-slate-500 font-semibold">{rows.length} Courses Assigned</span>
+                        </div>
+                        <table className="w-full border-collapse border border-slate-300 text-left text-[9px] leading-tight">
+                          <thead>
+                            <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase text-[8px] tracking-wider border-b border-slate-300">
+                              <th className="border border-slate-300 px-2 py-1 w-12 text-center">Sl. No.</th>
+                              <th className="border border-slate-300 px-2 py-1 w-24">Subject Code</th>
+                              <th className="border border-slate-300 px-2 py-1">Subject / Course Name</th>
+                              <th className="border border-slate-300 px-2 py-1 w-72">Assigned Faculty Name</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row, idx) => (
+                              <tr key={row.subject.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                <td className="border border-slate-300 px-2 py-1 text-center font-bold text-slate-600">{idx + 1}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-mono font-bold text-blue-900">{row.subject.code}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-bold text-slate-800">{row.subject.name}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-medium text-slate-900">{row.facultiesList.join(' | ')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
                   {selectedClassId && (
-                    <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none pdf-signatures hidden">
+                    <div className="mt-8 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
                       <div className="flex flex-col items-center">
-                        <div className="h-14"></div>
-                        <span className="font-bold text-[14pt] text-slate-900 uppercase">Co-ordinator</span>
+                        <div className="w-40 border-b border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[11pt] text-slate-900 uppercase">Co-ordinator</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="h-14"></div>
-                        <span className="font-bold text-[14pt] text-slate-900 uppercase">HOD</span>
+                        <div className="w-40 border-b border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[11pt] text-slate-900 uppercase">HOD</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="h-14"></div>
-                        <span className="font-bold text-[14pt] text-slate-900 uppercase">PRINCIPAL</span>
+                        <div className="w-40 border-b border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[11pt] text-slate-900 uppercase">PRINCIPAL</span>
                       </div>
                     </div>
                   )}
@@ -4617,22 +4688,92 @@ service cloud.firestore {
                   )}
                 </div>
 
-                {selectedFacultyId && (
-                  <div className="mt-14 pb-2 flex items-center justify-between px-10 select-none pdf-signatures hidden">
-                    <div className="flex flex-col items-center">
-                      <div className="h-14"></div>
-                      <span className="font-bold text-[14pt] text-slate-900 uppercase">Co-ordinator</span>
+                  {/* Subject and Class Allocation Details for Individual Faculty */}
+                  {selectedFacultyId && (() => {
+                    const currentFaculty = faculties.find(f => f.id === selectedFacultyId);
+                    if (!currentFaculty) return null;
+
+                    const facultyAssignments = assignments.filter(a => {
+                      if (a.facultyId === selectedFacultyId) return true;
+                      if (a.isLabBatch && a.batchAssignments?.some(b => b.facultyId === selectedFacultyId)) return true;
+                      return false;
+                    });
+
+                    if (facultyAssignments.length === 0) return null;
+
+                    const rowMap = new Map<string, { subject: Subject; classNames: string[] }>();
+                    facultyAssignments.forEach(asgn => {
+                      const sub = subjects.find(s => s.id === asgn.subjectId);
+                      const cls = classes.find(c => c.id === asgn.classId);
+                      if (!sub || !cls) return;
+
+                      let clsLabel = `${cls.name} (Sec ${cls.section})`;
+                      if (asgn.isLabBatch && asgn.batchAssignments) {
+                        const myBatches = asgn.batchAssignments.filter(b => b.facultyId === selectedFacultyId).map(b => `Batch ${b.batchName}`);
+                        if (myBatches.length > 0) {
+                          clsLabel += ` [${myBatches.join(', ')}]`;
+                        }
+                      }
+
+                      if (!rowMap.has(sub.id)) {
+                        rowMap.set(sub.id, { subject: sub, classNames: [clsLabel] });
+                      } else {
+                        const existing = rowMap.get(sub.id)!;
+                        if (!existing.classNames.includes(clsLabel)) {
+                          existing.classNames.push(clsLabel);
+                        }
+                      }
+                    });
+
+                    const rows = Array.from(rowMap.values());
+                    if (rows.length === 0) return null;
+
+                    return (
+                      <div className="mt-3 pt-2 border-t border-slate-300 pdf-subject-legend">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Assigned Courses & Classes</h4>
+                          <span className="text-[9px] text-slate-500 font-semibold">{rows.length} Courses</span>
+                        </div>
+                        <table className="w-full border-collapse border border-slate-300 text-left text-[9px] leading-tight">
+                          <thead>
+                            <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase text-[8px] tracking-wider border-b border-slate-300">
+                              <th className="border border-slate-300 px-2 py-1 w-12 text-center">Sl. No.</th>
+                              <th className="border border-slate-300 px-2 py-1 w-24">Subject Code</th>
+                              <th className="border border-slate-300 px-2 py-1">Subject / Course Name</th>
+                              <th className="border border-slate-300 px-2 py-1 w-72">Assigned Class & Section</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row, idx) => (
+                              <tr key={row.subject.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                <td className="border border-slate-300 px-2 py-1 text-center font-bold text-slate-600">{idx + 1}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-mono font-bold text-blue-900">{row.subject.code}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-bold text-slate-800">{row.subject.name}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-medium text-slate-900">{row.classNames.join(' | ')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {selectedFacultyId && (
+                    <div className="mt-8 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
+                      <div className="flex flex-col items-center">
+                        <div className="w-40 border-b border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[11pt] text-slate-900 uppercase">Co-ordinator</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-40 border-b border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[11pt] text-slate-900 uppercase">HOD</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-40 border-b border-slate-800 mb-1"></div>
+                        <span className="font-bold text-[11pt] text-slate-900 uppercase">PRINCIPAL</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <div className="h-14"></div>
-                      <span className="font-bold text-[14pt] text-slate-900 uppercase">HOD</span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="h-14"></div>
-                      <span className="font-bold text-[14pt] text-slate-900 uppercase">PRINCIPAL</span>
-                    </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
           )}
