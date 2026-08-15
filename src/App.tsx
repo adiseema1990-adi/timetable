@@ -4496,19 +4496,19 @@ service cloud.firestore {
                     }
 
                     return (
-                      <div className="mt-2 pt-1.5 border-t-2 border-slate-400 pdf-subject-legend hidden">
+                      <div className="mt-2 pt-1.5 border-t-2 border-slate-400 pdf-subject-legend hidden w-full">
                         <div 
-                          className="grid gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800"
+                          className="grid gap-x-8 gap-y-1.5 text-[9.5pt] leading-snug text-slate-800 w-full"
                           style={{ gridTemplateColumns: `repeat(${Math.max(1, columns.length)}, minmax(0, 1fr))` }}
                         >
                           {columns.map((colRows, colIdx) => (
-                            <div key={colIdx} className="flex flex-col space-y-1">
+                            <div key={colIdx} className="flex flex-col space-y-1.5 min-w-0">
                               {colRows.map((row) => (
-                                <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                                <div key={row.subject.id} className="flex items-start space-x-1.5">
                                   <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                                  <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
+                                  <span className="font-semibold text-slate-900 break-words">{row.subject.name}</span>
                                   <span className="text-slate-400 shrink-0">-</span>
-                                  <span className="font-bold text-slate-800 shrink-0">{row.facultiesList.join(' | ')}</span>
+                                  <span className="font-bold text-slate-800 break-words">{row.facultiesList.join(' | ')}</span>
                                 </div>
                               ))}
                             </div>
@@ -4829,19 +4829,19 @@ service cloud.firestore {
                     }
 
                     return (
-                      <div className="mt-2 pt-1.5 border-t-2 border-slate-400 pdf-subject-legend hidden">
+                      <div className="mt-2 pt-1.5 border-t-2 border-slate-400 pdf-subject-legend hidden w-full">
                         <div 
-                          className="grid gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800"
+                          className="grid gap-x-8 gap-y-1.5 text-[9.5pt] leading-snug text-slate-800 w-full"
                           style={{ gridTemplateColumns: `repeat(${Math.max(1, columns.length)}, minmax(0, 1fr))` }}
                         >
                           {columns.map((colRows, colIdx) => (
-                            <div key={colIdx} className="flex flex-col space-y-1">
+                            <div key={colIdx} className="flex flex-col space-y-1.5 min-w-0">
                               {colRows.map((row) => (
-                                <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                                <div key={row.subject.id} className="flex items-start space-x-1.5">
                                   <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                                  <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
+                                  <span className="font-semibold text-slate-900 break-words">{row.subject.name}</span>
                                   <span className="text-slate-400 shrink-0">-</span>
-                                  <span className="font-bold text-slate-800 shrink-0">{row.classNames.join(' | ')}</span>
+                                  <span className="font-bold text-slate-800 break-words">{row.classNames.join(' | ')}</span>
                                 </div>
                               ))}
                             </div>
