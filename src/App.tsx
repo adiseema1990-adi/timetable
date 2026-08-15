@@ -1795,18 +1795,15 @@ export default function App() {
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
       
-      // Add timestamp to the bottom right
+      // Add timestamp to the top right (date only)
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      const timestampText = `Generated on: ${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+      const timestampText = `Generated on: ${day}/${month}/${year}`;
       pdf.setFontSize(8);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(timestampText, pdfWidth - 20, 18, { align: 'right' });
 
       pdf.save(`Timetable_${facultyName}.pdf`);
       showAuthNotice("Faculty Timetable PDF downloaded successfully!");
@@ -1929,18 +1926,15 @@ export default function App() {
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
       
-      // Add timestamp to the bottom right
+      // Add timestamp to the top right (date only)
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      const timestampText = `Generated on: ${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+      const timestampText = `Generated on: ${day}/${month}/${year}`;
       pdf.setFontSize(8);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(timestampText, pdfWidth - 20, 18, { align: 'right' });
 
       pdf.save(`Timetable_${className}.pdf`);
       showAuthNotice("PDF downloaded successfully!");
@@ -2060,18 +2054,15 @@ export default function App() {
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'FAST');
 
-      // Add timestamp to the bottom right
+      // Add timestamp to the top right (date only)
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      const timestampText = `Generated on: ${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+      const timestampText = `Generated on: ${day}/${month}/${year}`;
       pdf.setFontSize(8);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(timestampText, pdfWidth - 20, pdfHeight - 15, { align: 'right' });
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(timestampText, pdfWidth - 20, 18, { align: 'right' });
 
       pdf.save(`Direct_Timetable_${className}.pdf`);
       showAuthNotice("Timetable PDF downloaded locally!");
