@@ -31,6 +31,7 @@ export interface ClassSection {
   section: string; // e.g., "A"
   labBatches?: number; // Number of student batches for labs (e.g., 2 for A1 & A2)
   classroom?: string; // e.g., "Room 301" or "LH-2"
+  branch?: string; // e.g., "CSE"
 }
 
 export interface BatchAssignment {

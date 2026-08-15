@@ -687,6 +687,7 @@ export default function App() {
   const [editSubFormSubmitted, setEditSubFormSubmitted] = useState(false);
 
   // Class Form
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [newClassName, setNewClassName] = useState('');
   const [newClassroom, setNewClassroom] = useState('');
   const [newClassSem, setNewClassSem] = useState('5th');
@@ -2073,19 +2074,74 @@ export default function App() {
   const [divideIntoBatches, setDivideIntoBatches] = useState(false);
   const [numBatches, setNumBatches] = useState(2);
 
+  const startEditingClass = (cls: ClassSection) => {
+    setEditingClassId(cls.id);
+    const branchName = cls.branch || cls.name.replace(new RegExp(`\\s*${cls.semester}\\s*Sem`, 'i'), '').trim() || cls.name;
+    setNewClassName(branchName.toUpperCase());
+    setNewClassroom((cls.classroom || '').toUpperCase());
+    setNewClassSem(cls.semester || '5th');
+    setNewClassSec((cls.section || 'A').toUpperCase());
+    setDivideIntoBatches((cls.labBatches ?? 1) > 1);
+    setNumBatches(cls.labBatches && cls.labBatches > 1 ? cls.labBatches : 2);
+    setClassFormSubmitted(false);
+  };
+
+  const cancelEditingClass = () => {
+    setEditingClassId(null);
+    setNewClassName('');
+    setNewClassroom('');
+    setNewClassSem('5th');
+    setNewClassSec('A');
+    setDivideIntoBatches(false);
+    setNumBatches(2);
+    setClassFormSubmitted(false);
+  };
+
   const addClass = (e: FormEvent) => {
     e.preventDefault();
     setClassFormSubmitted(true);
-    if (!newClassName) return;
+    if (!newClassName.trim()) return;
 
+    const branch = newClassName.trim().toUpperCase();
     const sec = newClassSec.trim().toUpperCase() || 'A';
+    const room = newClassroom.trim().toUpperCase() || undefined;
+    const batchCount = divideIntoBatches ? numBatches : 1;
+
+    if (editingClassId) {
+      const updatedClasses = classes.map(c => {
+        if (c.id === editingClassId) {
+          return {
+            ...c,
+            branch,
+            name: `${branch} ${newClassSem} Sem`,
+            semester: newClassSem,
+            section: sec,
+            labBatches: batchCount,
+            classroom: room
+          };
+        }
+        return c;
+      });
+      setClasses(updatedClasses);
+      setEditingClassId(null);
+      setNewClassName('');
+      setNewClassroom('');
+      setNewClassSec('A');
+      setDivideIntoBatches(false);
+      setNumBatches(2);
+      setClassFormSubmitted(false);
+      showAuthNotice(`Class ${branch} ${newClassSem} Sem (Sec ${sec})${room ? ` [Room ${room}]` : ''} updated successfully.`);
+      return;
+    }
+
     const newCls: ClassSection = {
       id: 'c_' + Date.now(),
-      name: `${newClassName} ${newClassSem} Sem`,
+      branch,
+      name: `${branch} ${newClassSem} Sem`,
       semester: newClassSem,
       section: sec,
-      labBatches: divideIntoBatches ? numBatches : 1,
-      classroom: newClassroom.trim() || undefined
+      labBatches: batchCount,
+      classroom: room
     };
     setClasses([...classes, newCls]);
     if (!selectedClassId) {
@@ -2093,6 +2149,9 @@ export default function App() {
     }
     setNewClassName('');
     setNewClassroom('');
+    setNewClassSec('A');
+    setDivideIntoBatches(false);
+    setNumBatches(2);
     setClassFormSubmitted(false);
     showAuthNotice(`Class ${newCls.name} (Sec ${newCls.section})${newCls.classroom ? ` [Room ${newCls.classroom}]` : ''} created${divideIntoBatches ? ` with ${numBatches} Lab Batches (${sec}1, ${sec}2${numBatches >= 3 ? ', ' + sec + '3' : ''}${numBatches >= 4 ? ', ' + sec + '4' : ''})` : ''}.`);
   };
@@ -2351,6 +2410,9 @@ export default function App() {
   };
 
   const deleteClass = (id: string) => {
+    if (editingClassId === id) {
+      cancelEditingClass();
+    }
     const cls = classes.find(c => c.id === id);
     setClasses(classes.filter(c => c.id !== id));
     setAssignments(assignments.filter(a => a.classId !== id));
@@ -5713,11 +5775,24 @@ service cloud.firestore {
               {/* Top Row: Classes Creation */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white border border-slate-200 rounded p-4 shadow-sm self-start">
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-2 mb-3">
-                    <GraduationCap className="h-4 w-4 text-blue-900" />
-                    <span>Create Class / Section</span>
+                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                    <div className="flex items-center space-x-1.5">
+                      <GraduationCap className="h-4 w-4 text-blue-900" />
+                      <span>{editingClassId ? 'Edit Class / Section' : 'Create Class / Section'}</span>
+                    </div>
+                    {editingClassId && (
+                      <button
+                        type="button"
+                        onClick={cancelEditingClass}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-wider cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </h3>
-                  <p className="text-[11px] text-slate-500 mb-3">Define semesters or branches to schedule tables for.</p>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    {editingClassId ? 'Modify class details, room, semester, or batch configuration.' : 'Define semesters or branches to schedule tables for.'}
+                  </p>
 
                   <form onSubmit={addClass} className="space-y-3" noValidate>
                     <div className="grid grid-cols-2 gap-3">
@@ -5728,10 +5803,10 @@ service cloud.firestore {
                           required
                           placeholder="e.g. CSE or ECE"
                           value={newClassName}
-                          onChange={(e) => setNewClassName(e.target.value)}
+                          onChange={(e) => setNewClassName(e.target.value.toUpperCase())}
                           className={`w-full bg-slate-50 border ${
                             classFormSubmitted && !newClassName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          } rounded px-2.5 py-1.5 text-xs text-slate-800 uppercase focus:outline-none focus:ring-1 focus:bg-white transition`}
                         />
                       </div>
                       <div>
@@ -5740,8 +5815,8 @@ service cloud.firestore {
                           type="text"
                           placeholder="e.g. Room 301 or LH-2"
                           value={newClassroom}
-                          onChange={(e) => setNewClassroom(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                          onChange={(e) => setNewClassroom(e.target.value.toUpperCase())}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 uppercase focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
                         />
                       </div>
                     </div>
@@ -5755,9 +5830,13 @@ service cloud.firestore {
                           className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
                         >
                           <option value="1st">1st Sem</option>
+                          <option value="2nd">2nd Sem</option>
                           <option value="3rd">3rd Sem</option>
+                          <option value="4th">4th Sem</option>
                           <option value="5th">5th Sem</option>
+                          <option value="6th">6th Sem</option>
                           <option value="7th">7th Sem</option>
+                          <option value="8th">8th Sem</option>
                         </select>
                       </div>
                       <div>
@@ -5767,8 +5846,8 @@ service cloud.firestore {
                           required
                           placeholder="e.g. A"
                           value={newClassSec}
-                          onChange={(e) => setNewClassSec(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                          onChange={(e) => setNewClassSec(e.target.value.toUpperCase())}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 uppercase focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
                         />
                       </div>
                     </div>
@@ -5799,13 +5878,33 @@ service cloud.firestore {
                       )}
                     </div>
 
-                    <button
-                      type="submit"
-                      className="w-full mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <Plus className="h-3.5 w-3.5 text-amber-300" />
-                      <span>{divideIntoBatches ? `Create Class & ${numBatches} Batches` : 'Create Class'}</span>
-                    </button>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <button
+                        type="submit"
+                        className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                      >
+                        {editingClassId ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>{divideIntoBatches ? `Update Class & ${numBatches} Batches` : 'Update Class'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-3.5 w-3.5 text-amber-300" />
+                            <span>{divideIntoBatches ? `Create Class & ${numBatches} Batches` : 'Create Class'}</span>
+                          </>
+                        )}
+                      </button>
+                      {editingClassId && (
+                        <button
+                          type="button"
+                          onClick={cancelEditingClass}
+                          className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -5826,9 +5925,17 @@ service cloud.firestore {
                         const totalLectures = assignments
                           .filter(a => a.classId === cls.id)
                           .reduce((sum, a) => sum + (subjects.find(s => s.id === a.subjectId)?.weeklyPeriods || 0), 0);
+                        const isEditingThisClass = editingClassId === cls.id;
 
                         return (
-                          <div key={cls.id} className="border border-slate-200 rounded p-3 bg-slate-50/50 flex items-center justify-between">
+                          <div
+                            key={cls.id}
+                            className={`border rounded p-3 flex items-center justify-between transition ${
+                              isEditingThisClass
+                                ? 'border-amber-400 bg-amber-50/50 ring-1 ring-amber-300'
+                                : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+                            }`}
+                          >
                             <div>
                               <div className="flex items-center space-x-1.5">
                                 <p className="font-bold text-slate-900 text-xs">{cls.name}</p>
@@ -5837,16 +5944,30 @@ service cloud.firestore {
                                     {cls.labBatches} Lab Batches ({cls.section}1-{cls.section}{cls.labBatches})
                                   </span>
                                 )}
+                                {isEditingThisClass && (
+                                  <span className="text-[9px] bg-amber-200 text-amber-950 font-bold px-1.5 py-0.2 rounded uppercase">
+                                    Editing
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[10px] text-slate-500 mt-0.5 font-medium">Sec <span className="font-bold text-slate-700">{cls.section}</span>{cls.classroom ? <> • Room: <span className="font-bold text-slate-700">{cls.classroom}</span></> : ''} • {totalLectures} lectures / wk</p>
                             </div>
-                            <button
-                              onClick={() => deleteClass(cls.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded shadow-xs transition hover:shadow-sm cursor-pointer"
-                              title="Delete class"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            <div className="flex items-center space-x-1">
+                              <button
+                                onClick={() => startEditingClass(cls)}
+                                className={`p-1.5 ${isEditingThisClass ? 'text-amber-600 bg-amber-100 border-amber-300' : 'text-slate-400 hover:text-amber-600 bg-white border-slate-200'} border rounded shadow-xs transition hover:shadow-sm cursor-pointer`}
+                                title="Edit class details"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => deleteClass(cls.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded shadow-xs transition hover:shadow-sm cursor-pointer"
+                                title="Delete class"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
                         );
                       })
