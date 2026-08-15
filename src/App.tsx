@@ -1728,9 +1728,9 @@ export default function App() {
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.classList.add('is-pdf-exporting');
-    element.style.width = '1120px';
-    element.style.minWidth = '1120px';
-    element.style.padding = '8px 12px';
+    element.style.width = '1260px';
+    element.style.minWidth = '1260px';
+    element.style.padding = '6px 6px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
     element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
@@ -1793,7 +1793,7 @@ export default function App() {
         }
       });
       
-      const imgWidth = 1120; // Forced width
+      const imgWidth = 1260; // Forced width
       const imgHeight = element.offsetHeight;
       
       const pdfWidth = 842;
@@ -1888,9 +1888,9 @@ export default function App() {
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.classList.add('is-pdf-exporting');
-    element.style.width = '1120px';
-    element.style.minWidth = '1120px';
-    element.style.padding = '8px 12px';
+    element.style.width = '1260px';
+    element.style.minWidth = '1260px';
+    element.style.padding = '6px 6px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
     element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
@@ -1953,7 +1953,7 @@ export default function App() {
         }
       });
       
-      const imgWidth = 1120; // Forced width
+      const imgWidth = 1260; // Forced width
       const imgHeight = element.offsetHeight;
       
       const pdfWidth = 842;
@@ -2044,9 +2044,9 @@ export default function App() {
     
     // Temporarily force desktop size (landscape mode) for high-quality render & strip outer grey border/shadow
     element.classList.add('is-pdf-exporting');
-    element.style.width = '1120px';
-    element.style.minWidth = '1120px';
-    element.style.padding = '8px 12px';
+    element.style.width = '1260px';
+    element.style.minWidth = '1260px';
+    element.style.padding = '6px 6px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
     element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
@@ -2109,7 +2109,7 @@ export default function App() {
         }
       });
       
-      const imgWidth = 1120; // Forced width
+      const imgWidth = 1260; // Forced width
       const imgHeight = element.offsetHeight;
       
       const pdfWidth = 842;
