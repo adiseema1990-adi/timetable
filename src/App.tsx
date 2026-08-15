@@ -4512,10 +4512,10 @@ service cloud.firestore {
                             <div key={colIdx} className="flex flex-col space-y-1">
                               {colRows.map((row) => (
                                 <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
-                                  <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                                  <span className="font-semibold text-slate-900 truncate">
-                                    {row.subject.shortName || row.subject.name}
-                                  </span>
+                                  <div className="truncate">
+                                    <span className="font-mono font-bold text-blue-900">{row.subject.code}: </span>
+                                    <span className="font-semibold text-slate-900">{row.subject.shortName || row.subject.name}</span>
+                                  </div>
                                   <span className="text-slate-400 shrink-0">-</span>
                                   <span className="font-bold text-slate-800 shrink-0">{row.facultiesList.join(' | ')}</span>
                                 </div>
@@ -4847,10 +4847,10 @@ service cloud.firestore {
                             <div key={colIdx} className="flex flex-col space-y-1">
                               {colRows.map((row) => (
                                 <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
-                                  <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                                  <span className="font-semibold text-slate-900 truncate">
-                                    {row.subject.shortName || row.subject.name}
-                                  </span>
+                                  <div className="truncate">
+                                    <span className="font-mono font-bold text-blue-900">{row.subject.code}: </span>
+                                    <span className="font-semibold text-slate-900">{row.subject.shortName || row.subject.name}</span>
+                                  </div>
                                   <span className="text-slate-400 shrink-0">-</span>
                                   <span className="font-bold text-slate-800 shrink-0">{row.classNames.join(' | ')}</span>
                                 </div>
