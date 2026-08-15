@@ -130,11 +130,9 @@
 
 .is-pdf-exporting .pdf-subject-legend {
   display: block !important;
-  width: 100% !important;
 }
 
 .is-pdf-exporting .pdf-signatures {
   display: flex !important;
-  width: 100% !important;
 }
 
