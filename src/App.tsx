@@ -4453,6 +4453,7 @@ service cloud.firestore {
                     classAssignments.forEach(asgn => {
                       const sub = subjects.find(s => s.id === asgn.subjectId);
                       if (!sub) return;
+                      if (sub.isAicteActivity || sub.isStudentActivity) return;
 
                       let facDesc = '';
                       if (asgn.isLabBatch && asgn.batchAssignments && asgn.batchAssignments.length > 0) {
@@ -4464,8 +4465,11 @@ service cloud.firestore {
                         facDesc = batchParts.join(', ');
                       } else {
                         const f = faculties.find(fac => fac.id === asgn.facultyId);
-                        facDesc = f ? cleanFacultyName(f.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned');
+                        if (!f) return;
+                        facDesc = cleanFacultyName(f.name);
                       }
+
+                      if (!facDesc || facDesc.toLowerCase().includes('self-guided') || facDesc === 'Unassigned') return;
 
                       if (!subjectMap.has(sub.id)) {
                         subjectMap.set(sub.id, { subject: sub, facultiesList: [facDesc] });
@@ -4477,21 +4481,36 @@ service cloud.firestore {
                       }
                     });
 
-                    const rows = Array.from(subjectMap.values());
+                    const rows = Array.from(subjectMap.values()).filter(r => 
+                      !r.subject.isAicteActivity && 
+                      !r.subject.isStudentActivity &&
+                      r.facultiesList.length > 0 &&
+                      !r.facultiesList.every(f => f.toLowerCase().includes('self-guided') || f === 'Unassigned')
+                    );
                     if (rows.length === 0) return null;
 
+                    // Group rows into 3 items per column
+                    const columns: (typeof rows)[] = [];
+                    for (let i = 0; i < rows.length; i += 3) {
+                      columns.push(rows.slice(i, i + 3));
+                    }
+
                     return (
-                      <div className="mt-2.5 pt-2 border-t-2 border-slate-400 pdf-subject-legend hidden">
-                        <div className="text-[11pt] font-black uppercase tracking-wider text-slate-900 mb-1 flex items-center gap-2">
-                          <span>Course &amp; Faculty Allocation</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800">
-                          {rows.map((row) => (
-                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
-                              <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                              <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
-                              <span className="text-slate-400 shrink-0">-</span>
-                              <span className="font-bold text-slate-800 shrink-0">{row.facultiesList.join(' | ')}</span>
+                      <div className="mt-2 pt-1.5 border-t-2 border-slate-400 pdf-subject-legend hidden">
+                        <div 
+                          className="grid gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800"
+                          style={{ gridTemplateColumns: `repeat(${Math.max(1, columns.length)}, minmax(0, 1fr))` }}
+                        >
+                          {columns.map((colRows, colIdx) => (
+                            <div key={colIdx} className="flex flex-col space-y-1">
+                              {colRows.map((row) => (
+                                <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                                  <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
+                                  <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
+                                  <span className="text-slate-400 shrink-0">-</span>
+                                  <span className="font-bold text-slate-800 shrink-0">{row.facultiesList.join(' | ')}</span>
+                                </div>
+                              ))}
                             </div>
                           ))}
                         </div>
@@ -4500,17 +4519,17 @@ service cloud.firestore {
                   })()}
 
                   {selectedClassId && (
-                    <div className="mt-4 pt-1 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
+                    <div className="mt-7 pt-2 pb-1 flex items-end justify-between px-4 w-full select-none pdf-signatures hidden">
                       <div className="flex flex-col items-center">
-                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <div className="w-[186px] border-b-2 border-slate-800 mb-1.5"></div>
                         <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">Co-ordinator</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <div className="w-[186px] border-b-2 border-slate-800 mb-1.5"></div>
                         <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">HOD</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <div className="w-[186px] border-b-2 border-slate-800 mb-1.5"></div>
                         <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">PRINCIPAL</span>
                       </div>
                     </div>
@@ -4780,6 +4799,7 @@ service cloud.firestore {
                       const sub = subjects.find(s => s.id === asgn.subjectId);
                       const cls = classes.find(c => c.id === asgn.classId);
                       if (!sub || !cls) return;
+                      if (sub.isAicteActivity || sub.isStudentActivity) return;
 
                       let clsLabel = `${cls.name} (Sec ${cls.section})`;
                       if (asgn.isLabBatch && asgn.batchAssignments) {
@@ -4799,21 +4819,31 @@ service cloud.firestore {
                       }
                     });
 
-                    const rows = Array.from(rowMap.values());
+                    const rows = Array.from(rowMap.values()).filter(r => !r.subject.isAicteActivity && !r.subject.isStudentActivity);
                     if (rows.length === 0) return null;
 
+                    // Group rows into 3 items per column
+                    const columns: (typeof rows)[] = [];
+                    for (let i = 0; i < rows.length; i += 3) {
+                      columns.push(rows.slice(i, i + 3));
+                    }
+
                     return (
-                      <div className="mt-2.5 pt-2 border-t-2 border-slate-400 pdf-subject-legend hidden">
-                        <div className="text-[11pt] font-black uppercase tracking-wider text-slate-900 mb-1 flex items-center gap-2">
-                          <span>Course &amp; Faculty Allocation</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800">
-                          {rows.map((row) => (
-                            <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
-                              <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                              <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
-                              <span className="text-slate-400 shrink-0">-</span>
-                              <span className="font-bold text-slate-800 shrink-0">{row.classNames.join(' | ')}</span>
+                      <div className="mt-2 pt-1.5 border-t-2 border-slate-400 pdf-subject-legend hidden">
+                        <div 
+                          className="grid gap-x-6 gap-y-1 text-[10pt] leading-tight text-slate-800"
+                          style={{ gridTemplateColumns: `repeat(${Math.max(1, columns.length)}, minmax(0, 1fr))` }}
+                        >
+                          {columns.map((colRows, colIdx) => (
+                            <div key={colIdx} className="flex flex-col space-y-1">
+                              {colRows.map((row) => (
+                                <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
+                                  <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
+                                  <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
+                                  <span className="text-slate-400 shrink-0">-</span>
+                                  <span className="font-bold text-slate-800 shrink-0">{row.classNames.join(' | ')}</span>
+                                </div>
+                              ))}
                             </div>
                           ))}
                         </div>
@@ -4822,17 +4852,17 @@ service cloud.firestore {
                   })()}
 
                   {selectedFacultyId && (
-                    <div className="mt-4 pt-1 pb-1 flex items-end justify-between px-8 select-none pdf-signatures hidden">
+                    <div className="mt-7 pt-2 pb-1 flex items-end justify-between px-4 w-full select-none pdf-signatures hidden">
                       <div className="flex flex-col items-center">
-                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <div className="w-[186px] border-b-2 border-slate-800 mb-1.5"></div>
                         <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">Co-ordinator</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <div className="w-[186px] border-b-2 border-slate-800 mb-1.5"></div>
                         <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">HOD</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <div className="w-36 border-b-2 border-slate-800 mb-1"></div>
+                        <div className="w-[186px] border-b-2 border-slate-800 mb-1.5"></div>
                         <span className="font-bold text-[10pt] text-slate-900 uppercase tracking-wider">PRINCIPAL</span>
                       </div>
                     </div>
