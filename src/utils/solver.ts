@@ -502,7 +502,9 @@ export function generateTimetable(
   classes: ClassSection[],
   assignments: Assignment[],
   timeSlots: TimeSlot[],
-  days: DayOfWeek[]
+  days: DayOfWeek[],
+  lockedClassIds: string[] = [],
+  existingSchedule: TimetableSchedule | null = null
 ): SolverResult {
   const activeSlots = timeSlots.filter(s => !s.isBreak);
   const totalPeriods = activeSlots.length;
@@ -583,18 +585,29 @@ export function generateTimetable(
     return { success: false, schedule: {}, message: 'No active days selected.' };
   }
 
-  // Pre-validate
-  const validation = preValidateConstraints(faculties, subjects, classes, assignments, timeSlots, days);
+  const effectiveLockedIds = lockedClassIds.filter(id => classes.some(c => c.id === id));
+  const unlockedClasses = classes.filter(c => !effectiveLockedIds.includes(c.id));
+
+  if (classes.length > 0 && unlockedClasses.length === 0) {
+    return {
+      success: true,
+      schedule: existingSchedule || {},
+      message: 'All the sections timetables are locked.'
+    };
+  }
+
+  // Pre-validate for unlocked classes
+  const validation = preValidateConstraints(faculties, subjects, unlockedClasses.length > 0 ? unlockedClasses : classes, assignments, timeSlots, days);
   if (!validation.valid) {
     return {
       success: false,
-      schedule: {},
+      schedule: existingSchedule || {},
       message: `Invalid Constraints: ${validation.errors[0]}`
     };
   }
 
-  // Create lecture units
-  const lectureUnits = buildLectureUnits(classes, assignments, subjects);
+  // Create lecture units only for unlocked classes
+  const lectureUnits = buildLectureUnits(unlockedClasses, assignments, subjects);
 
   // Identify which faculties take multiple subjects in the SAME class
   const facultyMultiSubjectMap: Record<string, boolean> = {};
@@ -622,6 +635,30 @@ export function generateTimetable(
     teacherBusy[fac.id] = {};
     for (const day of days) {
       teacherBusy[fac.id][day] = Array(totalPeriods).fill(false);
+    }
+  }
+
+  // Pre-fill schedule and teacher commitments for locked classes
+  for (const lockedId of effectiveLockedIds) {
+    if (existingSchedule && existingSchedule[lockedId]) {
+      for (const day of days) {
+        if (existingSchedule[lockedId][day]) {
+          const daySlots = existingSchedule[lockedId][day];
+          for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+            const cell = daySlots[pIdx];
+            if (cell !== undefined && cell !== null) {
+              schedule[lockedId][day][pIdx] = JSON.parse(JSON.stringify(cell));
+              const aIds = getAssignmentIdsFromCell(cell);
+              for (const aId of aIds) {
+                const assign = assignments.find(a => a.id === aId);
+                if (assign && assign.facultyId && teacherBusy[assign.facultyId] && teacherBusy[assign.facultyId][day]) {
+                  teacherBusy[assign.facultyId][day][pIdx] = true;
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -703,8 +740,8 @@ export function generateTimetable(
     }
 
     if (unitIdx === lectureUnits.length) {
-      // Avoid free periods in Period 1, Period 2, Period 3, and Period 4
-      for (const cls of classes) {
+      // Avoid free periods in Period 1, Period 2, Period 3, and Period 4 for unlocked classes
+      for (const cls of unlockedClasses) {
         for (const day of days) {
           for (let p = 0; p < totalPeriods; p++) {
             if (isPeriod1To4(p)) {
@@ -921,7 +958,7 @@ export function generateTimetable(
       message: 'Timetable generated successfully without any clashes or continuity conflicts!'
     };
   } else {
-    return greedyFallback(faculties, subjects, classes, assignments, timeSlots, days, facultyMultiSubjectMap);
+    return greedyFallback(faculties, subjects, classes, assignments, timeSlots, days, facultyMultiSubjectMap, lockedClassIds, existingSchedule);
   }
 }
 
@@ -935,10 +972,15 @@ function greedyFallback(
   assignments: Assignment[],
   timeSlots: TimeSlot[],
   days: DayOfWeek[],
-  facultyMultiSubjectMap: Record<string, boolean>
+  facultyMultiSubjectMap: Record<string, boolean>,
+  lockedClassIds: string[] = [],
+  existingSchedule: TimetableSchedule | null = null
 ): SolverResult {
   const activeSlots = timeSlots.filter(s => !s.isBreak);
   const totalPeriods = activeSlots.length;
+
+  const effectiveLockedIds = lockedClassIds.filter(id => classes.some(c => c.id === id));
+  const unlockedClasses = classes.filter(c => !effectiveLockedIds.includes(c.id));
 
   const lunchBreakIdx = timeSlots.findIndex(s => s.isBreak && s.label.toLowerCase().includes('lunch'));
 
@@ -990,6 +1032,30 @@ function greedyFallback(
     teacherBusy[fac.id] = {};
     for (const day of days) {
       teacherBusy[fac.id][day] = Array(totalPeriods).fill(false);
+    }
+  }
+
+  // Pre-fill schedule and teacher commitments for locked classes
+  for (const lockedId of effectiveLockedIds) {
+    if (existingSchedule && existingSchedule[lockedId]) {
+      for (const day of days) {
+        if (existingSchedule[lockedId][day]) {
+          const daySlots = existingSchedule[lockedId][day];
+          for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+            const cell = daySlots[pIdx];
+            if (cell !== undefined && cell !== null) {
+              schedule[lockedId][day][pIdx] = JSON.parse(JSON.stringify(cell));
+              const aIds = getAssignmentIdsFromCell(cell);
+              for (const aId of aIds) {
+                const assign = assignments.find(a => a.id === aId);
+                if (assign && assign.facultyId && teacherBusy[assign.facultyId] && teacherBusy[assign.facultyId][day]) {
+                  teacherBusy[assign.facultyId][day][pIdx] = true;
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -1051,7 +1117,7 @@ function greedyFallback(
     return false;
   };
 
-  const lectureUnits = buildLectureUnits(classes, assignments, subjects);
+  const lectureUnits = buildLectureUnits(unlockedClasses, assignments, subjects);
 
   lectureUnits.sort((a, b) => {
     if (a.isParallelLab && !b.isParallelLab) return -1;

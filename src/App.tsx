@@ -42,6 +42,7 @@ import {
   Send,
   Copy,
   Lock,
+  Unlock,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -692,6 +693,20 @@ export default function App() {
   const [inlineSaveAsName, setInlineSaveAsName] = useState('');
   const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
 
+  // --- Locked Sections State ---
+  const [lockedClassIds, setLockedClassIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mvce_locked_classes');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockClassId, setUnlockClassId] = useState<string | null>(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockPasswordError, setUnlockPasswordError] = useState<string | null>(null);
+
   // Keep a live ref of workspace data to avoid stale closures in debounced auto-sync
   const workspaceDataRef = useRef({
     faculties,
@@ -702,7 +717,8 @@ export default function App() {
     days,
     customSchedule,
     solverResult,
-    activeTimetableName
+    activeTimetableName,
+    lockedClassIds
   });
 
   // Keep workspace ref synchronously up to date
@@ -715,7 +731,8 @@ export default function App() {
     days,
     customSchedule,
     solverResult,
-    activeTimetableName
+    activeTimetableName,
+    lockedClassIds
   };
 
   // --- Firebase Google Auth States ---
@@ -1101,6 +1118,7 @@ export default function App() {
     localStorage.setItem('mvce_assignments', JSON.stringify(assignments));
     localStorage.setItem('mvce_timeSlots', JSON.stringify(timeSlots));
     localStorage.setItem('mvce_days', JSON.stringify(days));
+    localStorage.setItem('mvce_locked_classes', JSON.stringify(lockedClassIds));
     if (customSchedule) {
       localStorage.setItem('mvce_customSchedule', JSON.stringify(customSchedule));
     } else {
@@ -1112,14 +1130,30 @@ export default function App() {
       localStorage.removeItem('mvce_solverResult');
     }
     setIsDataStale(true);
-  }, [isInitialized, currentUser, faculties, subjects, classes, assignments, timeSlots, days, customSchedule, solverResult]);
+  }, [isInitialized, currentUser, faculties, subjects, classes, assignments, timeSlots, days, lockedClassIds, customSchedule, solverResult]);
 
-  // Run Solver
+  // Run Solver with Lock Support
   const handleGenerate = () => {
+    const effectiveLocked = lockedClassIds.filter(id => classes.some(c => c.id === id));
+    if (classes.length > 0 && effectiveLocked.length === classes.length) {
+      showAuthNotice("All the sections timetables are locked.");
+      return;
+    }
+
     setIsGenerating(true);
     // Simulate slight processing for visual feedback
     setTimeout(() => {
-      const result = generateTimetable(faculties, subjects, classes, assignments, timeSlots, days);
+      const activeSched = customSchedule || solverResult?.schedule || null;
+      const result = generateTimetable(
+        faculties,
+        subjects,
+        classes,
+        assignments,
+        timeSlots,
+        days,
+        lockedClassIds,
+        activeSched
+      );
       setSolverResult(result);
       if (result.schedule) {
         setCustomSchedule(JSON.parse(JSON.stringify(result.schedule)));
@@ -1128,7 +1162,71 @@ export default function App() {
       setIsDataStale(false);
       setUndoStack([]);
       setRedoStack([]);
+
+      if (result.message && result.message.includes("All the sections timetables are locked")) {
+        showAuthNotice("All the sections timetables are locked.");
+      } else if (effectiveLocked.length > 0) {
+        showAuthNotice(`Timetable generated! Updated ${classes.length - effectiveLocked.length} unlocked section(s); ${effectiveLocked.length} locked section(s) preserved.`);
+      } else {
+        showAuthNotice("Timetable generated successfully!");
+      }
     }, 400);
+  };
+
+  // Toggle Lock / Finalize Section Timetable
+  const handleToggleLockSection = (classId: string) => {
+    if (!classId) return;
+    const targetClass = classes.find(c => c.id === classId);
+    const className = targetClass ? `${targetClass.name} (Sec ${targetClass.section})` : 'Selected Section';
+
+    if (lockedClassIds.includes(classId)) {
+      // Prompt password modal to unlock
+      setUnlockClassId(classId);
+      setUnlockPassword('');
+      setUnlockPasswordError(null);
+      setShowUnlockModal(true);
+    } else {
+      // Finalize and Lock
+      const updated = [...lockedClassIds, classId];
+      setLockedClassIds(updated);
+      localStorage.setItem('mvce_locked_classes', JSON.stringify(updated));
+
+      // Make sure the finalized custom schedule is synchronized
+      if (customSchedule && customSchedule[classId]) {
+        const currentSched = solverResult?.schedule || {};
+        const mergedSched = { ...currentSched, [classId]: customSchedule[classId] };
+        const updatedSolverResult: SolverResult = {
+          success: true,
+          schedule: mergedSched,
+          message: `Section ${className} locked & finalized.`
+        };
+        setSolverResult(updatedSolverResult);
+        localStorage.setItem('mvce_solverResult', JSON.stringify(updatedSolverResult));
+        localStorage.setItem('mvce_customSchedule', JSON.stringify(customSchedule));
+      }
+
+      showAuthNotice(`🔒 Timetable for ${className} has been finalized and locked! It cannot be edited or overwritten until unlocked.`);
+    }
+  };
+
+  const handleUnlockConfirm = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (unlockPassword.trim() === 'rampuresir') {
+      if (unlockClassId) {
+        const targetClass = classes.find(c => c.id === unlockClassId);
+        const className = targetClass ? `${targetClass.name} (Sec ${targetClass.section})` : 'Selected Section';
+        const updated = lockedClassIds.filter(id => id !== unlockClassId);
+        setLockedClassIds(updated);
+        localStorage.setItem('mvce_locked_classes', JSON.stringify(updated));
+        showAuthNotice(`🔓 Timetable for ${className} unlocked successfully! You can now edit and regenerate this section.`);
+      }
+      setShowUnlockModal(false);
+      setUnlockClassId(null);
+      setUnlockPassword('');
+      setUnlockPasswordError(null);
+    } else {
+      setUnlockPasswordError('Incorrect password. Access denied.');
+    }
   };
 
   // Run solver automatically on first load or when sample data loads
@@ -1136,7 +1234,7 @@ export default function App() {
     if (isInitialized && faculties.length > 0 && subjects.length > 0 && classes.length > 0 && timeSlots.length > 0) {
       const savedCustomSchedule = localStorage.getItem('mvce_customSchedule');
       if (!savedCustomSchedule) {
-        const result = generateTimetable(faculties, subjects, classes, assignments, timeSlots, days);
+        const result = generateTimetable(faculties, subjects, classes, assignments, timeSlots, days, lockedClassIds);
         setSolverResult(result);
         setCustomSchedule(result.schedule);
         setIsDataStale(false);
@@ -1162,6 +1260,11 @@ export default function App() {
 
   const performSwap = (srcDay: string, srcSlotIdx: number, destDay: string, destSlotIdx: number) => {
     if (!customSchedule || !selectedClassId || !customSchedule[selectedClassId]) return;
+
+    if (lockedClassIds.includes(selectedClassId)) {
+      showAuthNotice("🔒 This class section timetable is locked. Please unlock it using the lock button to make adjustments.");
+      return;
+    }
 
     // Save previous state to undo stack
     const currentSnapshot = JSON.parse(JSON.stringify(customSchedule));
@@ -1191,6 +1294,11 @@ export default function App() {
   const handleUndo = () => {
     if (undoStack.length === 0 || !customSchedule) return;
 
+    if (selectedClassId && lockedClassIds.includes(selectedClassId)) {
+      showAuthNotice("🔒 This class section timetable is locked. Please unlock it to make adjustments.");
+      return;
+    }
+
     const previous = undoStack[undoStack.length - 1];
     const newUndoStack = undoStack.slice(0, -1);
 
@@ -1212,6 +1320,11 @@ export default function App() {
   const handleRedo = () => {
     if (redoStack.length === 0 || !customSchedule) return;
 
+    if (selectedClassId && lockedClassIds.includes(selectedClassId)) {
+      showAuthNotice("🔒 This class section timetable is locked. Please unlock it to make adjustments.");
+      return;
+    }
+
     const next = redoStack[redoStack.length - 1];
     const newRedoStack = redoStack.slice(0, -1);
 
@@ -1231,6 +1344,11 @@ export default function App() {
   };
 
   const handleResetManualAdjustments = () => {
+    if (selectedClassId && lockedClassIds.includes(selectedClassId)) {
+      showAuthNotice("🔒 This class section timetable is locked. Please unlock it first to reset.");
+      return;
+    }
+
     if (solverResult?.schedule) {
       if (customSchedule) {
         setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(customSchedule))]);
@@ -1239,7 +1357,7 @@ export default function App() {
       setCustomSchedule(JSON.parse(JSON.stringify(solverResult.schedule)));
       showAuthNotice("Manual adjustments reset to the saved/optimized stage! You can undo this action if needed.");
     } else {
-      const result = generateTimetable(faculties, subjects, classes, assignments, timeSlots, days);
+      const result = generateTimetable(faculties, subjects, classes, assignments, timeSlots, days, lockedClassIds, customSchedule || null);
       setSolverResult(result);
       if (result.schedule) {
         if (customSchedule) {
@@ -1263,6 +1381,7 @@ export default function App() {
     setTimeSlots(DEFAULT_TIME_SLOTS);
     setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
     setSelectedClassId('');
+    setLockedClassIds([]);
     setSolverResult(null);
     setCustomSchedule(null);
     setUndoStack([]);
@@ -1281,6 +1400,7 @@ export default function App() {
     localStorage.setItem('mvce_assignments', JSON.stringify([]));
     localStorage.setItem('mvce_timeSlots', JSON.stringify(DEFAULT_TIME_SLOTS));
     localStorage.setItem('mvce_days', JSON.stringify(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']));
+    localStorage.removeItem('mvce_locked_classes');
     localStorage.removeItem('mvce_customSchedule');
     localStorage.removeItem('mvce_solverResult');
     localStorage.setItem('mvce_firebase_active_timetable', currentActive);
@@ -1297,6 +1417,7 @@ export default function App() {
     setTimeSlots(DEFAULT_TIME_SLOTS);
     setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
     setSelectedClassId('');
+    setLockedClassIds([]);
     setSolverResult(null);
     setCustomSchedule(null);
     setUndoStack([]);
@@ -1423,6 +1544,7 @@ export default function App() {
         assignments: liveData.assignments,
         timeSlots: liveData.timeSlots,
         days: liveData.days,
+        lockedClassIds: liveData.lockedClassIds || [],
         customSchedule: liveData.customSchedule || null,
         solverResult: liveData.solverResult || null
       };
@@ -1499,6 +1621,13 @@ export default function App() {
         if (data.assignments) setAssignments(data.assignments);
         if (data.timeSlots) setTimeSlots(normalizeTimeSlotsWithDefaults(data.timeSlots));
         if (data.days) setDays(data.days);
+        if (data.lockedClassIds && Array.isArray(data.lockedClassIds)) {
+          setLockedClassIds(data.lockedClassIds);
+          localStorage.setItem('mvce_locked_classes', JSON.stringify(data.lockedClassIds));
+        } else {
+          setLockedClassIds([]);
+          localStorage.removeItem('mvce_locked_classes');
+        }
         if (data.customSchedule) setCustomSchedule(data.customSchedule);
         if (data.solverResult) setSolverResult(data.solverResult);
         
@@ -4088,7 +4217,15 @@ service cloud.firestore {
 
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3 mb-4 roster-controls-container">
                     <div>
-                      <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Class Roster View</h3>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Class Roster View</h3>
+                        {selectedClassId && lockedClassIds.includes(selectedClassId) && (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1">
+                            <Lock className="h-2.5 w-2.5 text-amber-700" />
+                            <span>Locked & Finalized</span>
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-slate-500 mt-0.5">Select a class section to inspect its weekly timetable schedule.</p>
                     </div>
 
@@ -4106,7 +4243,7 @@ service cloud.firestore {
                         ))}
                       </select>
 
-                       <button
+                      <button
                         onClick={handleExportPDF}
                         disabled={!selectedClassId || !solverResult?.schedule || isExportingPDF}
                         className="px-2.5 py-1.5 text-white bg-[crimson] hover:bg-[#b00f30] disabled:bg-[crimson]/50 disabled:cursor-not-allowed rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1 cursor-pointer"
@@ -4115,6 +4252,44 @@ service cloud.firestore {
                         <Download className="h-3.5 w-3.5 text-white" />
                         <span>{isExportingPDF ? "Exporting..." : "Export PDF"}</span>
                       </button>
+
+                      {/* Lock / Unlock section button beside Export PDF */}
+                      {selectedClassId && (
+                        (() => {
+                          const isCurrentLocked = lockedClassIds.includes(selectedClassId);
+                          const targetClass = classes.find(c => c.id === selectedClassId);
+                          const className = targetClass ? `${targetClass.name} (Sec ${targetClass.section})` : 'Selected Section';
+                          return (
+                            <button
+                              id="lock-section-btn"
+                              type="button"
+                              onClick={() => handleToggleLockSection(selectedClassId)}
+                              className={`px-2.5 py-1.5 rounded text-[11px] font-bold uppercase tracking-wider transition shadow-sm flex items-center space-x-1.5 cursor-pointer select-none ${
+                                isCurrentLocked
+                                  ? 'bg-amber-600 hover:bg-amber-700 text-white border border-amber-700 ring-1 ring-amber-400/50'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                              }`}
+                              title={
+                                isCurrentLocked
+                                  ? `Timetable for ${className} is locked (Click to unlock with password 'rampuresir')`
+                                  : `Finalize & Lock timetable for ${className} to prevent edits and re-generation`
+                              }
+                            >
+                              {isCurrentLocked ? (
+                                <>
+                                  <Lock className="h-3.5 w-3.5 text-amber-100 fill-current" />
+                                  <span>Locked</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Unlock className="h-3.5 w-3.5 text-slate-600" />
+                                  <span>Lock</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })()
+                      )}
 
                       <button
                         onClick={handleDownloadPDFLocally}
@@ -4126,7 +4301,6 @@ service cloud.firestore {
                         <Download className="h-3.5 w-3.5 text-white" />
                         <span>{isDownloadingPDF ? "Downloading..." : "Download PDF"}</span>
                       </button>
-
 
                     </div>
                   </div>
@@ -5056,6 +5230,25 @@ service cloud.firestore {
                       </select>
                     </div>
                   </div>
+
+                  {selectedClassId && lockedClassIds.includes(selectedClassId) && (
+                    <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded text-amber-900 flex items-center justify-between text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Lock className="h-4 w-4 text-amber-700 flex-shrink-0" />
+                        <span>
+                          <strong>Section Locked:</strong> This timetable section is finalized and locked against adjustments. Unlock it to make changes.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLockSection(selectedClassId)}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider rounded shadow-sm flex items-center space-x-1 cursor-pointer"
+                      >
+                        <Unlock className="h-3 w-3" />
+                        <span>Unlock</span>
+                      </button>
+                    </div>
+                  )}
 
                   <div className="border border-slate-400 rounded overflow-x-auto shadow-sm bg-slate-900/5">
                     {selectedClassId ? (
@@ -8043,6 +8236,96 @@ service cloud.firestore {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Unlock Timetable Section Password Modal */}
+      {showUnlockModal && (
+        <div id="unlock-section-modal-backdrop" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div id="unlock-section-modal-card" className="bg-white rounded-lg shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-amber-600 text-white px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Lock className="h-5 w-5 text-amber-200" />
+                <h3 className="font-bold text-sm tracking-wide">Unlock Timetable Section</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnlockModal(false);
+                  setUnlockClassId(null);
+                  setUnlockPassword('');
+                  setUnlockPasswordError(null);
+                }}
+                className="text-amber-200 hover:text-white transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleUnlockConfirm} className="p-5 space-y-4">
+              <div>
+                <p className="text-xs text-slate-700 font-medium">
+                  {unlockClassId && (() => {
+                    const targetClass = classes.find(c => c.id === unlockClassId);
+                    return targetClass ? (
+                      <>
+                        You are unlocking the timetable for <strong className="text-slate-900">{targetClass.name} (Section {targetClass.section})</strong>.
+                      </>
+                    ) : 'You are unlocking this section timetable.';
+                  })()}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Enter the administrator password to unlock this section for editing and re-generation.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Password <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={unlockPassword}
+                  onChange={(e) => {
+                    setUnlockPassword(e.target.value);
+                    if (unlockPasswordError) setUnlockPasswordError(null);
+                  }}
+                  placeholder="Enter unlock password"
+                  autoFocus
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+                {unlockPasswordError && (
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1 flex items-center space-x-1">
+                    <span>{unlockPasswordError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUnlockModal(false);
+                    setUnlockClassId(null);
+                    setUnlockPassword('');
+                    setUnlockPasswordError(null);
+                  }}
+                  className="px-3.5 py-1.5 text-slate-600 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Unlock className="h-3.5 w-3.5" />
+                  <span>Unlock Section</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
