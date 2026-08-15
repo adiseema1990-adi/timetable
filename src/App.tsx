@@ -755,6 +755,7 @@ export default function App() {
   
   // Subject Form
   const [newSubCode, setNewSubCode] = useState('');
+  const [newSubShortName, setNewSubShortName] = useState('');
   const [newSubName, setNewSubName] = useState('');
   const [newSubDept, setNewSubDept] = useState('CSE');
   const [newSubPeriods, setNewSubPeriods] = useState(4);
@@ -771,6 +772,7 @@ export default function App() {
   // Subject Editing State
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [editSubCode, setEditSubCode] = useState('');
+  const [editSubShortName, setEditSubShortName] = useState('');
   const [editSubName, setEditSubName] = useState('');
   const [editSubDept, setEditSubDept] = useState('CSE');
   const [editSubPeriods, setEditSubPeriods] = useState(4);
@@ -2220,6 +2222,7 @@ export default function App() {
       id: 's_' + Date.now(),
       code: newSubCode.toUpperCase(),
       name: newSubName,
+      shortName: newSubShortName.trim().toUpperCase() || undefined,
       department: newSubDept,
       weeklyPeriods: Number(newSubPeriods),
       isLab: newSubIsLab,
@@ -2232,6 +2235,7 @@ export default function App() {
     showAuthNotice(`Subject ${newSub.code} added.`);
 
     setNewSubCode('');
+    setNewSubShortName('');
     setNewSubName('');
     setNewSubPeriods(4);
     setNewSubIsLab(false);
@@ -2528,6 +2532,7 @@ export default function App() {
   const startEditingSubject = (sub: Subject) => {
     setEditingSubjectId(sub.id);
     setEditSubCode(sub.code);
+    setEditSubShortName(sub.shortName || '');
     setEditSubName(sub.name);
     setEditSubDept(normalizeDepartment(sub.department));
     setEditSubPeriods(sub.weeklyPeriods);
@@ -2542,6 +2547,7 @@ export default function App() {
   const cancelEditingSubject = () => {
     setEditingSubjectId(null);
     setEditSubCode('');
+    setEditSubShortName('');
     setEditSubName('');
     setEditSubDept('CSE');
     setEditSubPeriods(4);
@@ -2564,6 +2570,7 @@ export default function App() {
           ...s,
           code: editSubCode.toUpperCase(),
           name: editSubName,
+          shortName: editSubShortName.trim().toUpperCase() || undefined,
           department: editSubDept,
           weeklyPeriods: Number(editSubPeriods),
           isLab: editSubIsLab,
@@ -4506,7 +4513,9 @@ service cloud.firestore {
                               {colRows.map((row) => (
                                 <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
                                   <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                                  <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
+                                  <span className="font-semibold text-slate-900 truncate">
+                                    {row.subject.shortName || row.subject.name}
+                                  </span>
                                   <span className="text-slate-400 shrink-0">-</span>
                                   <span className="font-bold text-slate-800 shrink-0">{row.facultiesList.join(' | ')}</span>
                                 </div>
@@ -4839,7 +4848,9 @@ service cloud.firestore {
                               {colRows.map((row) => (
                                 <div key={row.subject.id} className="flex items-baseline space-x-1.5 overflow-hidden">
                                   <span className="font-mono font-bold text-blue-900 shrink-0">{row.subject.code}:</span>
-                                  <span className="font-semibold text-slate-900 truncate">{row.subject.name}</span>
+                                  <span className="font-semibold text-slate-900 truncate">
+                                    {row.subject.shortName || row.subject.name}
+                                  </span>
                                   <span className="text-slate-400 shrink-0">-</span>
                                   <span className="font-bold text-slate-800 shrink-0">{row.classNames.join(' | ')}</span>
                                 </div>
@@ -5723,10 +5734,10 @@ service cloud.firestore {
                             required
                             placeholder="e.g. 21CS51"
                             value={editSubCode}
-                            onChange={(e) => setEditSubCode(e.target.value)}
+                            onChange={(e) => setEditSubCode(e.target.value.toUpperCase())}
                             className={`w-full bg-amber-50/10 border ${
                               editSubFormSubmitted && !editSubCode ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
-                            } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                            } rounded px-2.5 py-1.5 text-xs font-mono uppercase text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                           />
                         </div>
                         <div>
@@ -5747,18 +5758,31 @@ service cloud.firestore {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Database Management"
-                          value={editSubName}
-                          onChange={(e) => setEditSubName(e.target.value)}
-                          className={`w-full bg-amber-50/10 border ${
-                            editSubFormSubmitted && !editSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
-                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. DATABASE MANAGEMENT"
+                            value={editSubName}
+                            onChange={(e) => setEditSubName(e.target.value.toUpperCase())}
+                            className={`w-full bg-amber-50/10 border ${
+                              editSubFormSubmitted && !editSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded px-2.5 py-1.5 text-xs uppercase text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Short Subject Name :</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. DBMS, TOC, OS LAB"
+                            value={editSubShortName}
+                            onChange={(e) => setEditSubShortName(e.target.value.toUpperCase())}
+                            className="w-full bg-amber-50/10 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-mono uppercase text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -5944,10 +5968,10 @@ service cloud.firestore {
                             required
                             placeholder="e.g. 21CS51"
                             value={newSubCode}
-                            onChange={(e) => setNewSubCode(e.target.value)}
+                            onChange={(e) => setNewSubCode(e.target.value.toUpperCase())}
                             className={`w-full bg-slate-50 border ${
                               subFormSubmitted && !newSubCode ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                            } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                            } rounded px-2.5 py-1.5 text-xs font-mono uppercase text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
                           />
                         </div>
                         <div>
@@ -5968,18 +5992,31 @@ service cloud.firestore {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Database Management"
-                          value={newSubName}
-                          onChange={(e) => setNewSubName(e.target.value)}
-                          className={`w-full bg-slate-50 border ${
-                            subFormSubmitted && !newSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
-                          } rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Course Title</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. DATABASE MANAGEMENT"
+                            value={newSubName}
+                            onChange={(e) => setNewSubName(e.target.value.toUpperCase())}
+                            className={`w-full bg-slate-50 border ${
+                              subFormSubmitted && !newSubName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-blue-900'
+                            } rounded px-2.5 py-1.5 text-xs uppercase text-slate-800 focus:outline-none focus:ring-1 focus:bg-white transition`}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Short Subject Name :</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. DBMS, TOC, OS LAB"
+                            value={newSubShortName}
+                            onChange={(e) => setNewSubShortName(e.target.value.toUpperCase())}
+                            className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-mono uppercase text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 focus:bg-white transition"
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -6202,7 +6239,14 @@ service cloud.firestore {
                                 </button>
                               </td>
                               <td className="p-2.5">
-                                <div className="font-bold text-slate-900">{sub.name}</div>
+                                <div className="font-bold text-slate-900 flex items-center flex-wrap gap-1.5">
+                                  <span>{sub.name}</span>
+                                  {sub.shortName && (
+                                    <span className="font-mono text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 rounded font-bold">
+                                      {sub.shortName}
+                                    </span>
+                                  )}
+                                </div>
                                 <div 
                                   className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold border"
                                   style={{
@@ -6211,7 +6255,7 @@ service cloud.firestore {
                                     color: textColor
                                   }}
                                 >
-                                  Preview: {sub.code}
+                                  Preview: {sub.shortName ? `${sub.code} (${sub.shortName})` : sub.code}
                                 </div>
                               </td>
                               <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(sub.department)}</td>

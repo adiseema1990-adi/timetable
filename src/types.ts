@@ -15,6 +15,7 @@ export interface Subject {
   id: string;
   code: string; // e.g., "21CS51"
   name: string;
+  shortName?: string; // e.g., "TOC", "DBMS", "OS LAB"
   department: string;
   weeklyPeriods: number; // how many periods of this subject per week
   isLab?: boolean;
