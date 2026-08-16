@@ -1136,7 +1136,7 @@ export default function App() {
   const handleGenerate = () => {
     const effectiveLocked = lockedClassIds.filter(id => classes.some(c => c.id === id));
     if (classes.length > 0 && effectiveLocked.length === classes.length) {
-      showAuthNotice("All the sections timetables are locked.");
+      showAuthNotice("All the sections timetables are locked.", 'error');
       return;
     }
 
@@ -1164,7 +1164,7 @@ export default function App() {
       setRedoStack([]);
 
       if (result.message && result.message.includes("All the sections timetables are locked")) {
-        showAuthNotice("All the sections timetables are locked.");
+        showAuthNotice("All the sections timetables are locked.", 'error');
       } else if (effectiveLocked.length > 0) {
         showAuthNotice(`Timetable generated! Updated ${classes.length - effectiveLocked.length} unlocked section(s); ${effectiveLocked.length} locked section(s) preserved.`);
       } else {
@@ -1447,15 +1447,17 @@ export default function App() {
     }
   };
 
-  const showAuthNotice = (msg: string) => {
-    let toastType: 'success' | 'info' | 'warning' | 'error' = 'success';
-    const lower = msg.toLowerCase();
-    if (lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied')) {
-      toastType = 'error';
-    } else if (lower.includes('warning')) {
-      toastType = 'warning';
-    } else if (lower.includes('info') || lower.includes('loading') || lower.includes('fetching') || lower.includes('generating') || lower.includes('preparing')) {
-      toastType = 'info';
+  const showAuthNotice = (msg: string, forcedType?: 'success' | 'info' | 'warning' | 'error') => {
+    let toastType: 'success' | 'info' | 'warning' | 'error' = forcedType || 'success';
+    if (!forcedType) {
+      const lower = msg.toLowerCase();
+      if (lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied') || lower.includes('locked') || lower.includes('lock')) {
+        toastType = 'error';
+      } else if (lower.includes('warning')) {
+        toastType = 'warning';
+      } else if (lower.includes('info') || lower.includes('loading') || lower.includes('fetching') || lower.includes('generating') || lower.includes('preparing')) {
+        toastType = 'info';
+      }
     }
     
     addToast(msg, toastType);
@@ -3416,12 +3418,34 @@ export default function App() {
       {/* ========================================== */}
       {/* TOAST / NOTIFICATION DRAWER                */}
       {/* ========================================== */}
-      {authNotification && (
-        <div className="bg-amber-50 border-b border-amber-200/80 text-amber-900 px-6 py-2 text-xs font-medium flex items-center justify-center space-x-2 animate-fade-in">
-          <Info className="h-4 w-4 text-amber-600 flex-shrink-0" />
-          <span>{authNotification}</span>
-        </div>
-      )}
+      {/* TOAST / NOTIFICATION DRAWER                */}
+      {/* ========================================== */}
+      {authNotification && (() => {
+        const lower = authNotification.toLowerCase();
+        const isErr = lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied') || lower.includes('locked') || lower.includes('lock');
+        const isWarn = lower.includes('warning');
+        
+        let bannerClass = 'bg-amber-50 border-amber-200/80 text-amber-900';
+        let iconClass = 'text-amber-600';
+        let BannerIcon = Info;
+
+        if (isErr) {
+          bannerClass = 'bg-rose-100/90 border-rose-300 text-rose-950 font-semibold border-b-rose-400';
+          iconClass = 'text-rose-700';
+          BannerIcon = lower.includes('locked') || lower.includes('lock') ? Lock : AlertCircle;
+        } else if (isWarn) {
+          bannerClass = 'bg-amber-50 border-amber-200/80 text-amber-900 font-medium';
+          iconClass = 'text-amber-600';
+          BannerIcon = AlertTriangle;
+        }
+
+        return (
+          <div className={`border-b px-6 py-2 text-xs flex items-center justify-center space-x-2 animate-fade-in ${bannerClass}`}>
+            <BannerIcon className={`h-4 w-4 flex-shrink-0 ${iconClass}`} />
+            <span>{authNotification}</span>
+          </div>
+        );
+      })()}
 
       {/* ========================================== */}
       {/* FLOATING TOP RIGHT TOAST CONTAINER         */}
@@ -3432,6 +3456,7 @@ export default function App() {
           const isError = toast.type === 'error';
           const isWarning = toast.type === 'warning';
           const isDeletion = toast.message.toLowerCase().includes('deleted') || toast.message.toLowerCase().includes('delete') || toast.message.toLowerCase().includes('removed');
+          const isLockedMsg = toast.message.toLowerCase().includes('locked') || toast.message.toLowerCase().includes('lock');
           
           let cardBgClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
           let iconColorClass = 'text-emerald-600';
@@ -3442,9 +3467,10 @@ export default function App() {
             iconColorClass = 'text-rose-600';
             IconComp = Trash2;
           } else if (isError) {
-            cardBgClass = 'bg-red-50 border-red-200 text-red-900';
-            iconColorClass = 'text-red-600';
-            IconComp = AlertCircle;
+            // Light Crimson Red Toast Styling for Errors / Locked Messages
+            cardBgClass = 'bg-rose-100/95 border-rose-300 text-rose-950 shadow-md shadow-rose-900/10 border-l-4 border-l-rose-600';
+            iconColorClass = 'text-rose-700';
+            IconComp = isLockedMsg ? Lock : AlertCircle;
           } else if (isWarning) {
             cardBgClass = 'bg-amber-50 border-amber-200 text-amber-900';
             iconColorClass = 'text-amber-600';
