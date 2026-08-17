@@ -1931,11 +1931,13 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth; // Default to 100% width across the PDF page (edge-to-edge)
+      const maxPdfWidth = pdfWidth * 0.96; // Scaled to 96% to prevent text clipping during printing
+      const maxPdfHeight = pdfHeight * 0.96;
+      let width = maxPdfWidth;
       let height = width / ratio;
       
-      if (height > pdfHeight) {
-        height = pdfHeight;
+      if (height > maxPdfHeight) {
+        height = maxPdfHeight;
         width = height * ratio;
       }
       
@@ -2091,11 +2093,13 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth; // Default to 100% width across the PDF page (edge-to-edge)
+      const maxPdfWidth = pdfWidth * 0.96; // Scaled to 96% to prevent text clipping during printing
+      const maxPdfHeight = pdfHeight * 0.96;
+      let width = maxPdfWidth;
       let height = width / ratio;
       
-      if (height > pdfHeight) {
-        height = pdfHeight;
+      if (height > maxPdfHeight) {
+        height = maxPdfHeight;
         width = height * ratio;
       }
       
@@ -2247,11 +2251,13 @@ export default function App() {
       const pdfHeight = 595;
       
       const ratio = imgWidth / imgHeight;
-      let width = pdfWidth; // Default to 100% width across the PDF page (edge-to-edge)
+      const maxPdfWidth = pdfWidth * 0.96; // Scaled to 96% to prevent text clipping during printing
+      const maxPdfHeight = pdfHeight * 0.96;
+      let width = maxPdfWidth;
       let height = width / ratio;
       
-      if (height > pdfHeight) {
-        height = pdfHeight;
+      if (height > maxPdfHeight) {
+        height = maxPdfHeight;
         width = height * ratio;
       }
       

@@ -38,10 +38,10 @@
   .timetable-card {
     border: none !important;
     box-shadow: none !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 96% !important;
+    max-width: 96% !important;
   }
 
   /* Force table grid container to be fully visible */
