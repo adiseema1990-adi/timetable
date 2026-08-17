@@ -1841,6 +1841,25 @@ export default function App() {
       });
   };
 
+  const loadCollegeLogoImage = async (): Promise<HTMLImageElement | null> => {
+    try {
+      const img = new Image();
+      img.src = '/college_logo.png';
+      await new Promise<void>((resolve, reject) => {
+        if (img.complete && img.naturalWidth !== 0) {
+          resolve();
+        } else {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load logo'));
+        }
+      });
+      return img;
+    } catch (err) {
+      console.warn('Could not load college logo image for PDF header:', err);
+      return null;
+    }
+  };
+
   const [isExportingFacultyPDF, setIsExportingFacultyPDF] = useState(false);
 
   const handleExportFacultyPDF = async () => {
@@ -1861,7 +1880,7 @@ export default function App() {
     element.classList.add('is-pdf-exporting');
     element.style.width = '1260px';
     element.style.minWidth = '1260px';
-    element.style.padding = '6px 6px';
+    element.style.padding = '0px 6px 6px 6px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
     element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
@@ -1930,14 +1949,16 @@ export default function App() {
       const pdfWidth = 842;
       const pdfHeight = 595;
       
+      const topMargin = 14;
+      const bottomMargin = 14;
+      const availableHeight = pdfHeight - topMargin - bottomMargin;
       const ratio = imgWidth / imgHeight;
       const maxPdfWidth = pdfWidth * 0.96; // Scaled to 96% to prevent text clipping during printing
-      const maxPdfHeight = pdfHeight * 0.96;
       let width = maxPdfWidth;
       let height = width / ratio;
       
-      if (height > maxPdfHeight) {
-        height = maxPdfHeight;
+      if (height > availableHeight) {
+        height = availableHeight;
         width = height * ratio;
       }
       
@@ -1949,11 +1970,25 @@ export default function App() {
       });
       
       const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
+      const y = topMargin;
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'SLOW');
-      
-      // Add timestamp to the top right (date only)
+
+      // Add college logo to the top left
+      const logoImg = await loadCollegeLogoImage();
+      if (logoImg) {
+        try {
+          const logoWidth = (1.8 * 72) / 2.54;   // 1.8 cm = 51.02 pt
+          const logoHeight = (2.1 * 72) / 2.54;  // 2.1 cm = 59.53 pt
+          const logoX = x + 6;
+          const logoY = y + 2;
+          pdf.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+        } catch (imgErr) {
+          console.warn('Failed to add logo image to PDF:', imgErr);
+        }
+      }
+
+      // Add timestamp to the top right
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -1962,7 +1997,7 @@ export default function App() {
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(60, 60, 60);
-      pdf.text(timestampText, pdfWidth - 20, 18, { align: 'right' });
+      pdf.text(timestampText, pdfWidth - x - 6, y + 14, { align: 'right' });
 
       pdf.save(`Timetable_${facultyName}.pdf`);
       showAuthNotice("Faculty Timetable PDF downloaded successfully!");
@@ -2023,7 +2058,7 @@ export default function App() {
     element.classList.add('is-pdf-exporting');
     element.style.width = '1260px';
     element.style.minWidth = '1260px';
-    element.style.padding = '6px 6px';
+    element.style.padding = '0px 6px 6px 6px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
     element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
@@ -2092,14 +2127,16 @@ export default function App() {
       const pdfWidth = 842;
       const pdfHeight = 595;
       
+      const topMargin = 14;
+      const bottomMargin = 14;
+      const availableHeight = pdfHeight - topMargin - bottomMargin;
       const ratio = imgWidth / imgHeight;
       const maxPdfWidth = pdfWidth * 0.96; // Scaled to 96% to prevent text clipping during printing
-      const maxPdfHeight = pdfHeight * 0.96;
       let width = maxPdfWidth;
       let height = width / ratio;
       
-      if (height > maxPdfHeight) {
-        height = maxPdfHeight;
+      if (height > availableHeight) {
+        height = availableHeight;
         width = height * ratio;
       }
       
@@ -2111,11 +2148,25 @@ export default function App() {
       });
       
       const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
+      const y = topMargin;
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'SLOW');
-      
-      // Add timestamp to the top right (date only)
+
+      // Add college logo to the top left
+      const logoImg = await loadCollegeLogoImage();
+      if (logoImg) {
+        try {
+          const logoWidth = (1.8 * 72) / 2.54;   // 1.8 cm = 51.02 pt
+          const logoHeight = (2.1 * 72) / 2.54;  // 2.1 cm = 59.53 pt
+          const logoX = x + 6;
+          const logoY = y + 2;
+          pdf.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+        } catch (imgErr) {
+          console.warn('Failed to add logo image to PDF:', imgErr);
+        }
+      }
+
+      // Add timestamp to the top right
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -2124,7 +2175,7 @@ export default function App() {
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(60, 60, 60);
-      pdf.text(timestampText, pdfWidth - 20, 18, { align: 'right' });
+      pdf.text(timestampText, pdfWidth - x - 6, y + 14, { align: 'right' });
       
       pdf.save(`Timetable_${className}.pdf`);
       showAuthNotice("PDF downloaded successfully!");
@@ -2181,7 +2232,7 @@ export default function App() {
     element.classList.add('is-pdf-exporting');
     element.style.width = '1260px';
     element.style.minWidth = '1260px';
-    element.style.padding = '6px 6px';
+    element.style.padding = '0px 6px 6px 6px';
     element.style.setProperty('border', 'none', 'important');
     element.style.setProperty('box-shadow', 'none', 'important');
     element.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
@@ -2250,14 +2301,16 @@ export default function App() {
       const pdfWidth = 842;
       const pdfHeight = 595;
       
+      const topMargin = 14;
+      const bottomMargin = 14;
+      const availableHeight = pdfHeight - topMargin - bottomMargin;
       const ratio = imgWidth / imgHeight;
       const maxPdfWidth = pdfWidth * 0.96; // Scaled to 96% to prevent text clipping during printing
-      const maxPdfHeight = pdfHeight * 0.96;
       let width = maxPdfWidth;
       let height = width / ratio;
       
-      if (height > maxPdfHeight) {
-        height = maxPdfHeight;
+      if (height > availableHeight) {
+        height = availableHeight;
         width = height * ratio;
       }
       
@@ -2269,11 +2322,25 @@ export default function App() {
       });
       
       const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
+      const y = topMargin;
       
       pdf.addImage(imgData, 'PNG', x, y, width, height, undefined, 'SLOW');
 
-      // Add timestamp to the top right (date only)
+      // Add college logo to the top left
+      const logoImg = await loadCollegeLogoImage();
+      if (logoImg) {
+        try {
+          const logoWidth = (1.8 * 72) / 2.54;   // 1.8 cm = 51.02 pt
+          const logoHeight = (2.1 * 72) / 2.54;  // 2.1 cm = 59.53 pt
+          const logoX = x + 6;
+          const logoY = y + 2;
+          pdf.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+        } catch (imgErr) {
+          console.warn('Failed to add logo image to PDF:', imgErr);
+        }
+      }
+
+      // Add timestamp to the top right
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -2282,7 +2349,7 @@ export default function App() {
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(60, 60, 60);
-      pdf.text(timestampText, pdfWidth - 20, 18, { align: 'right' });
+      pdf.text(timestampText, pdfWidth - x - 6, y + 14, { align: 'right' });
 
       pdf.save(`Direct_Timetable_${className}.pdf`);
       showAuthNotice("Timetable PDF downloaded locally!");
@@ -4233,12 +4300,12 @@ service cloud.firestore {
                 <div id="class-roster-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card transition-all duration-300 hover:shadow-md hover:border-slate-300">
                   {/* Print-only Header */}
                   {currentClassObj && (
-                    <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4">
+                    <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 min-h-[96px] pt-1 pb-2 mb-2">
                       <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
                       <h1 className="text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
                         Sir M. Visvesvaraya College of Engineering, Raichur
                       </h1>
-                      <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mt-2">
+                      <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mt-1.5">
                         Weekly Class Timetable
                       </h2>
                       <p className="text-[11px] font-bold text-slate-700 mt-0.5">
@@ -4764,12 +4831,12 @@ service cloud.firestore {
               <div id="faculty-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card">
                 {/* Print-only Header */}
                 {selectedFacultyId && (
-                  <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 pb-3 mb-4">
+                  <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 min-h-[96px] pt-1 pb-2 mb-2">
                     <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
                     <h1 className="text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
                       Sir M. Visvesvaraya College of Engineering, Raichur
                     </h1>
-                    <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mt-2">
+                    <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mt-1.5">
                       Faculty Individual Weekly Timetable
                     </h2>
                     <p className="text-[11px] font-bold text-slate-700 mt-0.5">
