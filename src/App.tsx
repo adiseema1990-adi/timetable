@@ -707,6 +707,32 @@ export default function App() {
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlockPasswordError, setUnlockPasswordError] = useState<string | null>(null);
 
+  // --- W.E.F. Date State ---
+  const [wefDate, setWefDate] = useState<string>(() => {
+    const saved = localStorage.getItem('mvce_wef_date');
+    if (saved) return saved;
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
+  const getFormattedWefText = () => {
+    if (!wefDate) {
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      return `W.E.F.: ${day}/${month}/${year}`;
+    }
+    const parts = wefDate.split('-');
+    if (parts.length === 3) {
+      return `W.E.F.: ${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return `W.E.F.: ${wefDate}`;
+  };
+
   // Keep a live ref of workspace data to avoid stale closures in debounced auto-sync
   const workspaceDataRef = useRef({
     faculties,
@@ -718,7 +744,8 @@ export default function App() {
     customSchedule,
     solverResult,
     activeTimetableName,
-    lockedClassIds
+    lockedClassIds,
+    wefDate
   });
 
   // Keep workspace ref synchronously up to date
@@ -732,7 +759,8 @@ export default function App() {
     customSchedule,
     solverResult,
     activeTimetableName,
-    lockedClassIds
+    lockedClassIds,
+    wefDate
   };
 
   // --- Firebase Google Auth States ---
@@ -1547,6 +1575,7 @@ export default function App() {
         timeSlots: liveData.timeSlots,
         days: liveData.days,
         lockedClassIds: liveData.lockedClassIds || [],
+        wefDate: liveData.wefDate || null,
         customSchedule: liveData.customSchedule || null,
         solverResult: liveData.solverResult || null
       };
@@ -1629,6 +1658,10 @@ export default function App() {
         } else {
           setLockedClassIds([]);
           localStorage.removeItem('mvce_locked_classes');
+        }
+        if (data.wefDate) {
+          setWefDate(data.wefDate);
+          localStorage.setItem('mvce_wef_date', data.wefDate);
         }
         if (data.customSchedule) setCustomSchedule(data.customSchedule);
         if (data.solverResult) setSolverResult(data.solverResult);
@@ -1988,14 +2021,10 @@ export default function App() {
         }
       }
 
-      // Add timestamp to the top right
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = now.getFullYear();
-      const timestampText = `Generated on: ${day}/${month}/${year}`;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
+      // Add W.E.F. date to the top right
+      const timestampText = getFormattedWefText();
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
       pdf.setTextColor(60, 60, 60);
       pdf.text(timestampText, pdfWidth - x - 6, y + 14, { align: 'right' });
 
@@ -2166,14 +2195,10 @@ export default function App() {
         }
       }
 
-      // Add timestamp to the top right
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = now.getFullYear();
-      const timestampText = `Generated on: ${day}/${month}/${year}`;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
+      // Add W.E.F. date to the top right
+      const timestampText = getFormattedWefText();
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
       pdf.setTextColor(60, 60, 60);
       pdf.text(timestampText, pdfWidth - x - 6, y + 14, { align: 'right' });
       
@@ -2340,14 +2365,10 @@ export default function App() {
         }
       }
 
-      // Add timestamp to the top right
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = now.getFullYear();
-      const timestampText = `Generated on: ${day}/${month}/${year}`;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
+      // Add W.E.F. date to the top right
+      const timestampText = getFormattedWefText();
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
       pdf.setTextColor(60, 60, 60);
       pdf.text(timestampText, pdfWidth - x - 6, y + 14, { align: 'right' });
 
@@ -4328,7 +4349,25 @@ service cloud.firestore {
                       <p className="text-[10px] text-slate-500 mt-0.5">Select a class section to inspect its weekly timetable schedule.</p>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                      {/* W.E.F. Date Picker beside (on left of) Class Section Dropdown */}
+                      <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 shadow-sm">
+                        <label htmlFor="wef-date-input" className="text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                          W.E.F.
+                        </label>
+                        <input
+                          id="wef-date-input"
+                          type="date"
+                          value={wefDate}
+                          onChange={(e) => {
+                            setWefDate(e.target.value);
+                            localStorage.setItem('mvce_wef_date', e.target.value);
+                          }}
+                          className="bg-white border border-slate-200 text-slate-800 text-[11px] rounded px-1.5 py-0.5 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                          title="With Effect From (Effective Date for Timetable)"
+                        />
+                      </div>
+
                       <select
                          value={selectedClassId}
                          onChange={(e) => setSelectedClassId(e.target.value)}
