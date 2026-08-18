@@ -1795,7 +1795,6 @@ export default function App() {
 
       timeSlots.forEach((slot) => {
         if (slot.isBreak) {
-          daySlots.push(`• *${formatTimeRange12(slot.startTime, slot.endTime)}*: _${slot.label}_`);
           return;
         }
 
