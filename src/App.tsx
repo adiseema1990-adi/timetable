@@ -3712,12 +3712,14 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleToggleAutoSync}
-                className={`py-2 px-2 border rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm ${
-                  isAutoSyncEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-600'
+                className={`py-2 px-2 border rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm transition-colors ${
+                  isAutoSyncEnabled 
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100' 
+                    : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
                 }`}
               >
                 <span className="truncate">Auto-Sync</span>
-                <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
               </button>
 
               <button
@@ -3728,9 +3730,9 @@ export default function App() {
                   setClearPasswordError(null);
                   setShowClearConfirmModal(true);
                 }}
-                className="py-2 px-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm"
+                className="py-2 px-2 bg-red-700 hover:bg-red-800 border border-red-800 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm transition-colors"
               >
-                <Trash2 className="h-3.5 w-3.5 text-red-600 flex-shrink-0" />
+                <Trash2 className="h-3.5 w-3.5 text-white flex-shrink-0" />
                 <span className="truncate">Clear</span>
               </button>
             </div>
@@ -3791,8 +3793,8 @@ export default function App() {
                       Live Auto-Sync On
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
-                      Manual Sync
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 uppercase tracking-wider">
+                      Auto-Sync Off
                     </span>
                   )}
                 </div>
@@ -3925,12 +3927,12 @@ export default function App() {
                   className={`px-3 py-1.5 border font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm ${
                     isAutoSyncEnabled
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
                   }`}
                   title="Toggle live auto-saving to Firestore on every update"
                 >
                   <span>Auto-Sync</span>
-                  <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                  <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
                 </button>
 
                 <button
@@ -3941,10 +3943,10 @@ export default function App() {
                     setClearPasswordError(null);
                     setShowClearConfirmModal(true);
                   }}
-                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
+                  className="px-3 py-1.5 bg-red-700 hover:bg-red-800 border border-red-800 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
                   title="Clear loaded timetable, sample data, and empty workspace"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3 w-3 text-white" />
                   <span>Clear</span>
                 </button>
 
