@@ -4294,7 +4294,7 @@ service cloud.firestore {
                       <span className="font-bold text-slate-900 uppercase tracking-wider text-[10px]">User Guidelines</span>
                     </div>
                     <div className="flex items-center space-x-1.5">
-                      <span className="font-bold text-[9px] text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded">5 Steps</span>
+                      <span className="font-bold text-[9px] text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded">6 Steps</span>
                       {isGuidelinesOpen ? (
                         <ChevronUp className="h-4 w-4 text-slate-500 flex-shrink-0" />
                       ) : (
@@ -4311,6 +4311,7 @@ service cloud.firestore {
                         <li>Link faculties and subjects in <strong className="text-slate-900">Class Assignments</strong>.</li>
                         <li>Configure college hours in <strong className="text-slate-900">Time Configuration</strong>.</li>
                         <li>Hit <strong className="text-slate-900">Generate Timetable</strong> to build rosters!</li>
+                        <li>Fine-tune or swap periods in <strong className="text-slate-900">Drag & Drop Adjuster</strong>.</li>
                       </ol>
                     </div>
                   )}
