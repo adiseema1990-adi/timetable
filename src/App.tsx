@@ -4322,7 +4322,7 @@ service cloud.firestore {
               <div className="space-y-4 w-full">
                 
                 {/* Selector Header */}
-                <div id="class-roster-timetable-card" className="bg-white border border-slate-200 rounded p-4 shadow-sm timetable-card transition-all duration-300 hover:shadow-md hover:border-slate-300">
+                <div id="class-roster-timetable-card" className="bg-[#E5F3FF] border border-blue-200 rounded p-4 shadow-sm timetable-card transition-all duration-300 hover:shadow-md hover:border-blue-300">
                   {/* Print-only Header */}
                   {currentClassObj && (
                     <div className="hidden print:flex flex-col items-center justify-center text-center border-b border-slate-300 min-h-[96px] pt-1 pb-2 mb-2">
@@ -4339,7 +4339,7 @@ service cloud.firestore {
                     </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3 mb-4 roster-controls-container">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-blue-200/60 pb-3 mb-4 roster-controls-container">
                     <div>
                       <div className="flex items-center space-x-2">
                         <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Class Roster View</h3>
@@ -4350,12 +4350,12 @@ service cloud.firestore {
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Select a class section to inspect its weekly timetable schedule.</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Select a class section to inspect its weekly timetable schedule.</p>
                     </div>
 
                     <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                       {/* W.E.F. Date Picker beside (on left of) Class Section Dropdown */}
-                      <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 shadow-sm">
+                      <div className="flex items-center space-x-1.5 bg-white border border-blue-200 rounded px-2.5 py-1 shadow-xs">
                         <label htmlFor="wef-date-input" className="text-[11px] font-bold text-slate-700 whitespace-nowrap">
                           W.E.F.
                         </label>
@@ -4375,7 +4375,7 @@ service cloud.firestore {
                       <select
                          value={selectedClassId}
                          onChange={(e) => setSelectedClassId(e.target.value)}
-                         className="bg-slate-50 border border-slate-200 text-slate-800 text-[11px] rounded px-2.5 py-1.5 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
+                         className="bg-white border border-blue-200 text-slate-800 text-[11px] rounded px-2.5 py-1.5 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer shadow-xs"
                       >
                         <option value="">-- Select Class Section --</option>
                         {classes.map((cls) => (
