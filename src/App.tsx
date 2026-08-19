@@ -1733,7 +1733,7 @@ export default function App() {
         saveTimetableToFirebase(activeTimetableName, true);
       }
     } else {
-      showAuthNotice("Live Auto-Sync Deactivated. Timetables will now only be saved when you click 'Save to Cloud'.");
+      showAuthNotice("Live Auto-Sync Deactivated. Timetables will now only be saved when you click 'Save to Cloud'.", "error");
     }
   };
 
@@ -3515,6 +3515,7 @@ export default function App() {
       {/* ========================================== */}
       {authNotification && (() => {
         const lower = authNotification.toLowerCase();
+        const isDeactivated = lower.includes('deactivated') || lower.includes('disabled');
         const isErr = lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied') || lower.includes('locked') || lower.includes('lock');
         const isWarn = lower.includes('warning');
         
@@ -3522,10 +3523,10 @@ export default function App() {
         let iconClass = 'text-amber-600';
         let BannerIcon = Info;
 
-        if (isErr) {
+        if (isErr || isDeactivated) {
           bannerClass = 'bg-rose-100/90 border-rose-300 text-rose-950 font-semibold border-b-rose-400';
           iconClass = 'text-rose-700';
-          BannerIcon = lower.includes('locked') || lower.includes('lock') ? Lock : AlertCircle;
+          BannerIcon = isDeactivated ? AlertCircle : (lower.includes('locked') || lower.includes('lock') ? Lock : AlertCircle);
         } else if (isWarn) {
           bannerClass = 'bg-amber-50 border-amber-200/80 text-amber-900 font-medium';
           iconClass = 'text-amber-600';
@@ -3545,25 +3546,27 @@ export default function App() {
       {/* ========================================== */}
       <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full">
         {toasts.map((toast) => {
+          const msgLower = toast.message.toLowerCase();
+          const isDeactivated = msgLower.includes('deactivated') || msgLower.includes('disabled') || msgLower.includes('auto-sync deactivated');
           const isSuccess = toast.type === 'success';
           const isError = toast.type === 'error';
           const isWarning = toast.type === 'warning';
-          const isDeletion = toast.message.toLowerCase().includes('deleted') || toast.message.toLowerCase().includes('delete') || toast.message.toLowerCase().includes('removed');
-          const isLockedMsg = toast.message.toLowerCase().includes('locked') || toast.message.toLowerCase().includes('lock');
+          const isDeletion = msgLower.includes('deleted') || msgLower.includes('delete') || msgLower.includes('removed');
+          const isLockedMsg = msgLower.includes('locked') || msgLower.includes('lock');
           
           let cardBgClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
           let iconColorClass = 'text-emerald-600';
           let IconComp = CheckCircle;
           
-          if (isDeletion) {
-            cardBgClass = 'bg-rose-50 border-rose-200/80 text-rose-900';
-            iconColorClass = 'text-rose-600';
-            IconComp = Trash2;
-          } else if (isError) {
-            // Light Crimson Red Toast Styling for Errors / Locked Messages
+          if (isDeactivated || isError) {
+            // Light Crimson Red Toast Styling for Auto-Sync Deactivated / Errors / Locked Messages
             cardBgClass = 'bg-rose-100/95 border-rose-300 text-rose-950 shadow-md shadow-rose-900/10 border-l-4 border-l-rose-600';
             iconColorClass = 'text-rose-700';
             IconComp = isLockedMsg ? Lock : AlertCircle;
+          } else if (isDeletion) {
+            cardBgClass = 'bg-rose-50 border-rose-200/80 text-rose-900';
+            iconColorClass = 'text-rose-600';
+            IconComp = Trash2;
           } else if (isWarning) {
             cardBgClass = 'bg-amber-50 border-amber-200 text-amber-900';
             iconColorClass = 'text-amber-600';
@@ -3603,7 +3606,7 @@ export default function App() {
         {/* ========================================== */}
         {/* FIREBASE CLOUD PERSISTENCE PANEL           */}
         {/* ========================================== */}
-        <div className="bg-white border border-slate-200/95 shadow-sm rounded-xl p-3 sm:p-4 mb-4 border-t-4 border-t-blue-600">
+        <div className="bg-[#D7ECFE] border border-blue-300 shadow-sm rounded-xl p-3 sm:p-4 mb-4 border-t-4 border-t-blue-600">
           
           {/* MOBILE-ONLY OPTIMIZED VIEW (hidden on sm and above) */}
           <div className="flex flex-col gap-2.5 sm:hidden">
@@ -3714,12 +3717,12 @@ export default function App() {
                 onClick={handleToggleAutoSync}
                 className={`py-2 px-2 border rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm transition-colors ${
                   isAutoSyncEnabled 
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100' 
+                    ? 'bg-emerald-100 border-emerald-400 text-emerald-900 hover:bg-emerald-200' 
                     : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
                 }`}
               >
                 <span className="truncate">Auto-Sync</span>
-                <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-600 animate-pulse' : 'bg-red-500'}`} />
               </button>
 
               <button
@@ -3777,19 +3780,19 @@ export default function App() {
           {/* DESKTOP & TABLET PRISTINE VIEW (hidden on mobile, visible on sm and above) */}
           <div className="hidden sm:flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center space-x-3.5">
-              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 flex-shrink-0">
+              <div className="h-10 w-10 rounded-lg bg-white/80 flex items-center justify-center text-blue-700 border border-blue-200/80 shadow-xs flex-shrink-0">
                 <Database className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Cloud Storage</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Cloud Storage</h3>
                   {isAutoSyncing ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-widest animate-pulse">
                       <Loader2 className="h-2.5 w-2.5 animate-spin" />
                       Saving changes...
                     </span>
                   ) : isAutoSyncEnabled ? (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-400 uppercase tracking-widest">
                       Live Auto-Sync On
                     </span>
                   ) : (
@@ -3798,13 +3801,13 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center flex-wrap gap-2">
-                  <span>Active Timetable:</span>
-                  <span className="font-mono font-bold text-blue-950 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                <p className="text-[11px] text-slate-700 mt-0.5 flex items-center flex-wrap gap-2">
+                  <span className="font-semibold text-slate-600">Active Timetable:</span>
+                  <span className="font-mono font-bold text-blue-950 bg-white/80 px-2 py-0.5 rounded border border-blue-200/80 shadow-xs">
                     {activeTimetableName}
                   </span>
                   {lastSyncedTime && (
-                    <span className="text-slate-400 text-[10px] font-medium">
+                    <span className="text-slate-600 text-[10px] font-medium">
                       (Last synced: {lastSyncedTime})
                     </span>
                   )}
@@ -3815,7 +3818,7 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-3">
               {/* Timetable Selector dropdown */}
               <div className="flex items-center space-x-1.5">
-                <label htmlFor="firebase_timetable_select" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label htmlFor="firebase_timetable_select" className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
                   Switch:
                 </label>
                 <select
@@ -3823,7 +3826,7 @@ export default function App() {
                   value={activeTimetableName}
                   onChange={(e) => loadTimetableFromFirebase(e.target.value)}
                   disabled={isCloudLoading || firebaseTimetables.length === 0}
-                  className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded px-2.5 py-1.5 font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                  className="text-xs bg-white hover:bg-white/90 border border-blue-200 rounded px-2.5 py-1.5 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-50 shadow-xs"
                 >
                   {firebaseTimetables.length === 0 ? (
                     <option value="">No Cloud Timetables Found</option>
@@ -3841,7 +3844,7 @@ export default function App() {
                     setNewTemplateName('New Timetable');
                     setShowNewTemplateConfirmModal(true);
                   }}
-                  className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded transition cursor-pointer flex items-center justify-center font-bold shadow-sm"
+                  className="p-1.5 bg-white hover:bg-blue-50 text-blue-900 border border-blue-200 rounded transition cursor-pointer flex items-center justify-center font-bold shadow-xs"
                   title="Create a fresh timetable template"
                 >
                   <Plus className="h-4 w-4" />
@@ -3914,7 +3917,7 @@ export default function App() {
                       setShowInlineSaveAs(true);
                     }}
                     disabled={isCloudSaving || isCloudLoading}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+                    className="px-3 py-1.5 bg-white hover:bg-blue-50 border border-blue-200 text-slate-800 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
                     title="Save this configuration as a new Firestore document"
                   >
                     <span>Save As...</span>
@@ -3926,13 +3929,13 @@ export default function App() {
                   onClick={handleToggleAutoSync}
                   className={`px-3 py-1.5 border font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm ${
                     isAutoSyncEnabled
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                      ? 'bg-emerald-100 border-emerald-400 text-emerald-900 hover:bg-emerald-200'
                       : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
                   }`}
                   title="Toggle live auto-saving to Firestore on every update"
                 >
                   <span>Auto-Sync</span>
-                  <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                  <span className={`w-2 h-2 rounded-full ${isAutoSyncing ? 'bg-blue-500 animate-spin' : isAutoSyncEnabled ? 'bg-emerald-600 animate-pulse' : 'bg-red-500'}`} />
                 </button>
 
                 <button
@@ -3953,7 +3956,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowFirebaseModal(true)}
-                  className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-700 rounded transition cursor-pointer"
+                  className="p-1.5 bg-white/80 hover:bg-white border border-blue-200 text-slate-700 hover:text-slate-900 rounded transition cursor-pointer shadow-xs"
                   title="Manage Cloud Database & documents"
                 >
                   <Settings className="h-4 w-4" />
