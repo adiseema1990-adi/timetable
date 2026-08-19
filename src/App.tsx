@@ -3462,7 +3462,7 @@ export default function App() {
       {/* ========================================== */}
       {/* HEADER                                     */}
       {/* ========================================== */}
-      <header id="app-header" className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0 shadow-sm sticky top-0 z-50">
+      <header id="app-header" className="h-16 bg-[#F2F9FF] border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0 shadow-sm sticky top-0 z-50">
         <div className="flex flex-col justify-center">
           <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
           <h1 className="text-xs md:text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
