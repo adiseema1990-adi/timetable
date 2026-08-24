@@ -3463,11 +3463,19 @@ export default function App() {
       {/* HEADER                                     */}
       {/* ========================================== */}
       <header id="app-header" className="h-16 bg-[#F2F9FF] border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0 shadow-sm sticky top-0 z-50">
-        <div className="flex flex-col justify-center">
-          <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
-          <h1 className="text-xs md:text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
-            Sir M. Visvesvaraya College of Engineering, Raichur
-          </h1>
+        <div className="flex items-center space-x-3 h-full py-1">
+          <img 
+            src="/college_logo.png" 
+            alt="SMVCE Logo" 
+            className="h-11 max-h-12 w-auto object-contain shrink-0" 
+            referrerPolicy="no-referrer"
+          />
+          <div className="flex flex-col justify-center">
+            <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-500 leading-none">HKE Society's</p>
+            <h1 className="text-xs md:text-sm font-extrabold tracking-tight text-blue-900 uppercase mt-1 leading-none">
+              Sir M. Visvesvaraya College of Engineering, Raichur
+            </h1>
+          </div>
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
