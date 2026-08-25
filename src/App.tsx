@@ -1495,14 +1495,10 @@ export default function App() {
 
   const formatFacultyName = (rawName: string): string => {
     if (!rawName) return '';
-    const stripped = rawName.replace(/👤/g, '').trim();
-    return stripped
-      .split(/(\s+)/)
-      .map((part) => {
-        if (!part || /^\s+$/.test(part)) return part;
-        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-      })
-      .join('');
+    const clean = rawName.replace(/👤/g, '');
+    return clean.replace(/(^|[\s.\-_/])([a-z])/gi, (_, prefix, char) => {
+      return prefix + char.toUpperCase();
+    });
   };
 
   const cleanPhoneNumber = (val: string): string => {
@@ -2419,8 +2415,8 @@ export default function App() {
     }
     const newFac: Faculty = {
       id: 'f_' + Date.now(),
-      name: formatFacultyName(newFacName),
-      shortName: newFacShort.toUpperCase(),
+      name: formatFacultyName(newFacName).trim(),
+      shortName: newFacShort.toUpperCase().trim(),
       department: newFacDept,
       phone: newFacPhone || '--'
     };
@@ -2719,8 +2715,8 @@ export default function App() {
       if (f.id === editingFacultyId) {
         return {
           ...f,
-          name: formatFacultyName(editFacName),
-          shortName: editFacShort.toUpperCase(),
+          name: formatFacultyName(editFacName).trim(),
+          shortName: editFacShort.toUpperCase().trim(),
           department: editFacDept,
           phone: editFacPhone || '--'
         };
