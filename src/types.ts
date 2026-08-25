@@ -7,7 +7,8 @@ export interface Faculty {
   id: string;
   name: string;
   shortName: string; // e.g., "Dr. A.B.S" or "MVR"
-  department: string;
+  department: string; // e.g., "CSE" or "CSE, ECE" or "ALL"
+  departments?: string[]; // Optional array of multi-departments
   phone: string;
 }
 

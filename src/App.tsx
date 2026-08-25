@@ -519,6 +519,18 @@ export const normalizeDepartment = (dept?: string): string => {
   if (!dept) return '';
   const trimmed = dept.trim();
   const lower = trimmed.toLowerCase();
+
+  if (lower === 'all' || lower === 'inter-dept' || lower === 'inter-department' || lower === 'all / inter-dept' || lower === 'all departments') {
+    return 'All / Inter-Dept';
+  }
+
+  if (trimmed.includes(',')) {
+    const parts = trimmed.split(',').map(p => normalizeDepartment(p.trim())).filter(Boolean);
+    const unique = Array.from(new Set(parts));
+    if (unique.includes('All / Inter-Dept')) return 'All / Inter-Dept';
+    return unique.join(', ');
+  }
+
   if (lower === 'applied science' || lower === 'basic science' || lower === 'bs') {
     return 'BS';
   }
@@ -535,6 +547,22 @@ export const normalizeDepartment = (dept?: string): string => {
   if (lower === 'aiml') return 'AIML';
   if (lower === 'ece') return 'ECE';
   return trimmed;
+};
+
+export const getFacultyDepartmentList = (dept?: string): string[] => {
+  if (!dept) return [];
+  const normalized = normalizeDepartment(dept);
+  if (normalized === 'All / Inter-Dept') return ['ALL'];
+  return normalized.split(',').map(s => s.trim()).filter(Boolean);
+};
+
+export const isFacultyInDepartment = (facDept?: string, targetDept?: string): boolean => {
+  if (!facDept) return true;
+  if (!targetDept) return true;
+  const list = getFacultyDepartmentList(facDept);
+  if (list.includes('ALL')) return true;
+  const normTarget = normalizeDepartment(targetDept);
+  return list.includes(normTarget);
 };
 
 export const format12HourTime = (date: Date = new Date()): string => {
@@ -2927,12 +2955,21 @@ export default function App() {
           return c ? `${c.name} (Sec ${c.section})` : 'Class';
         });
 
+        const branches = new Set(
+          entries.map(e => {
+            const c = classes.find(cl => cl.id === e.classId);
+            return c?.branch ? normalizeDepartment(c.branch) : '';
+          }).filter(Boolean)
+        );
+        const isCrossDept = branches.size > 1;
+        const deptPrefix = isCrossDept ? '[Cross-Department Clash] ' : '';
+
         for (const entry of entries) {
           warningsList.push({
             classId: entry.classId,
             day,
             pIdx,
-            message: `Teacher ${facName} is scheduled in multiple classes at the same time: ${classNames.join(', ')}`,
+            message: `${deptPrefix}Teacher ${facName} is scheduled in multiple classes at the same time: ${classNames.join(', ')}`,
             type: 'clash'
           });
         }
@@ -5853,13 +5890,20 @@ service cloud.firestore {
                             onChange={(e) => setEditFacDept(e.target.value)}
                             className="w-full bg-amber-50/10 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                           >
-                            <option value="CSE">CSE</option>
-                            <option value="AIML">AIML</option>
-                            <option value="ECE">ECE</option>
-                            <option value="BS">BS</option>
-                            <option value="CV">CV</option>
-                            <option value="ME">ME</option>
-                            <option value="MBA">MBA</option>
+                            <option value="CSE">CSE (Computer Science)</option>
+                            <option value="AIML">AIML (AI & Machine Learning)</option>
+                            <option value="ECE">ECE (Electronics & Comm)</option>
+                            <option value="BS">BS (Basic Sciences)</option>
+                            <option value="CV">CV (Civil Engineering)</option>
+                            <option value="ME">ME (Mechanical Engineering)</option>
+                            <option value="MBA">MBA (Business Admin)</option>
+                            <option value="ALL">All / Inter-Department</option>
+                            <option value="CSE, ECE">Multi: CSE & ECE</option>
+                            <option value="CSE, AIML">Multi: CSE & AIML</option>
+                            <option value="BS, CSE">Multi: BS & CSE</option>
+                            <option value="BS, ECE">Multi: BS & ECE</option>
+                            <option value="BS, ME">Multi: BS & ME</option>
+                            <option value="CV, ME">Multi: Civil & Mechanical</option>
                           </select>
                         </div>
                       </div>
@@ -5941,13 +5985,20 @@ service cloud.firestore {
                             onChange={(e) => setNewFacDept(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer"
                           >
-                            <option value="CSE">CSE</option>
-                            <option value="AIML">AIML</option>
-                            <option value="ECE">ECE</option>
-                            <option value="BS">BS</option>
-                            <option value="CV">CV</option>
-                            <option value="ME">ME</option>
-                            <option value="MBA">MBA</option>
+                            <option value="CSE">CSE (Computer Science)</option>
+                            <option value="AIML">AIML (AI & Machine Learning)</option>
+                            <option value="ECE">ECE (Electronics & Comm)</option>
+                            <option value="BS">BS (Basic Sciences)</option>
+                            <option value="CV">CV (Civil Engineering)</option>
+                            <option value="ME">ME (Mechanical Engineering)</option>
+                            <option value="MBA">MBA (Business Admin)</option>
+                            <option value="ALL">All / Inter-Department</option>
+                            <option value="CSE, ECE">Multi: CSE & ECE</option>
+                            <option value="CSE, AIML">Multi: CSE & AIML</option>
+                            <option value="BS, CSE">Multi: BS & CSE</option>
+                            <option value="BS, ECE">Multi: BS & ECE</option>
+                            <option value="BS, ME">Multi: BS & ME</option>
+                            <option value="CV, ME">Multi: Civil & Mechanical</option>
                           </select>
                         </div>
                       </div>
@@ -6017,7 +6068,35 @@ service cloud.firestore {
                                 {fac.shortName}
                               </span>
                             </td>
-                            <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(fac.department)}</td>
+                            <td className="p-2.5 font-semibold text-slate-700">
+                              {(() => {
+                                const norm = normalizeDepartment(fac.department);
+                                if (norm === 'All / Inter-Dept' || norm === 'ALL') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                                      🌐 All / Inter-Dept
+                                    </span>
+                                  );
+                                }
+                                const depts = norm.split(',').map(d => d.trim());
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {depts.map((d, idx) => (
+                                      <span
+                                        key={idx}
+                                        className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-bold border ${
+                                          depts.length > 1
+                                            ? 'bg-purple-50 text-purple-900 border-purple-200'
+                                            : 'bg-slate-100 text-slate-800 border-slate-200'
+                                        }`}
+                                      >
+                                        {d}
+                                      </span>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </td>
                             <td className="p-2.5 text-slate-500 font-mono text-[10px]">{fac.phone || '--'}</td>
                             <td className="p-2.5 text-center flex items-center justify-center space-x-2">
                               <button
@@ -6948,7 +7027,7 @@ service cloud.firestore {
                           >
                             <option value="">{subjects.find(s => s.id === assignSubId)?.isAicteActivity || subjects.find(s => s.id === assignSubId)?.isStudentActivity ? '-- No Staff / Faculty Required --' : '-- Choose Faculty --'}</option>
                             {faculties.map(f => (
-                              <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
+                              <option key={f.id} value={f.id}>{f.name} ({f.shortName}) - [{normalizeDepartment(f.department)}]</option>
                             ))}
                           </select>
                         </div>
@@ -7026,7 +7105,7 @@ service cloud.firestore {
                           >
                             <option value="">{subjects.find(s => s.id === assignSubId)?.isAicteActivity || subjects.find(s => s.id === assignSubId)?.isStudentActivity ? '-- No Staff / Faculty Required --' : '-- Choose Faculty --'}</option>
                             {faculties.map(f => (
-                              <option key={f.id} value={f.id}>{f.name} ({f.shortName})</option>
+                              <option key={f.id} value={f.id}>{f.name} ({f.shortName}) - [{normalizeDepartment(f.department)}]</option>
                             ))}
                           </select>
                         </div>
