@@ -220,6 +220,117 @@ const SUBJECT_PALETTES = [
   }
 ];
 
+const LAB_SUBJECT_PALETTES = [
+  {
+    bg: 'bg-indigo-200/95',
+    hoverBg: 'hover:bg-indigo-300',
+    text: 'text-indigo-950',
+    border: 'border-indigo-400',
+    badgeBg: 'bg-indigo-300',
+    badgeText: 'text-indigo-950',
+    badgeBorder: 'border-indigo-400',
+  },
+  {
+    bg: 'bg-emerald-200/95',
+    hoverBg: 'hover:bg-emerald-300',
+    text: 'text-emerald-950',
+    border: 'border-emerald-400',
+    badgeBg: 'bg-emerald-300',
+    badgeText: 'text-emerald-950',
+    badgeBorder: 'border-emerald-400',
+  },
+  {
+    bg: 'bg-amber-200/95',
+    hoverBg: 'hover:bg-amber-300',
+    text: 'text-amber-950',
+    border: 'border-amber-400',
+    badgeBg: 'bg-amber-300',
+    badgeText: 'text-amber-950',
+    badgeBorder: 'border-amber-400',
+  },
+  {
+    bg: 'bg-rose-200/95',
+    hoverBg: 'hover:bg-rose-300',
+    text: 'text-rose-950',
+    border: 'border-rose-400',
+    badgeBg: 'bg-rose-300',
+    badgeText: 'text-rose-950',
+    badgeBorder: 'border-rose-400',
+  },
+  {
+    bg: 'bg-cyan-200/95',
+    hoverBg: 'hover:bg-cyan-300',
+    text: 'text-cyan-950',
+    border: 'border-cyan-400',
+    badgeBg: 'bg-cyan-300',
+    badgeText: 'text-cyan-950',
+    badgeBorder: 'border-cyan-400',
+  },
+  {
+    bg: 'bg-purple-200/95',
+    hoverBg: 'hover:bg-purple-300',
+    text: 'text-purple-950',
+    border: 'border-purple-400',
+    badgeBg: 'bg-purple-300',
+    badgeText: 'text-purple-950',
+    badgeBorder: 'border-purple-400',
+  },
+  {
+    bg: 'bg-orange-200/95',
+    hoverBg: 'hover:bg-orange-300',
+    text: 'text-orange-950',
+    border: 'border-orange-400',
+    badgeBg: 'bg-orange-300',
+    badgeText: 'text-orange-950',
+    badgeBorder: 'border-orange-400',
+  },
+  {
+    bg: 'bg-teal-200/95',
+    hoverBg: 'hover:bg-teal-300',
+    text: 'text-teal-950',
+    border: 'border-teal-400',
+    badgeBg: 'bg-teal-300',
+    badgeText: 'text-teal-950',
+    badgeBorder: 'border-teal-400',
+  },
+  {
+    bg: 'bg-violet-200/95',
+    hoverBg: 'hover:bg-violet-300',
+    text: 'text-violet-950',
+    border: 'border-violet-400',
+    badgeBg: 'bg-violet-300',
+    badgeText: 'text-violet-950',
+    badgeBorder: 'border-violet-400',
+  },
+  {
+    bg: 'bg-fuchsia-200/95',
+    hoverBg: 'hover:bg-fuchsia-300',
+    text: 'text-fuchsia-950',
+    border: 'border-fuchsia-400',
+    badgeBg: 'bg-fuchsia-300',
+    badgeText: 'text-fuchsia-950',
+    badgeBorder: 'border-fuchsia-400',
+  },
+  {
+    bg: 'bg-sky-200/95',
+    hoverBg: 'hover:bg-sky-300',
+    text: 'text-sky-950',
+    border: 'border-sky-400',
+    badgeBg: 'bg-sky-300',
+    badgeText: 'text-sky-950',
+    badgeBorder: 'border-sky-400',
+  },
+  {
+    bg: 'bg-lime-200/95',
+    hoverBg: 'hover:bg-lime-300',
+    text: 'text-lime-950',
+    border: 'border-lime-400',
+    badgeBg: 'bg-lime-300',
+    badgeText: 'text-lime-950',
+    badgeBorder: 'border-lime-400',
+  }
+];
+
 const UNIQUE_BG_COLORS = [
   '#e0e7ff', // indigo-100
   '#d1fae5', // emerald-100
@@ -594,14 +705,20 @@ interface SubjectPalette {
   };
 }
 
-const getSubjectPalette = (subjectId: string, subjectCode?: string, subjectColor?: string): SubjectPalette => {
+const getSubjectPalette = (
+  subjectId: string, 
+  subjectCode?: string, 
+  subjectColor?: string, 
+  isLab?: boolean
+): SubjectPalette => {
   if (subjectColor) {
-    const text = getContrastTextColor(subjectColor);
-    const hoverBg = adjustBrightness(subjectColor, -10);
-    const border = adjustBrightness(subjectColor, -20);
-    const badgeBg = adjustBrightness(subjectColor, -15);
+    const effectiveBg = isLab ? adjustBrightness(subjectColor, -35) : subjectColor;
+    const text = getContrastTextColor(effectiveBg);
+    const hoverBg = adjustBrightness(effectiveBg, -15);
+    const border = adjustBrightness(effectiveBg, -30);
+    const badgeBg = adjustBrightness(effectiveBg, -20);
     const badgeText = getContrastTextColor(badgeBg);
-    const badgeBorder = adjustBrightness(subjectColor, -30);
+    const badgeBorder = adjustBrightness(effectiveBg, -35);
     
     return {
       bg: '',
@@ -613,7 +730,7 @@ const getSubjectPalette = (subjectId: string, subjectCode?: string, subjectColor
       badgeBorder: '',
       isCustom: true,
       styles: {
-        bg: subjectColor,
+        bg: effectiveBg,
         hoverBg,
         text,
         border,
@@ -625,7 +742,15 @@ const getSubjectPalette = (subjectId: string, subjectCode?: string, subjectColor
   }
 
   if (subjectCode?.toUpperCase() === '21MAT51') {
-    return {
+    return isLab ? {
+      bg: 'bg-lime-200/95',
+      hoverBg: 'hover:bg-lime-300',
+      text: 'text-lime-950',
+      border: 'border-lime-400',
+      badgeBg: 'bg-lime-300',
+      badgeText: 'text-lime-950',
+      badgeBorder: 'border-lime-400',
+    } : {
       bg: 'bg-lime-100',
       hoverBg: 'hover:bg-lime-200',
       text: 'text-lime-950',
@@ -635,13 +760,13 @@ const getSubjectPalette = (subjectId: string, subjectCode?: string, subjectColor
       badgeBorder: 'border-lime-300',
     };
   }
-  if (!subjectId) return SUBJECT_PALETTES[0];
+  if (!subjectId) return isLab ? LAB_SUBJECT_PALETTES[0] : SUBJECT_PALETTES[0];
   let hash = 0;
   for (let i = 0; i < subjectId.length; i++) {
     hash = subjectId.charCodeAt(i) + ((hash << 5) - hash);
   }
   const index = Math.abs(hash) % SUBJECT_PALETTES.length;
-  return SUBJECT_PALETTES[index];
+  return isLab ? LAB_SUBJECT_PALETTES[index] : SUBJECT_PALETTES[index];
 };
 
 export default function App() {
@@ -1274,7 +1399,7 @@ export default function App() {
         const updated = lockedClassIds.filter(id => id !== unlockClassId);
         setLockedClassIds(updated);
         localStorage.setItem('mvce_locked_classes', JSON.stringify(updated));
-        showAuthNotice(`🔓 Timetable for ${className} unlocked successfully! You can now edit and regenerate this section.`);
+        showAuthNotice(`🔓 Timetable for ${className} unlocked successfully! You can now edit and regenerate this section.`, 'success');
       }
       setShowUnlockModal(false);
       setUnlockClassId(null);
@@ -1507,7 +1632,9 @@ export default function App() {
     let toastType: 'success' | 'info' | 'warning' | 'error' = forcedType || 'success';
     if (!forcedType) {
       const lower = msg.toLowerCase();
-      if (lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied') || lower.includes('locked') || lower.includes('lock')) {
+      if (lower.includes('unlocked') || lower.includes('unlocked successfully')) {
+        toastType = 'success';
+      } else if (lower.includes('error') || lower.includes('failed') || lower.includes('incorrect') || lower.includes('denied') || lower.includes('locked') || lower.includes('lock')) {
         toastType = 'error';
       } else if (lower.includes('warning')) {
         toastType = 'warning';
@@ -4572,7 +4699,7 @@ service cloud.firestore {
                                             const { assign, sub, fac } = getAssignmentDetails(batchItem.assignmentId);
                                             if (!assign || !sub) return null;
 
-                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color);
+                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub));
 
                                             return (
                                               <div 
@@ -4623,11 +4750,11 @@ service cloud.firestore {
 
                                     if (isLabCell && assign && clsLabAssigns.length > 1) {
                                       const sub1 = sub;
-                                      const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color) : null;
+                                      const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color, sub1.isLab || isSubjectLab(sub1)) : null;
                                       const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
                                       const otherSub = subjects.find(s => s.id === otherAssign.subjectId);
                                       const otherFac = faculties.find(f => f.id === otherAssign.facultyId);
-                                      const sub2Palette = otherSub ? getSubjectPalette(otherSub.id, otherSub.code, otherSub.color) : null;
+                                      const sub2Palette = otherSub ? getSubjectPalette(otherSub.id, otherSub.code, otherSub.color, otherSub.isLab || isSubjectLab(otherSub)) : null;
 
                                       return (
                                         <div key={slot.id} className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center space-y-1 bg-amber-50/50 hover:bg-amber-100/40 min-h-[64px] transition-all">
@@ -4701,7 +4828,7 @@ service cloud.firestore {
                                       );
                                     }
 
-                                    const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color) : null;
+                                    const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)) : null;
                                     const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
                                     const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : isLabCell ? `${sec}1&${sec}2` : null;
 
@@ -5076,7 +5203,7 @@ service cloud.firestore {
                                 }
                               }
 
-                              const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code, matchDetails.sub.color) : null;
+                              const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code, matchDetails.sub.color, matchDetails.sub.isLab || isSubjectLab(matchDetails.sub)) : null;
                               const currentClass = matchDetails?.cls;
                               const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
                               const batchStr = matchDetails?.batchName ? `Batch ${matchDetails.batchName}` : (groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : null);
@@ -5585,10 +5712,10 @@ service cloud.firestore {
                                           isSelectedForSwap
                                             ? 'bg-blue-100/90 ring-4 ring-blue-500 border-blue-500 z-10 scale-[0.98]'
                                             : assign && sub
-                                              ? (getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${getSubjectPalette(sub.id, sub.code, sub.color).bg} ${getSubjectPalette(sub.id, sub.code, sub.color).hoverBg}`)
+                                              ? (getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).bg} ${getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).hoverBg}`)
                                               : 'bg-slate-50/10 hover:bg-slate-50/40'
                                         } ${!isSelectedForSwap ? 'transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20' : ''} ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''} ${batchStr ? 'pl-3.5' : ''}`}
-                                        style={assign && sub && getSubjectPalette(sub.id, sub.code, sub.color).isCustom ? { '--custom-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.bg, '--custom-hover-bg': getSubjectPalette(sub.id, sub.code, sub.color).styles?.hoverBg, '--custom-text': getSubjectPalette(sub.id, sub.code, sub.color).styles?.text, '--custom-border': getSubjectPalette(sub.id, sub.code, sub.color).styles?.border } as CSSProperties : undefined}
+                                        style={assign && sub && getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).isCustom ? { '--custom-bg': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.bg, '--custom-hover-bg': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.hoverBg, '--custom-text': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.text, '--custom-border': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.border } as CSSProperties : undefined}
                                       >
                                         {batchStr && assign && (
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${
@@ -5618,7 +5745,7 @@ service cloud.firestore {
                                               const bFac = bAssign ? faculties.find(f => f.id === bAssign.facultyId) : null;
                                               if (!bAssign || !bSub) return null;
 
-                                              const palette = getSubjectPalette(bSub.id, bSub.code, bSub.color);
+                                              const palette = getSubjectPalette(bSub.id, bSub.code, bSub.color, bSub.isLab || isSubjectLab(bSub));
 
                                               return (
                                                 <div 
@@ -5664,11 +5791,11 @@ service cloud.firestore {
 
                                             if (clsLabAssigns.length > 1) {
                                               const sub1 = sub;
-                                              const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color) : null;
+                                              const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color, sub1.isLab || isSubjectLab(sub1)) : null;
                                               const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
                                               const otherSub = subjects.find(s => s.id === otherAssign.subjectId);
                                               const otherFac = faculties.find(f => f.id === otherAssign.facultyId);
-                                              const sub2Palette = otherSub ? getSubjectPalette(otherSub.id, otherSub.code, otherSub.color) : null;
+                                              const sub2Palette = otherSub ? getSubjectPalette(otherSub.id, otherSub.code, otherSub.color, otherSub.isLab || isSubjectLab(otherSub)) : null;
 
                                               return (
                                                 <div className="flex flex-col justify-center space-y-1 w-full h-full">
@@ -5742,7 +5869,7 @@ service cloud.firestore {
                                               );
                                             }
 
-                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color);
+                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub));
                                             return (
                                               <>
                                                 <div>
@@ -5775,7 +5902,7 @@ service cloud.firestore {
                                           })()
                                         ) : assign && sub ? (
                                           (() => {
-                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color);
+                                            const palette = getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub));
                                             return (
                                               <>
                                                 <div>
@@ -6631,8 +6758,10 @@ service cloud.firestore {
                     <tbody className="divide-y divide-slate-100">
                       {subjects.length > 0 ? (
                         subjects.map((sub) => {
-                          const displayColor = sub.color || '#cbd5e1';
-                          const textColor = getContrastTextColor(displayColor);
+                          const isLab = sub.isLab || isSubjectLab(sub);
+                          const palette = getSubjectPalette(sub.id, sub.code, sub.color, isLab);
+                          const displayColor = palette.isCustom ? palette.styles.bg : (sub.color || '#cbd5e1');
+                          const textColor = palette.isCustom ? palette.styles.text : getContrastTextColor(displayColor);
                           return (
                             <tr 
                               key={sub.id} 
@@ -6669,16 +6798,24 @@ service cloud.firestore {
                                     </span>
                                   )}
                                 </div>
-                                <div 
-                                  className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold border"
-                                  style={{
-                                    backgroundColor: displayColor,
-                                    borderColor: adjustBrightness(displayColor, -25),
-                                    color: textColor
-                                  }}
-                                >
-                                  Preview: {sub.shortName ? `${sub.code} (${sub.shortName})` : sub.code}
-                                </div>
+                                {palette.isCustom ? (
+                                  <div 
+                                    className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold border"
+                                    style={{
+                                      backgroundColor: palette.styles.bg,
+                                      borderColor: palette.styles.border,
+                                      color: palette.styles.text
+                                    }}
+                                  >
+                                    Preview: {sub.shortName ? `${sub.code} (${sub.shortName})` : sub.code}
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className={`inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold border ${palette.bg} ${palette.border} ${palette.text}`}
+                                  >
+                                    Preview: {sub.shortName ? `${sub.code} (${sub.shortName})` : sub.code}
+                                  </div>
+                                )}
                               </td>
                               <td className="p-2.5 font-semibold text-slate-700">{normalizeDepartment(sub.department)}</td>
                               <td className="p-2.5 text-center">
