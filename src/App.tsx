@@ -222,112 +222,112 @@ const SUBJECT_PALETTES = [
 
 const LAB_SUBJECT_PALETTES = [
   {
-    bg: 'bg-indigo-200/95',
+    bg: 'bg-indigo-200/90',
     hoverBg: 'hover:bg-indigo-300',
     text: 'text-indigo-950',
-    border: 'border-indigo-400',
-    badgeBg: 'bg-indigo-300',
+    border: 'border-indigo-300',
+    badgeBg: 'bg-indigo-300/60',
     badgeText: 'text-indigo-950',
-    badgeBorder: 'border-indigo-400',
+    badgeBorder: 'border-indigo-400/50',
   },
   {
-    bg: 'bg-emerald-200/95',
+    bg: 'bg-emerald-200/90',
     hoverBg: 'hover:bg-emerald-300',
     text: 'text-emerald-950',
-    border: 'border-emerald-400',
-    badgeBg: 'bg-emerald-300',
+    border: 'border-emerald-300',
+    badgeBg: 'bg-emerald-300/60',
     badgeText: 'text-emerald-950',
-    badgeBorder: 'border-emerald-400',
+    badgeBorder: 'border-emerald-400/50',
   },
   {
-    bg: 'bg-amber-200/95',
+    bg: 'bg-amber-200/90',
     hoverBg: 'hover:bg-amber-300',
     text: 'text-amber-950',
-    border: 'border-amber-400',
-    badgeBg: 'bg-amber-300',
+    border: 'border-amber-300',
+    badgeBg: 'bg-amber-300/60',
     badgeText: 'text-amber-950',
-    badgeBorder: 'border-amber-400',
+    badgeBorder: 'border-amber-400/50',
   },
   {
-    bg: 'bg-rose-200/95',
+    bg: 'bg-rose-200/90',
     hoverBg: 'hover:bg-rose-300',
     text: 'text-rose-950',
-    border: 'border-rose-400',
-    badgeBg: 'bg-rose-300',
+    border: 'border-rose-300',
+    badgeBg: 'bg-rose-300/60',
     badgeText: 'text-rose-950',
-    badgeBorder: 'border-rose-400',
+    badgeBorder: 'border-rose-400/50',
   },
   {
-    bg: 'bg-cyan-200/95',
+    bg: 'bg-cyan-200/90',
     hoverBg: 'hover:bg-cyan-300',
     text: 'text-cyan-950',
-    border: 'border-cyan-400',
-    badgeBg: 'bg-cyan-300',
+    border: 'border-cyan-300',
+    badgeBg: 'bg-cyan-300/60',
     badgeText: 'text-cyan-950',
-    badgeBorder: 'border-cyan-400',
+    badgeBorder: 'border-cyan-400/50',
   },
   {
-    bg: 'bg-purple-200/95',
+    bg: 'bg-purple-200/90',
     hoverBg: 'hover:bg-purple-300',
     text: 'text-purple-950',
-    border: 'border-purple-400',
-    badgeBg: 'bg-purple-300',
+    border: 'border-purple-300',
+    badgeBg: 'bg-purple-300/60',
     badgeText: 'text-purple-950',
-    badgeBorder: 'border-purple-400',
+    badgeBorder: 'border-purple-400/50',
   },
   {
-    bg: 'bg-orange-200/95',
+    bg: 'bg-orange-200/90',
     hoverBg: 'hover:bg-orange-300',
     text: 'text-orange-950',
-    border: 'border-orange-400',
-    badgeBg: 'bg-orange-300',
+    border: 'border-orange-300',
+    badgeBg: 'bg-orange-300/60',
     badgeText: 'text-orange-950',
-    badgeBorder: 'border-orange-400',
+    badgeBorder: 'border-orange-400/50',
   },
   {
-    bg: 'bg-teal-200/95',
+    bg: 'bg-teal-200/90',
     hoverBg: 'hover:bg-teal-300',
     text: 'text-teal-950',
-    border: 'border-teal-400',
-    badgeBg: 'bg-teal-300',
+    border: 'border-teal-300',
+    badgeBg: 'bg-teal-300/60',
     badgeText: 'text-teal-950',
-    badgeBorder: 'border-teal-400',
+    badgeBorder: 'border-teal-400/50',
   },
   {
-    bg: 'bg-violet-200/95',
+    bg: 'bg-violet-200/90',
     hoverBg: 'hover:bg-violet-300',
     text: 'text-violet-950',
-    border: 'border-violet-400',
-    badgeBg: 'bg-violet-300',
+    border: 'border-violet-300',
+    badgeBg: 'bg-violet-300/60',
     badgeText: 'text-violet-950',
-    badgeBorder: 'border-violet-400',
+    badgeBorder: 'border-violet-400/50',
   },
   {
-    bg: 'bg-fuchsia-200/95',
+    bg: 'bg-fuchsia-200/90',
     hoverBg: 'hover:bg-fuchsia-300',
     text: 'text-fuchsia-950',
-    border: 'border-fuchsia-400',
-    badgeBg: 'bg-fuchsia-300',
+    border: 'border-fuchsia-300',
+    badgeBg: 'bg-fuchsia-300/60',
     badgeText: 'text-fuchsia-950',
-    badgeBorder: 'border-fuchsia-400',
+    badgeBorder: 'border-fuchsia-400/50',
   },
   {
-    bg: 'bg-sky-200/95',
+    bg: 'bg-sky-200/90',
     hoverBg: 'hover:bg-sky-300',
     text: 'text-sky-950',
-    border: 'border-sky-400',
-    badgeBg: 'bg-sky-300',
+    border: 'border-sky-300',
+    badgeBg: 'bg-sky-300/60',
     badgeText: 'text-sky-950',
-    badgeBorder: 'border-sky-400',
+    badgeBorder: 'border-sky-400/50',
   },
   {
-    bg: 'bg-lime-200/95',
+    bg: 'bg-lime-200/90',
     hoverBg: 'hover:bg-lime-300',
     text: 'text-lime-950',
-    border: 'border-lime-400',
-    badgeBg: 'bg-lime-300',
+    border: 'border-lime-300',
+    badgeBg: 'bg-lime-300/60',
     badgeText: 'text-lime-950',
-    badgeBorder: 'border-lime-400',
+    badgeBorder: 'border-lime-400/50',
   }
 ];
 
@@ -712,13 +712,13 @@ const getSubjectPalette = (
   isLab?: boolean
 ): SubjectPalette => {
   if (subjectColor) {
-    const effectiveBg = isLab ? adjustBrightness(subjectColor, -35) : subjectColor;
+    const effectiveBg = isLab ? adjustBrightness(subjectColor, -25) : subjectColor;
     const text = getContrastTextColor(effectiveBg);
-    const hoverBg = adjustBrightness(effectiveBg, -15);
-    const border = adjustBrightness(effectiveBg, -30);
-    const badgeBg = adjustBrightness(effectiveBg, -20);
+    const hoverBg = adjustBrightness(effectiveBg, -10);
+    const border = adjustBrightness(effectiveBg, -15);
+    const badgeBg = adjustBrightness(effectiveBg, -15);
     const badgeText = getContrastTextColor(badgeBg);
-    const badgeBorder = adjustBrightness(effectiveBg, -35);
+    const badgeBorder = adjustBrightness(effectiveBg, -20);
     
     return {
       bg: '',
