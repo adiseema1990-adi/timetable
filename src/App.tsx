@@ -1175,7 +1175,7 @@ export default function App() {
         color: sub.color || UNIQUE_BG_COLORS[idx % UNIQUE_BG_COLORS.length]
       }));
       setSubjects(subjectsWithColors);
-      const parsedClasses = JSON.parse(savedClasses).map((c: any) => ({ ...c, labBatches: c.labBatches ?? 2 }));
+      const parsedClasses = JSON.parse(savedClasses).map((c: any) => ({ ...c, labBatches: c.labBatches ?? 1 }));
       setClasses(parsedClasses);
       setAssignments(JSON.parse(savedAssignments));
       setTimeSlots(normalizeTimeSlotsWithDefaults(JSON.parse(savedTimeSlots)));
@@ -1794,7 +1794,7 @@ export default function App() {
           })));
         }
         if (data.classes) {
-          const updatedClasses = data.classes.map((c: any) => ({ ...c, labBatches: c.labBatches ?? 2 }));
+          const updatedClasses = data.classes.map((c: any) => ({ ...c, labBatches: c.labBatches ?? 1 }));
           setClasses(updatedClasses);
           if (updatedClasses.length > 0) {
             setSelectedClassId(updatedClasses[0].id);
@@ -4745,10 +4745,11 @@ service cloud.firestore {
 
                                     const isLabCell = sub ? isSubjectLab(sub) : false;
                                     const currentClass = classes.find(c => c.id === selectedClassId);
+                                    const classHasBatches = !!(currentClass && currentClass.labBatches && currentClass.labBatches > 1);
                                     const sec = currentClass ? currentClass.section.trim().toUpperCase() : 'A';
-                                    const clsLabAssigns = isLabCell ? assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId))) : [];
+                                    const clsLabAssigns = (isLabCell && classHasBatches) ? assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId))) : [];
 
-                                    if (isLabCell && assign && clsLabAssigns.length > 1) {
+                                    if (classHasBatches && isLabCell && assign && clsLabAssigns.length > 1) {
                                       const sub1 = sub;
                                       const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color, sub1.isLab || isSubjectLab(sub1)) : null;
                                       const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
@@ -4830,7 +4831,7 @@ service cloud.firestore {
 
                                     const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)) : null;
                                     const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
-                                    const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : isLabCell ? `${sec}1&${sec}2` : null;
+                                    const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : (classHasBatches && isLabCell) ? `${sec}1&${sec}2` : null;
 
                                     return (
                                       <div 
@@ -5785,11 +5786,12 @@ service cloud.firestore {
                                           </div>
                                         ) : (assign && sub && isSubjectLab(sub)) ? (
                                           (() => {
-                                            const clsLabAssigns = assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId)));
                                             const currentClass = classes.find(c => c.id === selectedClassId);
+                                            const classHasBatches = !!(currentClass && currentClass.labBatches && currentClass.labBatches > 1);
+                                            const clsLabAssigns = classHasBatches ? assignments.filter(a => a.classId === selectedClassId && isSubjectLab(subjects.find(s => s.id === a.subjectId))) : [];
                                             const sec = currentClass ? currentClass.section.trim().toUpperCase() : 'A';
 
-                                            if (clsLabAssigns.length > 1) {
+                                            if (classHasBatches && clsLabAssigns.length > 1) {
                                               const sub1 = sub;
                                               const sub1Palette = sub1 ? getSubjectPalette(sub1.id, sub1.code, sub1.color, sub1.isLab || isSubjectLab(sub1)) : null;
                                               const otherAssign = clsLabAssigns.find(a => a.id !== assign.id) || clsLabAssigns[0];
@@ -5874,9 +5876,11 @@ service cloud.firestore {
                                               <>
                                                 <div>
                                                   <div className="flex items-center justify-between gap-1 mb-1 leading-none">
-                                                    <span className="px-1.5 py-0.5 rounded font-extrabold bg-amber-200 text-amber-900 text-[7.5px] uppercase tracking-wide whitespace-nowrap shrink-0 inline-flex items-center leading-none">
-                                                      Batch {sec}1 & {sec}2
-                                                    </span>
+                                                    {classHasBatches && (
+                                                      <span className="px-1.5 py-0.5 rounded font-extrabold bg-amber-200 text-amber-900 text-[7.5px] uppercase tracking-wide whitespace-nowrap shrink-0 inline-flex items-center leading-none">
+                                                        Batch {sec}1 & {sec}2
+                                                      </span>
+                                                    )}
                                                     <span className="font-mono text-[7.5px] opacity-80 whitespace-nowrap shrink-0 ml-auto leading-none">{sub.code}</span>
                                                   </div>
                                                   <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={sub.name}>

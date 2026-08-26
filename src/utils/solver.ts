@@ -345,7 +345,7 @@ function buildLectureUnits(
       });
     }
 
-    const numBatches = (cls.labBatches !== undefined && cls.labBatches !== null && cls.labBatches > 0) ? cls.labBatches : 2;
+    const numBatches = (cls.labBatches !== undefined && cls.labBatches !== null && cls.labBatches > 1) ? cls.labBatches : 1;
     if (numBatches > 1) {
       const labAssigns = classAssigns.filter(a => {
         const sub = subjects.find(s => s.id === a.subjectId);
