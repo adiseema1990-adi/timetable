@@ -44,7 +44,9 @@ import {
   Lock,
   Unlock,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Upload,
+  FileJson
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -845,6 +847,14 @@ export default function App() {
   const [showInlineSaveAs, setShowInlineSaveAs] = useState(false);
   const [inlineSaveAsName, setInlineSaveAsName] = useState('');
   const [deletingTimetableName, setDeletingTimetableName] = useState<string | null>(null);
+
+  // --- JSON Export/Import State ---
+  const [selectedExportTimetable, setSelectedExportTimetable] = useState<string>('');
+  const [exportingTimetableName, setExportingTimetableName] = useState<string | null>(null);
+  const [importedPreviewData, setImportedPreviewData] = useState<any | null>(null);
+
+  // Ref flag to completely suppress Auto-Sync during deletion, switching or state resets
+  const isAutoSyncSuppressedRef = useRef(false);
 
   // --- Locked Sections State ---
   const [lockedClassIds, setLockedClassIds] = useState<string[]>(() => {
@@ -1840,6 +1850,9 @@ export default function App() {
     if (!nameToDelete) return;
     
     try {
+      // 1. Suppress auto-sync during deletion and state transition
+      isAutoSyncSuppressedRef.current = true;
+
       try {
         await deleteDoc(doc(db, "mvce_timetables", nameToDelete));
       } catch (error) {
@@ -1848,10 +1861,52 @@ export default function App() {
       showAuthNotice(`Timetable "${nameToDelete}" deleted from Firebase Cloud.`);
       setFirebaseError(null); // Clear errors on success
       
-      // If deleted active one, reset name
+      // Fetch updated list of remaining timetables for this user
+      const user = auth.currentUser;
+      if (!user) return;
+      const isSuper = user.email === 'sachinadi88@gmail.com';
+      const q = isSuper 
+        ? collection(db, "mvce_timetables")
+        : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
+      const remainingDocSnaps = await getDocs(q);
+      const remainingNames: string[] = [];
+      remainingDocSnaps.forEach((docSnap) => {
+        if (docSnap.id !== nameToDelete) {
+          remainingNames.push(docSnap.id);
+        }
+      });
+      setFirebaseTimetables(remainingNames);
+
+      // 2. If deleted the active timetable, handle workspace state properly
       if (activeTimetableName === nameToDelete) {
-        setActiveTimetableName('Main Timetable');
-        localStorage.removeItem('mvce_firebase_active_timetable');
+        if (remainingNames.length > 0) {
+          // Switch to another available saved timetable
+          const nextTimetableToLoad = remainingNames[0];
+          showAuthNotice(`Active timetable deleted. Switching to "${nextTimetableToLoad}"...`);
+          await loadTimetableFromFirebase(nextTimetableToLoad);
+        } else {
+          // No saved timetables left: reset workspace to a clean empty state without auto-saving
+          setFaculties([]);
+          setSubjects([]);
+          setClasses([]);
+          setAssignments([]);
+          setTimeSlots(DEFAULT_TIME_SLOTS);
+          setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+          setSelectedClassId('');
+          setLockedClassIds([]);
+          setSolverResult(null);
+          setCustomSchedule(null);
+          setUndoStack([]);
+          setRedoStack([]);
+          setIsDataStale(false);
+          
+          setActiveTimetableName('Main Timetable');
+          localStorage.removeItem('mvce_firebase_active_timetable');
+          localStorage.setItem('mvce_is_cleared', 'true');
+          localStorage.removeItem('mvce_locked_classes');
+          localStorage.removeItem('mvce_customSchedule');
+          localStorage.removeItem('mvce_solverResult');
+        }
       }
       
       await fetchFirebaseTimetablesList(true);
@@ -1859,6 +1914,157 @@ export default function App() {
       console.error("Error deleting from Firestore:", error);
       setFirebaseError(error?.message || String(error));
       showAuthNotice(`Failed to delete: ${error?.message || error}`);
+    } finally {
+      // Re-enable auto-sync after state changes settle
+      setTimeout(() => {
+        isAutoSyncSuppressedRef.current = false;
+      }, 1500);
+    }
+  };
+
+  // --- Export Selected Timetable as JSON ---
+  const exportSelectedTimetable = async (nameToExport: string) => {
+    if (!nameToExport) return;
+    setExportingTimetableName(nameToExport);
+    try {
+      let timetablePayload: any = null;
+
+      if (nameToExport === activeTimetableName) {
+        const liveData = workspaceDataRef.current;
+        timetablePayload = {
+          name: nameToExport,
+          updatedAt: new Date().toISOString(),
+          faculties: liveData.faculties,
+          subjects: liveData.subjects,
+          classes: liveData.classes,
+          assignments: liveData.assignments,
+          timeSlots: liveData.timeSlots,
+          days: liveData.days,
+          lockedClassIds: liveData.lockedClassIds || [],
+          wefDate: liveData.wefDate || null,
+          customSchedule: liveData.customSchedule || null,
+          solverResult: liveData.solverResult || null,
+        };
+      } else {
+        const docRef = doc(db, "mvce_timetables", nameToExport);
+        const docSnap = await getDoc(docRef);
+        if (docSnap && docSnap.exists()) {
+          timetablePayload = deserializeFromFirestore(docSnap.data());
+        } else {
+          showAuthNotice(`Timetable "${nameToExport}" not found in database.`);
+          return;
+        }
+      }
+
+      if (timetablePayload) {
+        const fullExport = {
+          app: "Time Table Generator",
+          version: "1.0",
+          exportedAt: new Date().toISOString(),
+          timetable: timetablePayload
+        };
+        const jsonStr = JSON.stringify(fullExport, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const sanitizedFilename = `Timetable_${nameToExport.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
+        link.download = sanitizedFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showAuthNotice(`Timetable "${nameToExport}" exported successfully!`);
+      }
+    } catch (err: any) {
+      console.error("Export error:", err);
+      showAuthNotice(`Failed to export timetable: ${err?.message || err}`);
+    } finally {
+      setExportingTimetableName(null);
+    }
+  };
+
+  // --- Import Selected Timetable from JSON ---
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+
+        let timetableData = parsed.timetable || parsed;
+        if (Array.isArray(parsed.timetables) && parsed.timetables.length > 0) {
+          timetableData = parsed.timetables[0];
+        }
+
+        if (!timetableData || (!timetableData.classes && !timetableData.faculties && !timetableData.subjects)) {
+          showAuthNotice("Invalid timetable JSON format. Missing core datasets.");
+          return;
+        }
+
+        setImportedPreviewData(timetableData);
+      } catch (err: any) {
+        console.error("JSON Import Parse Error:", err);
+        showAuthNotice(`Import error: ${err?.message || "Invalid JSON file format"}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const confirmImportTimetable = () => {
+    if (!importedPreviewData) return;
+    try {
+      const data = importedPreviewData;
+      if (data.faculties) {
+        setFaculties((data.faculties as Faculty[]).map(f => ({
+          ...f,
+          department: normalizeDepartment(f.department)
+        })));
+      }
+      if (data.subjects) {
+        setSubjects((data.subjects as Subject[]).map(s => ({
+          ...s,
+          department: normalizeDepartment(s.department)
+        })));
+      }
+      if (data.classes) {
+        const updatedClasses = data.classes.map((c: any) => ({ ...c, labBatches: c.labBatches ?? 1 }));
+        setClasses(updatedClasses);
+        if (updatedClasses.length > 0) {
+          setSelectedClassId(updatedClasses[0].id);
+        }
+      }
+      if (data.assignments) setAssignments(data.assignments);
+      if (data.timeSlots) setTimeSlots(normalizeTimeSlotsWithDefaults(data.timeSlots));
+      if (data.days) setDays(data.days);
+      if (data.lockedClassIds && Array.isArray(data.lockedClassIds)) {
+        setLockedClassIds(data.lockedClassIds);
+        localStorage.setItem('mvce_locked_classes', JSON.stringify(data.lockedClassIds));
+      } else {
+        setLockedClassIds([]);
+        localStorage.removeItem('mvce_locked_classes');
+      }
+      if (data.wefDate) {
+        setWefDate(data.wefDate);
+        localStorage.setItem('mvce_wef_date', data.wefDate);
+      }
+      if (data.customSchedule) setCustomSchedule(data.customSchedule);
+      if (data.solverResult) setSolverResult(data.solverResult);
+
+      const importedName = data.name || 'Imported Timetable';
+      setActiveTimetableName(importedName);
+      localStorage.setItem('mvce_firebase_active_timetable', importedName);
+      setLastSyncedTime(format12HourTime());
+
+      showAuthNotice(`Successfully imported timetable "${importedName}" into your workspace!`);
+      setImportedPreviewData(null);
+    } catch (err: any) {
+      console.error("Error applying imported timetable:", err);
+      showAuthNotice(`Error applying imported timetable: ${err?.message || err}`);
     }
   };
 
@@ -1890,10 +2096,14 @@ export default function App() {
 
   // Auto-Sync to Firebase when data changes (debounced)
   useEffect(() => {
-    if (!currentUser || !isAutoSyncEnabled || !activeTimetableName) return;
+    if (!currentUser || !isAutoSyncEnabled || !activeTimetableName || isAutoSyncSuppressedRef.current) return;
 
     setIsAutoSyncing(true);
     const delayDebounce = setTimeout(() => {
+      if (isAutoSyncSuppressedRef.current) {
+        setIsAutoSyncing(false);
+        return;
+      }
       saveTimetableToFirebase(activeTimetableName, true);
     }, 1000); // 1.0-second debounce
 
@@ -8048,7 +8258,7 @@ service cloud.firestore {
       {/* ========================================== */}
       {showFirebaseModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Database className="h-4 w-4 text-blue-800" />
@@ -8065,23 +8275,130 @@ service cloud.firestore {
             </div>
 
             <div className="p-5 space-y-5 overflow-y-auto">
-              {/* Cloud Information */}
-              <div className="bg-slate-50 border border-slate-200/60 rounded-lg p-3 text-xs text-slate-600 space-y-1.5">
-                <p className="font-semibold text-slate-800 flex items-center space-x-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                  <span>Firestore Connection Active</span>
-                </p>
-                <p className="font-mono text-[10px] text-slate-500">
-                  Project ID: <span className="text-slate-800 font-bold">time-table-smvce</span><br />
-                  Storage: <span className="text-slate-800 font-bold">Cloud Firestore</span>
-                </p>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  All timetables are stored as persistent JSON payloads in your Firebase Firestore database. This enables multi-device support, team collaboration, and immune backup against browser cache resets.
-                </p>
+              {/* Cloud Information - Cleared content as requested */}
+              <div className="bg-slate-50 border border-slate-200/60 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                  <span className="font-semibold text-slate-800 text-xs">Firestore Connection Active</span>
+                </div>
+              </div>
+
+              {/* Side-by-Side Import & Export Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* EXPORT SECTION */}
+                <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Download className="h-4 w-4 text-blue-600" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">Export Timetable (JSON)</h4>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Choose any saved timetable from the dropdown below to export it as a JSON file.
+                    </p>
+
+                    <div className="space-y-1.5 pt-1">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                        Select Timetable
+                      </label>
+                      <select
+                        value={selectedExportTimetable || (firebaseTimetables.includes(activeTimetableName) ? activeTimetableName : (firebaseTimetables[0] || ''))}
+                        onChange={(e) => setSelectedExportTimetable(e.target.value)}
+                        disabled={firebaseTimetables.length === 0}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        {firebaseTimetables.length === 0 ? (
+                          <option value="">No saved timetables found</option>
+                        ) : (
+                          firebaseTimetables.map((name) => (
+                            <option key={name} value={name}>
+                              {name} {name === activeTimetableName ? '(Active)' : ''}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetToExport = selectedExportTimetable || (firebaseTimetables.includes(activeTimetableName) ? activeTimetableName : firebaseTimetables[0]);
+                        if (targetToExport) {
+                          exportSelectedTimetable(targetToExport);
+                        }
+                      }}
+                      disabled={firebaseTimetables.length === 0 || exportingTimetableName !== null}
+                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-lg transition flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {exportingTimetableName ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" />
+                      )}
+                      <span>{exportingTimetableName ? `Exporting "${exportingTimetableName}"...` : 'Export Selected (JSON)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* IMPORT SECTION */}
+                <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/50 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Upload className="h-4 w-4 text-emerald-600" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">Import Timetable (JSON)</h4>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Upload a JSON file. Only the selected timetable from the file will be imported.
+                    </p>
+
+                    <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-lg p-3 bg-white text-center transition flex flex-col items-center justify-center space-y-1.5 cursor-pointer relative min-h-[95px]">
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={handleFileImport}
+                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      />
+                      <FileJson className="h-6 w-6 text-emerald-600" />
+                      <div className="space-y-0.5">
+                        <p className="text-[11px] font-bold text-slate-700">Click or Drag JSON file</p>
+                        <p className="text-[9px] text-slate-400">Accepts .json timetable exports</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {importedPreviewData && (
+                    <div className="border border-emerald-300 bg-emerald-50/80 rounded-lg p-2.5 space-y-2 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800">Selection</span>
+                        <span className="text-[9px] text-emerald-700 font-mono font-bold truncate max-w-[120px]">{importedPreviewData.name || 'Timetable'}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-700 leading-tight">
+                        Ready to import <strong>"{importedPreviewData.name || 'Imported Timetable'}"</strong>.
+                      </p>
+                      <div className="flex justify-end space-x-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setImportedPreviewData(null)}
+                          className="px-2 py-0.5 text-[9.5px] text-slate-600 hover:text-slate-800 font-bold uppercase"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={confirmImportTimetable}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] uppercase rounded shadow-xs cursor-pointer"
+                        >
+                          Import Selected
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Create/Save As section */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-2 border-t border-slate-100">
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Save Current State as New Timetable</h4>
                 <div className="flex gap-2">
                   <input
@@ -8109,7 +8426,7 @@ service cloud.firestore {
                 </div>
               </div>
 
-              {/* Saved Timetables List */}
+              {/* Saved Timetables List in Cloud */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Saved Timetables in Firestore ({firebaseTimetables.length})</h4>
@@ -8124,7 +8441,7 @@ service cloud.firestore {
                   </button>
                 </div>
 
-                <div className="border border-slate-200 rounded-lg overflow-hidden bg-white max-h-[220px] overflow-y-auto">
+                <div className="border border-slate-200 rounded-lg overflow-hidden bg-white max-h-[160px] overflow-y-auto">
                   {isCloudFetchingList && firebaseTimetables.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-500 flex flex-col items-center justify-center space-y-2">
                       <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
