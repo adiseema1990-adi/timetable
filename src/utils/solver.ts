@@ -58,33 +58,46 @@ export const getAssignmentIdsFromCell = (cell: any): string[] => {
 };
 
 export const serializeForFirestore = (obj: any): any => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
+  if (obj === undefined) {
+    return null;
+  }
+  if (obj === null || typeof obj !== 'object') {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => {
-      const serialized = serializeForFirestore(item);
-      if (Array.isArray(serialized)) {
-        return { _isBatchArray: true, items: serialized };
-      }
-      return serialized;
-    });
-  }
-
-  const result: Record<string, any> = {};
-  for (const key of Object.keys(obj)) {
-    const val = obj[key];
-    if (Array.isArray(val)) {
-      result[key] = val.map(item => {
+    return obj
+      .filter(item => item !== undefined)
+      .map(item => {
         const serialized = serializeForFirestore(item);
         if (Array.isArray(serialized)) {
           return { _isBatchArray: true, items: serialized };
         }
         return serialized;
       });
+  }
+
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val === undefined) {
+      continue; // Strip undefined keys so Firestore never encounters unsupported undefined values
+    }
+    if (Array.isArray(val)) {
+      result[key] = val
+        .filter(item => item !== undefined)
+        .map(item => {
+          const serialized = serializeForFirestore(item);
+          if (Array.isArray(serialized)) {
+            return { _isBatchArray: true, items: serialized };
+          }
+          return serialized;
+        });
     } else {
-      result[key] = serializeForFirestore(val);
+      const serializedVal = serializeForFirestore(val);
+      if (serializedVal !== undefined) {
+        result[key] = serializedVal;
+      }
     }
   }
   return result;
