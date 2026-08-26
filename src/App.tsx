@@ -3299,23 +3299,17 @@ export default function App() {
           }
         }
 
-        // Check Free Period Gap in Period 1-4
-        for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
-          if (isPeriod1To4(pIdx)) {
-            if (slots[pIdx] === null) {
-              let hasAfter = false;
-              for (let j = pIdx + 1; j < totalPeriods; j++) {
-                if (slots[j] !== null) {
-                  hasAfter = true;
-                  break;
-                }
-              }
-              if (hasAfter) {
+        // Check Blank / Unscheduled Period 1-4
+        const hasClassesOnDay = slots.some(s => s !== null);
+        if (hasClassesOnDay) {
+          for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
+            if (isPeriod1To4(pIdx)) {
+              if (slots[pIdx] === null) {
                 warningsList.push({
                   classId: cls.id,
                   day,
                   pIdx,
-                  message: `Free period gap in Period 1-4 on ${day} for ${cls.name}.`,
+                  message: `Unscheduled / blank period in Period 1-4 on ${day} for ${cls.name}.`,
                   type: 'gap'
                 });
               }
@@ -3446,7 +3440,7 @@ export default function App() {
     return false;
   };
 
-  // Check if there is any free period (gap) in Period 1, Period 2, Period 3, or Period 4 for a class
+  // Check if there is any unscheduled/blank period in Period 1, Period 2, Period 3, or Period 4 for a class
   const checkPeriod1To4FreePeriod = (classId: string, schedObj: TimetableSchedule | null = solverResult?.schedule): boolean => {
     if (!schedObj || !schedObj[classId]) return false;
     const classSched = schedObj[classId];
@@ -3467,19 +3461,12 @@ export default function App() {
     for (const day of days) {
       const periods = classSched[day];
       if (!periods) continue;
+      const hasClassesOnDay = periods.some(p => p !== null);
+      if (!hasClassesOnDay) continue;
       for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
         if (isPeriod1To4(pIdx)) {
           if (periods[pIdx] === null) {
-            let hasAfter = false;
-            for (let j = pIdx + 1; j < totalPeriods; j++) {
-              if (periods[j] !== null) {
-                hasAfter = true;
-                break;
-              }
-            }
-            if (hasAfter) {
-              return true;
-            }
+            return true;
           }
         }
       }
@@ -4303,7 +4290,7 @@ service cloud.firestore {
                             <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Period 1-4 Gap Prevention</span>
+                            <span className="text-slate-500">Periods 1-4 Full Allocation (No Unscheduled)</span>
                             <span className="text-slate-800 font-bold flex items-center"><Check className="h-3 w-3 text-emerald-600 mr-0.5" /> Enforced</span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -4390,11 +4377,11 @@ service cloud.firestore {
                               <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                             )}
                             <div>
-                              <p className="font-bold text-slate-800">Period 1 to 4 Unscheduled Gap Guard</p>
+                              <p className="font-bold text-slate-800">Periods 1 to 4 Allocation Guard</p>
                               <p className="text-slate-500 text-[10px] leading-tight mt-0.5">
                                 {hasAnyPeriod1To4FreePeriodConflict 
-                                  ? "Optimization Warning: An unscheduled tutorial gap exists in Period 1, 2, 3, or 4." 
-                                  : "Verified: No unscheduled tutorial gaps in Period 1, 2, 3, or 4 for any class section!"}
+                                  ? "Optimization Warning: An unscheduled or blank period exists in Period 1, 2, 3, or 4." 
+                                  : "Verified: No unscheduled or blank periods in Period 1, 2, 3, or 4 for any class section!"}
                               </p>
                             </div>
                           </div>
@@ -4832,6 +4819,51 @@ service cloud.firestore {
                                     const palette = assign && sub ? getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)) : null;
                                     const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
                                     const batchStr = groupInfo && groupInfo.batch ? `${groupInfo.baseSection}${groupInfo.batch}` : (classHasBatches && isLabCell) ? `${sec}1&${sec}2` : null;
+
+                                    if (isLabCell && assign && sub && palette && !classHasBatches) {
+                                      return (
+                                        <div 
+                                          key={slot.id} 
+                                          className="p-1 border-r border-slate-400 last:border-r-0 flex flex-col justify-center bg-amber-50/40 hover:bg-amber-100/40 min-h-[64px] transition-all group relative cursor-pointer"
+                                        >
+                                          <div 
+                                            className={`p-1.5 rounded-lg border text-left text-[9px] shadow-2xs h-full flex flex-col justify-between ${
+                                              palette.isCustom ? '' : `${palette.bg} ${palette.border} ${palette.text}`
+                                            }`}
+                                            style={palette.isCustom ? {
+                                              backgroundColor: palette.styles.bg,
+                                              borderColor: palette.styles.border,
+                                              color: palette.styles.text
+                                            } : undefined}
+                                          >
+                                            <div>
+                                              <div className="flex items-center justify-between gap-1 mb-0.5 leading-none">
+                                                <div className="font-extrabold text-[9px] break-words leading-tight uppercase tracking-tight" title={sub.name}>
+                                                  {sub.name}
+                                                </div>
+                                                <div className="text-[8.5px] opacity-80 font-mono font-bold shrink-0 ml-auto leading-none">
+                                                  {sub.code}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
+                                              <span 
+                                                style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                                className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
+                                                title={fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                              >
+                                                {fac ? cleanFacultyName(fac.name) : (sub.isAicteActivity || sub.isStudentActivity ? 'Self-Guided' : 'Unassigned')}
+                                              </span>
+                                              {fac?.department && (
+                                                <span className="text-[8px] opacity-75 group-hover:opacity-90 font-mono text-right ml-auto shrink-0 self-end">
+                                                  {normalizeDepartment(fac.department)}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
 
                                     return (
                                       <div 
@@ -5509,7 +5541,7 @@ service cloud.firestore {
                               <p>• Staff cannot have consecutive multi-subject periods.</p>
                               <p>• Non-lab subjects cannot have consecutive periods.</p>
                               <p>• Lab subjects must be continuous 2-period blocks.</p>
-                              <p>• Avoid free period gaps in Periods 1 to 4.</p>
+                              <p>• Periods 1 to 4 must not be left blank or unscheduled.</p>
                             </div>
                           </div>
                         </div>
@@ -5873,7 +5905,16 @@ service cloud.firestore {
 
                                             const palette = getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub));
                                             return (
-                                              <>
+                                              <div 
+                                                className={`p-1.5 rounded-lg border text-left text-[9px] shadow-2xs h-full flex flex-col justify-between w-full ${
+                                                  palette.isCustom ? '' : `${palette.bg} ${palette.border} ${palette.text}`
+                                                }`}
+                                                style={palette.isCustom ? {
+                                                  backgroundColor: palette.styles.bg,
+                                                  borderColor: palette.styles.border,
+                                                  color: palette.styles.text
+                                                } : undefined}
+                                              >
                                                 <div>
                                                   <div className="flex items-center justify-between gap-1 mb-1 leading-none">
                                                     {classHasBatches && (
@@ -5901,7 +5942,7 @@ service cloud.firestore {
                                                     </span>
                                                   )}
                                                 </div>
-                                              </>
+                                              </div>
                                             );
                                           })()
                                         ) : assign && sub ? (

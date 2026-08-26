@@ -740,20 +740,14 @@ export function generateTimetable(
     }
 
     if (unitIdx === lectureUnits.length) {
-      // Avoid free periods in Period 1, Period 2, Period 3, and Period 4 for unlocked classes
+      // Ensure Periods 1, 2, 3, and 4 are not left blank or unscheduled on active class days
       for (const cls of unlockedClasses) {
         for (const day of days) {
-          for (let p = 0; p < totalPeriods; p++) {
-            if (isPeriod1To4(p)) {
-              if (schedule[cls.id][day][p] === null) {
-                let hasAfter = false;
-                for (let j = p + 1; j < totalPeriods; j++) {
-                  if (schedule[cls.id][day][j] !== null) {
-                    hasAfter = true;
-                    break;
-                  }
-                }
-                if (hasAfter) {
+          const hasClassesOnDay = schedule[cls.id][day].some(p => p !== null);
+          if (hasClassesOnDay) {
+            for (let p = 0; p < totalPeriods; p++) {
+              if (isPeriod1To4(p)) {
+                if (schedule[cls.id][day][p] === null) {
                   return false;
                 }
               }
