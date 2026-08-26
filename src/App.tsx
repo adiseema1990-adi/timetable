@@ -829,7 +829,9 @@ export default function App() {
 
   // --- Firebase Integration States ---
   const [firebaseTimetables, setFirebaseTimetables] = useState<string[]>([]);
-  const [activeTimetableName, setActiveTimetableName] = useState<string>('Main Timetable');
+  const [activeTimetableName, setActiveTimetableName] = useState<string>(() => {
+    return localStorage.getItem('mvce_firebase_active_timetable') || '';
+  });
   const [isCloudSaving, setIsCloudSaving] = useState(false);
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [isCloudFetchingList, setIsCloudFetchingList] = useState(false);
@@ -1054,6 +1056,10 @@ export default function App() {
         }
       } else {
         setCurrentUser(null);
+        // Clear local storage and workspace when signed out
+        setActiveTimetableName('');
+        localStorage.removeItem('mvce_firebase_active_timetable');
+        setFirebaseTimetables([]);
       }
       setAuthLoading(false);
     });
@@ -1124,6 +1130,23 @@ export default function App() {
       await signOut(auth);
       setCurrentUser(null);
       setAuthCheckError(null);
+      // Reset workspace state and clear local storage timetable references to avoid cross-user leakage
+      setActiveTimetableName('');
+      localStorage.removeItem('mvce_firebase_active_timetable');
+      setFirebaseTimetables([]);
+      setFaculties([]);
+      setSubjects([]);
+      setClasses([]);
+      setAssignments([]);
+      setTimeSlots(DEFAULT_TIME_SLOTS);
+      setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      setSelectedClassId('');
+      setLockedClassIds([]);
+      setSolverResult(null);
+      setCustomSchedule(null);
+      setUndoStack([]);
+      setRedoStack([]);
+      setIsDataStale(false);
       showAuthNotice("Signed out successfully.");
     } catch (error: any) {
       showAuthNotice(`Sign out failed: ${error?.message || error}`);
@@ -1580,7 +1603,7 @@ export default function App() {
     setIsDataStale(false);
     
     // Preserve the currently active/selected timetable name
-    const currentActive = activeTimetableName || 'Main Timetable';
+    const currentActive = activeTimetableName || '';
     setActiveTimetableName(currentActive);
     
     // Clear local storage items for workspace data without wiping user session / active timetable selection
@@ -1594,9 +1617,13 @@ export default function App() {
     localStorage.removeItem('mvce_locked_classes');
     localStorage.removeItem('mvce_customSchedule');
     localStorage.removeItem('mvce_solverResult');
-    localStorage.setItem('mvce_firebase_active_timetable', currentActive);
-    
-    showAuthNotice(`Workspace for "${currentActive}" cleared. You can now build from scratch.`);
+    if (currentActive) {
+      localStorage.setItem('mvce_firebase_active_timetable', currentActive);
+      showAuthNotice(`Workspace for "${currentActive}" cleared. You can now build from scratch.`);
+    } else {
+      localStorage.removeItem('mvce_firebase_active_timetable');
+      showAuthNotice(`Workspace cleared. You can create a fresh timetable using the (+) button.`);
+    }
   };
 
   const createNewTimetableTemplate = (name: string) => {
@@ -1670,6 +1697,9 @@ export default function App() {
     return val.replace(/\D/g, '');
   };
 
+  // Helper to create user-isolated Firestore document ID
+  const getTimetableDocId = (uid: string, name: string) => `${uid}___${name.trim()}`;
+
   // --- Firebase Integration Helper Functions ---
 
   // Fetch available timetables from Firebase Firestore
@@ -1693,8 +1723,12 @@ export default function App() {
       }
       const names: string[] = [];
       if (querySnapshot) {
-        querySnapshot.forEach((doc) => {
-          names.push(doc.id);
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const displayName = data.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
+          if (displayName && !names.includes(displayName)) {
+            names.push(displayName);
+          }
         });
       }
       setFirebaseTimetables(names);
@@ -1723,10 +1757,13 @@ export default function App() {
       if (!user) {
         throw new Error("No authenticated user found.");
       }
+
+      const userDocId = getTimetableDocId(user.uid, nameToSave);
+      const docRef = doc(db, "mvce_timetables", userDocId);
       
       const liveData = workspaceDataRef.current;
       const timetableData = {
-        name: nameToSave,
+        name: nameToSave.trim(),
         updatedAt: new Date().toISOString(),
         userId: user.uid,
         faculties: liveData.faculties,
@@ -1744,14 +1781,24 @@ export default function App() {
       const serializedData = serializeForFirestore(timetableData);
       
       try {
-        await setDoc(doc(db, "mvce_timetables", nameToSave), serializedData);
+        await setDoc(docRef, serializedData);
+        // Clean up legacy un-prefixed document if it was created by this user
+        const legacyDocRef = doc(db, "mvce_timetables", nameToSave);
+        try {
+          const legacySnap = await getDoc(legacyDocRef);
+          if (legacySnap.exists() && legacySnap.data()?.userId === user.uid) {
+            await deleteDoc(legacyDocRef);
+          }
+        } catch (_) {
+          // ignore legacy cleanup error
+        }
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `mvce_timetables/${nameToSave}`);
+        handleFirestoreError(error, OperationType.WRITE, `mvce_timetables/${userDocId}`);
       }
       
       // Update local states
-      setActiveTimetableName(nameToSave);
-      localStorage.setItem('mvce_firebase_active_timetable', nameToSave);
+      setActiveTimetableName(nameToSave.trim());
+      localStorage.setItem('mvce_firebase_active_timetable', nameToSave.trim());
       setLastSyncedTime(format12HourTime());
       setFirebaseError(null); // Clear errors on success
       
@@ -1759,7 +1806,7 @@ export default function App() {
       await fetchFirebaseTimetablesList(true);
       
       if (!isAuto) {
-        showAuthNotice(`Timetable "${nameToSave}" successfully saved to Firebase Cloud!`);
+        showAuthNotice(`Timetable "${nameToSave.trim()}" successfully saved to Firebase Cloud!`);
       }
     } catch (error: any) {
       console.error("Error saving to Firestore:", error);
@@ -1778,16 +1825,39 @@ export default function App() {
     if (!nameToLoad) return;
     setIsCloudLoading(true);
     try {
-      const docRef = doc(db, "mvce_timetables", nameToLoad);
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("No authenticated user found.");
+      }
+      const isSuper = user.email === 'sachinadi88@gmail.com';
+      const userDocId = getTimetableDocId(user.uid, nameToLoad);
+      let docRef = doc(db, "mvce_timetables", userDocId);
       let docSnap;
       try {
         docSnap = await getDoc(docRef);
+        // Fallback to legacy un-prefixed doc if not yet migrated
+        if (!docSnap.exists()) {
+          const legacyDocRef = doc(db, "mvce_timetables", nameToLoad);
+          const legacySnap = await getDoc(legacyDocRef);
+          if (legacySnap.exists()) {
+            const rawData = legacySnap.data();
+            if (rawData?.userId === user.uid || isSuper) {
+              docSnap = legacySnap;
+            }
+          }
+        }
       } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `mvce_timetables/${nameToLoad}`);
+        handleFirestoreError(error, OperationType.GET, `mvce_timetables/${userDocId}`);
       }
       
       if (docSnap && docSnap.exists()) {
         const rawData = docSnap.data();
+        // Strict ownership check: only allow if document belongs to current user or superuser
+        if (rawData?.userId && rawData.userId !== user.uid && !isSuper) {
+          showAuthNotice(`Access Denied: Timetable "${nameToLoad}" belongs to another user.`);
+          setIsCloudLoading(false);
+          return;
+        }
         const data = deserializeFromFirestore(rawData);
         
         // Load states
@@ -1850,29 +1920,53 @@ export default function App() {
     if (!nameToDelete) return;
     
     try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const isSuper = user.email === 'sachinadi88@gmail.com';
+
       // 1. Suppress auto-sync during deletion and state transition
       isAutoSyncSuppressedRef.current = true;
 
+      // Delete user-scoped doc
+      const userDocId = getTimetableDocId(user.uid, nameToDelete);
+      const userDocRef = doc(db, "mvce_timetables", userDocId);
       try {
-        await deleteDoc(doc(db, "mvce_timetables", nameToDelete));
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          await deleteDoc(userDocRef);
+        }
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `mvce_timetables/${nameToDelete}`);
+        handleFirestoreError(error, OperationType.DELETE, `mvce_timetables/${userDocId}`);
       }
+
+      // Also clean up legacy un-prefixed doc if it exists and belongs to this user
+      const legacyDocRef = doc(db, "mvce_timetables", nameToDelete);
+      try {
+        const legacyDocSnap = await getDoc(legacyDocRef);
+        if (legacyDocSnap.exists()) {
+          const existingData = legacyDocSnap.data();
+          if (existingData?.userId === user.uid || isSuper) {
+            await deleteDoc(legacyDocRef);
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+
       showAuthNotice(`Timetable "${nameToDelete}" deleted from Firebase Cloud.`);
       setFirebaseError(null); // Clear errors on success
       
       // Fetch updated list of remaining timetables for this user
-      const user = auth.currentUser;
-      if (!user) return;
-      const isSuper = user.email === 'sachinadi88@gmail.com';
       const q = isSuper 
         ? collection(db, "mvce_timetables")
         : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
       const remainingDocSnaps = await getDocs(q);
       const remainingNames: string[] = [];
       remainingDocSnaps.forEach((docSnap) => {
-        if (docSnap.id !== nameToDelete) {
-          remainingNames.push(docSnap.id);
+        const d = docSnap.data();
+        const displayName = d.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
+        if (displayName !== nameToDelete && displayName && !remainingNames.includes(displayName)) {
+          remainingNames.push(displayName);
         }
       });
       setFirebaseTimetables(remainingNames);
@@ -1900,7 +1994,7 @@ export default function App() {
           setRedoStack([]);
           setIsDataStale(false);
           
-          setActiveTimetableName('Main Timetable');
+          setActiveTimetableName('');
           localStorage.removeItem('mvce_firebase_active_timetable');
           localStorage.setItem('mvce_is_cleared', 'true');
           localStorage.removeItem('mvce_locked_classes');
@@ -1946,10 +2040,28 @@ export default function App() {
           solverResult: liveData.solverResult || null,
         };
       } else {
-        const docRef = doc(db, "mvce_timetables", nameToExport);
-        const docSnap = await getDoc(docRef);
+        const user = auth.currentUser;
+        const isSuper = user?.email === 'sachinadi88@gmail.com';
+        const userDocId = user ? getTimetableDocId(user.uid, nameToExport) : nameToExport;
+        let docRef = doc(db, "mvce_timetables", userDocId);
+        let docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          const legacyDocRef = doc(db, "mvce_timetables", nameToExport);
+          const legacySnap = await getDoc(legacyDocRef);
+          if (legacySnap.exists()) {
+            const rawData = legacySnap.data();
+            if (rawData?.userId === user?.uid || isSuper) {
+              docSnap = legacySnap;
+            }
+          }
+        }
         if (docSnap && docSnap.exists()) {
-          timetablePayload = deserializeFromFirestore(docSnap.data());
+          const rawData = docSnap.data();
+          if (rawData?.userId && user && rawData.userId !== user.uid && !isSuper) {
+            showAuthNotice(`Access Denied: Timetable "${nameToExport}" belongs to another user.`);
+            return;
+          }
+          timetablePayload = deserializeFromFirestore(rawData);
         } else {
           showAuthNotice(`Timetable "${nameToExport}" not found in database.`);
           return;
@@ -1957,11 +2069,13 @@ export default function App() {
       }
 
       if (timetablePayload) {
+        // Strip userId from exported JSON to prevent cross-account coupling or leak
+        const { userId, ...cleanPayload } = timetablePayload;
         const fullExport = {
           app: "Time Table Generator",
           version: "1.0",
           exportedAt: new Date().toISOString(),
-          timetable: timetablePayload
+          timetable: cleanPayload
         };
         const jsonStr = JSON.stringify(fullExport, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -2005,6 +2119,11 @@ export default function App() {
           return;
         }
 
+        // Always strip any userId present in imported JSON so it never associates with another user
+        if (timetableData.userId) {
+          delete timetableData.userId;
+        }
+
         setImportedPreviewData(timetableData);
       } catch (err: any) {
         console.error("JSON Import Parse Error:", err);
@@ -2018,7 +2137,10 @@ export default function App() {
   const confirmImportTimetable = () => {
     if (!importedPreviewData) return;
     try {
-      const data = importedPreviewData;
+      const data = { ...importedPreviewData };
+      if (data.userId) {
+        delete data.userId;
+      }
       if (data.faculties) {
         setFaculties((data.faculties as Faculty[]).map(f => ({
           ...f,
@@ -2071,12 +2193,60 @@ export default function App() {
   // Initialize Firebase and fetch list on mount, load last active timetable if exists
   useEffect(() => {
     if (currentUser) {
-      fetchFirebaseTimetablesList(true);
-      const lastActive = localStorage.getItem('mvce_firebase_active_timetable');
-      if (lastActive) {
-        setActiveTimetableName(lastActive);
-        loadTimetableFromFirebase(lastActive);
-      }
+      (async () => {
+        isAutoSyncSuppressedRef.current = true;
+        try {
+          const user = auth.currentUser;
+          if (!user) return;
+          const isSuper = user.email === 'sachinadi88@gmail.com';
+          const q = isSuper 
+            ? collection(db, "mvce_timetables")
+            : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
+          const querySnapshot = await getDocs(q);
+          const names: string[] = [];
+          if (querySnapshot) {
+            querySnapshot.forEach((docSnap) => {
+              const d = docSnap.data();
+              const displayName = d.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
+              if (displayName && !names.includes(displayName)) {
+                names.push(displayName);
+              }
+            });
+          }
+          setFirebaseTimetables(names);
+
+          if (names.length === 0) {
+            // NO timetables in cloud for this user: Do NOT create any "Main Timetable" automatically
+            setActiveTimetableName('');
+            localStorage.removeItem('mvce_firebase_active_timetable');
+            setFaculties([]);
+            setSubjects([]);
+            setClasses([]);
+            setAssignments([]);
+            setTimeSlots(DEFAULT_TIME_SLOTS);
+            setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+            setSelectedClassId('');
+            setLockedClassIds([]);
+            setSolverResult(null);
+            setCustomSchedule(null);
+            setUndoStack([]);
+            setRedoStack([]);
+            setIsDataStale(false);
+          } else {
+            const lastActive = localStorage.getItem('mvce_firebase_active_timetable');
+            const targetToLoad = (lastActive && names.includes(lastActive)) ? lastActive : names[0];
+            setActiveTimetableName(targetToLoad);
+            localStorage.setItem('mvce_firebase_active_timetable', targetToLoad);
+            await loadTimetableFromFirebase(targetToLoad);
+          }
+        } catch (err) {
+          console.error("Error loading user initial timetables:", err);
+        } finally {
+          setTimeout(() => {
+            isAutoSyncSuppressedRef.current = false;
+          }, 1000);
+        }
+      })();
     }
   }, [currentUser]);
 
@@ -4019,7 +4189,9 @@ export default function App() {
             {/* Active timetable info row */}
             <div className="text-[11px] text-slate-600 flex items-center space-x-1.5 bg-slate-50 px-2.5 py-1.5 rounded border border-slate-100">
               <span className="font-semibold text-slate-500">Active:</span>
-              <span className="font-mono font-bold text-blue-950 truncate flex-1">{activeTimetableName}</span>
+              <span className={`font-mono font-bold truncate flex-1 ${activeTimetableName ? 'text-blue-950' : 'text-slate-400 italic'}`}>
+                {activeTimetableName || 'None (Click + to Create)'}
+              </span>
             </div>
 
             {/* Switcher & Create New */}
@@ -4058,7 +4230,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => saveTimetableToFirebase(activeTimetableName)}
-                disabled={isCloudSaving || isCloudLoading}
+                disabled={isCloudSaving || isCloudLoading || !activeTimetableName}
                 className="py-2 px-2 bg-blue-900 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 shadow-sm disabled:opacity-50"
               >
                 {isCloudSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
@@ -4068,10 +4240,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  setInlineSaveAsName(activeTimetableName + " Copy");
+                  setInlineSaveAsName(activeTimetableName ? activeTimetableName + " Copy" : "New Timetable");
                   setShowInlineSaveAs(true);
                 }}
-                disabled={isCloudSaving || isCloudLoading}
+                disabled={isCloudSaving || isCloudLoading || !activeTimetableName}
                 className="py-2 px-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center justify-center shadow-sm disabled:opacity-50"
               >
                 <span className="truncate">Save As...</span>
@@ -4168,8 +4340,8 @@ export default function App() {
                 </div>
                 <p className="text-[11px] text-slate-700 mt-0.5 flex items-center flex-wrap gap-2">
                   <span className="font-semibold text-slate-600">Active Timetable:</span>
-                  <span className="font-mono font-bold text-blue-950 bg-white/80 px-2 py-0.5 rounded border border-blue-200/80 shadow-xs">
-                    {activeTimetableName}
+                  <span className={`font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-blue-200/80 shadow-xs ${activeTimetableName ? 'text-blue-950' : 'text-slate-400 italic'}`}>
+                    {activeTimetableName || 'None (Click + to Create)'}
                   </span>
                   {lastSyncedTime && (
                     <span className="text-slate-600 text-[10px] font-medium">
@@ -4221,9 +4393,9 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => saveTimetableToFirebase(activeTimetableName)}
-                  disabled={isCloudSaving || isCloudLoading}
+                  disabled={isCloudSaving || isCloudLoading || !activeTimetableName}
                   className="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-sm hover:shadow disabled:opacity-50"
-                  title={`Save state to cloud document: "${activeTimetableName}"`}
+                  title={activeTimetableName ? `Save state to cloud document: "${activeTimetableName}"` : "Please create or select a timetable first"}
                 >
                   {isCloudSaving ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -4278,10 +4450,10 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      setInlineSaveAsName(activeTimetableName + " Copy");
+                      setInlineSaveAsName(activeTimetableName ? activeTimetableName + " Copy" : "New Timetable");
                       setShowInlineSaveAs(true);
                     }}
-                    disabled={isCloudSaving || isCloudLoading}
+                    disabled={isCloudSaving || isCloudLoading || !activeTimetableName}
                     className="px-3 py-1.5 bg-white hover:bg-blue-50 border border-blue-200 text-slate-800 font-bold text-[10px] uppercase tracking-wider rounded transition cursor-pointer flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
                     title="Save this configuration as a new Firestore document"
                   >
