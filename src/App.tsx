@@ -832,6 +832,19 @@ export default function App() {
   const [activeTimetableName, setActiveTimetableName] = useState<string>(() => {
     return localStorage.getItem('mvce_firebase_active_timetable') || '';
   });
+  const [activeTimetableDocId, setActiveTimetableDocId] = useState<string>(() => {
+    return localStorage.getItem('mvce_firebase_active_doc_id') || '';
+  });
+  const [activeTimetableOwnerId, setActiveTimetableOwnerId] = useState<string>(() => {
+    return localStorage.getItem('mvce_firebase_active_owner_id') || '';
+  });
+  const [activeTimetableOwnerEmail, setActiveTimetableOwnerEmail] = useState<string>(() => {
+    return localStorage.getItem('mvce_firebase_active_owner_email') || '';
+  });
+  const activeTimetableDocIdRef = useRef<string>(localStorage.getItem('mvce_firebase_active_doc_id') || '');
+  const activeTimetableOwnerIdRef = useRef<string>(localStorage.getItem('mvce_firebase_active_owner_id') || '');
+  const activeTimetableOwnerEmailRef = useRef<string>(localStorage.getItem('mvce_firebase_active_owner_email') || '');
+  const timetableDocMapRef = useRef<Map<string, { docId: string; userId: string; userEmail?: string; name: string }>>(new Map());
   const [isCloudSaving, setIsCloudSaving] = useState(false);
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [isCloudFetchingList, setIsCloudFetchingList] = useState(false);
@@ -1132,7 +1145,17 @@ export default function App() {
       setAuthCheckError(null);
       // Reset workspace state and clear local storage timetable references to avoid cross-user leakage
       setActiveTimetableName('');
+      setActiveTimetableDocId('');
+      setActiveTimetableOwnerId('');
+      setActiveTimetableOwnerEmail('');
+      activeTimetableDocIdRef.current = '';
+      activeTimetableOwnerIdRef.current = '';
+      activeTimetableOwnerEmailRef.current = '';
+      timetableDocMapRef.current.clear();
       localStorage.removeItem('mvce_firebase_active_timetable');
+      localStorage.removeItem('mvce_firebase_active_doc_id');
+      localStorage.removeItem('mvce_firebase_active_owner_id');
+      localStorage.removeItem('mvce_firebase_active_owner_email');
       setFirebaseTimetables([]);
       setFaculties([]);
       setSubjects([]);
@@ -1709,6 +1732,7 @@ export default function App() {
       const user = auth.currentUser;
       if (!user) {
         setFirebaseTimetables([]);
+        timetableDocMapRef.current.clear();
         return;
       }
       const isSuper = user.email === 'sachinadi88@gmail.com';
@@ -1721,13 +1745,20 @@ export default function App() {
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, "mvce_timetables");
       }
+      timetableDocMapRef.current.clear();
       const names: string[] = [];
       if (querySnapshot) {
         querySnapshot.forEach((docSnap) => {
           const data = docSnap.data();
           const displayName = data.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
-          if (displayName && !names.includes(displayName)) {
-            names.push(displayName);
+          const ownerId = data.userId || (docSnap.id.includes('___') ? docSnap.id.split('___')[0] : user.uid);
+          const ownerEmail = data.userEmail || '';
+          if (displayName) {
+            timetableDocMapRef.current.set(displayName, { docId: docSnap.id, userId: ownerId, userEmail: ownerEmail, name: displayName });
+            timetableDocMapRef.current.set(docSnap.id, { docId: docSnap.id, userId: ownerId, userEmail: ownerEmail, name: displayName });
+            if (!names.includes(displayName)) {
+              names.push(displayName);
+            }
           }
         });
       }
@@ -1739,6 +1770,24 @@ export default function App() {
     } finally {
       if (!silent) setIsCloudFetchingList(false);
     }
+  };
+
+  // Helper to format timetable label in dropdowns for Superuser vs Regular users
+  const getTimetableDisplayLabel = (name: string): string => {
+    const user = auth.currentUser;
+    const isSuper = user?.email === 'sachinadi88@gmail.com';
+    if (!isSuper || !user) return name;
+
+    const meta = timetableDocMapRef.current.get(name);
+    if (!meta) return name;
+
+    const isOwn = meta.userId === user.uid || (meta.userEmail && meta.userEmail.toLowerCase() === user.email?.toLowerCase());
+    if (isOwn) {
+      return name;
+    }
+
+    const accountTag = meta.userEmail || (meta.userId ? `${meta.userId.substring(0, 6)}...` : 'Other Account');
+    return `${name} (User: ${accountTag})`;
   };
 
   // Save current timetable to Firestore
@@ -1758,14 +1807,39 @@ export default function App() {
         throw new Error("No authenticated user found.");
       }
 
-      const userDocId = getTimetableDocId(user.uid, nameToSave);
-      const docRef = doc(db, "mvce_timetables", userDocId);
-      
+      const isSameAsActive = activeTimetableName && nameToSave.trim() === activeTimetableName.trim();
+      let targetDocId: string;
+      let targetOwnerId: string;
+      let targetOwnerEmail: string;
+
+      if ((isAuto || isSameAsActive) && activeTimetableDocIdRef.current) {
+        // Modifying the currently active loaded timetable (preserves original creator/owner UID so changes reflect for them)
+        targetDocId = activeTimetableDocIdRef.current;
+        targetOwnerId = activeTimetableOwnerIdRef.current || user.uid;
+        targetOwnerEmail = activeTimetableOwnerEmailRef.current || (targetOwnerId === user.uid ? (user.email || '') : '');
+      } else {
+        // Saving as a new timetable document
+        targetDocId = getTimetableDocId(user.uid, nameToSave);
+        targetOwnerId = user.uid;
+        targetOwnerEmail = user.email || '';
+        activeTimetableDocIdRef.current = targetDocId;
+        activeTimetableOwnerIdRef.current = targetOwnerId;
+        activeTimetableOwnerEmailRef.current = targetOwnerEmail;
+        setActiveTimetableDocId(targetDocId);
+        setActiveTimetableOwnerId(targetOwnerId);
+        setActiveTimetableOwnerEmail(targetOwnerEmail);
+        localStorage.setItem('mvce_firebase_active_doc_id', targetDocId);
+        localStorage.setItem('mvce_firebase_active_owner_id', targetOwnerId);
+        localStorage.setItem('mvce_firebase_active_owner_email', targetOwnerEmail);
+      }
+
+      const docRef = doc(db, "mvce_timetables", targetDocId);
       const liveData = workspaceDataRef.current;
       const timetableData = {
         name: nameToSave.trim(),
         updatedAt: new Date().toISOString(),
-        userId: user.uid,
+        userId: targetOwnerId,
+        userEmail: targetOwnerEmail || user.email || '',
         faculties: liveData.faculties,
         subjects: liveData.subjects,
         classes: liveData.classes,
@@ -1782,18 +1856,20 @@ export default function App() {
       
       try {
         await setDoc(docRef, serializedData);
-        // Clean up legacy un-prefixed document if it was created by this user
-        const legacyDocRef = doc(db, "mvce_timetables", nameToSave);
-        try {
-          const legacySnap = await getDoc(legacyDocRef);
-          if (legacySnap.exists() && legacySnap.data()?.userId === user.uid) {
-            await deleteDoc(legacyDocRef);
+        // Clean up legacy un-prefixed document if it was created by this user and names match
+        if (targetDocId !== nameToSave) {
+          const legacyDocRef = doc(db, "mvce_timetables", nameToSave);
+          try {
+            const legacySnap = await getDoc(legacyDocRef);
+            if (legacySnap.exists() && (legacySnap.data()?.userId === user.uid || legacySnap.data()?.userId === targetOwnerId)) {
+              await deleteDoc(legacyDocRef);
+            }
+          } catch (_) {
+            // ignore legacy cleanup error
           }
-        } catch (_) {
-          // ignore legacy cleanup error
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `mvce_timetables/${userDocId}`);
+        handleFirestoreError(error, OperationType.WRITE, `mvce_timetables/${targetDocId}`);
       }
       
       // Update local states
@@ -1830,24 +1906,65 @@ export default function App() {
         throw new Error("No authenticated user found.");
       }
       const isSuper = user.email === 'sachinadi88@gmail.com';
-      const userDocId = getTimetableDocId(user.uid, nameToLoad);
-      let docRef = doc(db, "mvce_timetables", userDocId);
+      
       let docSnap;
-      try {
-        docSnap = await getDoc(docRef);
-        // Fallback to legacy un-prefixed doc if not yet migrated
-        if (!docSnap.exists()) {
+      let targetDocId = '';
+
+      // 1. Check in-memory doc map
+      const mapped = timetableDocMapRef.current.get(nameToLoad);
+      if (mapped) {
+        try {
+          const docRef = doc(db, "mvce_timetables", mapped.docId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            docSnap = snap;
+            targetDocId = mapped.docId;
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `mvce_timetables/${mapped.docId}`);
+        }
+      }
+
+      // 2. Check user-scoped doc
+      if (!docSnap || !docSnap.exists()) {
+        const userDocId = getTimetableDocId(user.uid, nameToLoad);
+        try {
+          const docRef = doc(db, "mvce_timetables", userDocId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            docSnap = snap;
+            targetDocId = userDocId;
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `mvce_timetables/${userDocId}`);
+        }
+      }
+
+      // 3. Fallback to legacy un-prefixed doc if not yet migrated
+      if (!docSnap || !docSnap.exists()) {
+        try {
           const legacyDocRef = doc(db, "mvce_timetables", nameToLoad);
           const legacySnap = await getDoc(legacyDocRef);
           if (legacySnap.exists()) {
             const rawData = legacySnap.data();
             if (rawData?.userId === user.uid || isSuper) {
               docSnap = legacySnap;
+              targetDocId = nameToLoad;
             }
           }
-        }
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `mvce_timetables/${userDocId}`);
+        } catch (_) {}
+      }
+
+      // 4. Fallback for superuser: search across all documents by name
+      if ((!docSnap || !docSnap.exists()) && isSuper) {
+        try {
+          const q = query(collection(db, "mvce_timetables"), where("name", "==", nameToLoad));
+          const querySnap = await getDocs(q);
+          if (!querySnap.empty) {
+            docSnap = querySnap.docs[0];
+            targetDocId = docSnap.id;
+          }
+        } catch (_) {}
       }
       
       if (docSnap && docSnap.exists()) {
@@ -1859,6 +1976,19 @@ export default function App() {
           return;
         }
         const data = deserializeFromFirestore(rawData);
+        const resolvedName = rawData.name || nameToLoad;
+        const resolvedOwnerId = rawData.userId || (targetDocId.includes('___') ? targetDocId.split('___')[0] : user.uid);
+        const resolvedOwnerEmail = rawData.userEmail || (resolvedOwnerId === user.uid ? (user.email || '') : '');
+
+        activeTimetableDocIdRef.current = targetDocId;
+        activeTimetableOwnerIdRef.current = resolvedOwnerId;
+        activeTimetableOwnerEmailRef.current = resolvedOwnerEmail;
+        setActiveTimetableDocId(targetDocId);
+        setActiveTimetableOwnerId(resolvedOwnerId);
+        setActiveTimetableOwnerEmail(resolvedOwnerEmail);
+        localStorage.setItem('mvce_firebase_active_doc_id', targetDocId);
+        localStorage.setItem('mvce_firebase_active_owner_id', resolvedOwnerId);
+        localStorage.setItem('mvce_firebase_active_owner_email', resolvedOwnerEmail);
         
         // Load states
         if (data.faculties) {
@@ -1897,12 +2027,12 @@ export default function App() {
         if (data.customSchedule) setCustomSchedule(data.customSchedule);
         if (data.solverResult) setSolverResult(data.solverResult);
         
-        setActiveTimetableName(nameToLoad);
-        localStorage.setItem('mvce_firebase_active_timetable', nameToLoad);
+        setActiveTimetableName(resolvedName);
+        localStorage.setItem('mvce_firebase_active_timetable', resolvedName);
         setLastSyncedTime(format12HourTime());
         setFirebaseError(null); // Clear errors on success
         
-        showAuthNotice(`Timetable "${nameToLoad}" successfully loaded from Firebase Cloud!`);
+        showAuthNotice(`Timetable "${resolvedName}" successfully loaded from Firebase Cloud!`);
       } else {
         showAuthNotice(`Timetable "${nameToLoad}" not found in Firebase Cloud.`);
       }
@@ -1927,8 +2057,9 @@ export default function App() {
       // 1. Suppress auto-sync during deletion and state transition
       isAutoSyncSuppressedRef.current = true;
 
-      // Delete user-scoped doc
-      const userDocId = getTimetableDocId(user.uid, nameToDelete);
+      // Find doc ID to delete
+      const mapped = timetableDocMapRef.current.get(nameToDelete);
+      const userDocId = mapped ? mapped.docId : getTimetableDocId(user.uid, nameToDelete);
       const userDocRef = doc(db, "mvce_timetables", userDocId);
       try {
         const userDocSnap = await getDoc(userDocRef);
@@ -1939,18 +2070,20 @@ export default function App() {
         handleFirestoreError(error, OperationType.DELETE, `mvce_timetables/${userDocId}`);
       }
 
-      // Also clean up legacy un-prefixed doc if it exists and belongs to this user
-      const legacyDocRef = doc(db, "mvce_timetables", nameToDelete);
-      try {
-        const legacyDocSnap = await getDoc(legacyDocRef);
-        if (legacyDocSnap.exists()) {
-          const existingData = legacyDocSnap.data();
-          if (existingData?.userId === user.uid || isSuper) {
-            await deleteDoc(legacyDocRef);
+      // Also clean up legacy un-prefixed doc if it exists and belongs to this user or if superuser
+      if (userDocId !== nameToDelete) {
+        const legacyDocRef = doc(db, "mvce_timetables", nameToDelete);
+        try {
+          const legacyDocSnap = await getDoc(legacyDocRef);
+          if (legacyDocSnap.exists()) {
+            const existingData = legacyDocSnap.data();
+            if (existingData?.userId === user.uid || isSuper) {
+              await deleteDoc(legacyDocRef);
+            }
           }
+        } catch (_) {
+          // ignore
         }
-      } catch (_) {
-        // ignore
       }
 
       showAuthNotice(`Timetable "${nameToDelete}" deleted from Firebase Cloud.`);
@@ -1961,12 +2094,17 @@ export default function App() {
         ? collection(db, "mvce_timetables")
         : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
       const remainingDocSnaps = await getDocs(q);
+      timetableDocMapRef.current.clear();
       const remainingNames: string[] = [];
       remainingDocSnaps.forEach((docSnap) => {
         const d = docSnap.data();
         const displayName = d.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
+        const ownerId = d.userId || (docSnap.id.includes('___') ? docSnap.id.split('___')[0] : user.uid);
+        const ownerEmail = d.userEmail || '';
         if (displayName !== nameToDelete && displayName && !remainingNames.includes(displayName)) {
           remainingNames.push(displayName);
+          timetableDocMapRef.current.set(displayName, { docId: docSnap.id, userId: ownerId, userEmail: ownerEmail, name: displayName });
+          timetableDocMapRef.current.set(docSnap.id, { docId: docSnap.id, userId: ownerId, userEmail: ownerEmail, name: displayName });
         }
       });
       setFirebaseTimetables(remainingNames);
@@ -1995,7 +2133,16 @@ export default function App() {
           setIsDataStale(false);
           
           setActiveTimetableName('');
+          setActiveTimetableDocId('');
+          setActiveTimetableOwnerId('');
+          setActiveTimetableOwnerEmail('');
+          activeTimetableDocIdRef.current = '';
+          activeTimetableOwnerIdRef.current = '';
+          activeTimetableOwnerEmailRef.current = '';
           localStorage.removeItem('mvce_firebase_active_timetable');
+          localStorage.removeItem('mvce_firebase_active_doc_id');
+          localStorage.removeItem('mvce_firebase_active_owner_id');
+          localStorage.removeItem('mvce_firebase_active_owner_email');
           localStorage.setItem('mvce_is_cleared', 'true');
           localStorage.removeItem('mvce_locked_classes');
           localStorage.removeItem('mvce_customSchedule');
@@ -2042,7 +2189,8 @@ export default function App() {
       } else {
         const user = auth.currentUser;
         const isSuper = user?.email === 'sachinadi88@gmail.com';
-        const userDocId = user ? getTimetableDocId(user.uid, nameToExport) : nameToExport;
+        const mapped = timetableDocMapRef.current.get(nameToExport);
+        const userDocId = mapped ? mapped.docId : (user ? getTimetableDocId(user.uid, nameToExport) : nameToExport);
         let docRef = doc(db, "mvce_timetables", userDocId);
         let docSnap = await getDoc(docRef);
         if (!docSnap.exists()) {
@@ -2203,13 +2351,19 @@ export default function App() {
             ? collection(db, "mvce_timetables")
             : query(collection(db, "mvce_timetables"), where("userId", "==", user.uid));
           const querySnapshot = await getDocs(q);
+          timetableDocMapRef.current.clear();
           const names: string[] = [];
           if (querySnapshot) {
             querySnapshot.forEach((docSnap) => {
               const d = docSnap.data();
               const displayName = d.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
-              if (displayName && !names.includes(displayName)) {
-                names.push(displayName);
+              const ownerId = d.userId || (docSnap.id.includes('___') ? docSnap.id.split('___')[0] : user.uid);
+              if (displayName) {
+                timetableDocMapRef.current.set(displayName, { docId: docSnap.id, userId: ownerId, name: displayName });
+                timetableDocMapRef.current.set(docSnap.id, { docId: docSnap.id, userId: ownerId, name: displayName });
+                if (!names.includes(displayName)) {
+                  names.push(displayName);
+                }
               }
             });
           }
@@ -4187,11 +4341,18 @@ export default function App() {
             </div>
 
             {/* Active timetable info row */}
-            <div className="text-[11px] text-slate-600 flex items-center space-x-1.5 bg-slate-50 px-2.5 py-1.5 rounded border border-slate-100">
-              <span className="font-semibold text-slate-500">Active:</span>
-              <span className={`font-mono font-bold truncate flex-1 ${activeTimetableName ? 'text-blue-950' : 'text-slate-400 italic'}`}>
-                {activeTimetableName || 'None (Click + to Create)'}
-              </span>
+            <div className="text-[11px] text-slate-600 flex items-center justify-between bg-slate-50 px-2.5 py-1.5 rounded border border-slate-100 flex-wrap gap-1">
+              <div className="flex items-center space-x-1.5 min-w-0">
+                <span className="font-semibold text-slate-500">Active:</span>
+                <span className={`font-mono font-bold truncate ${activeTimetableName ? 'text-blue-950' : 'text-slate-400 italic'}`}>
+                  {activeTimetableName || 'None (Click + to Create)'}
+                </span>
+              </div>
+              {currentUser?.email === 'sachinadi88@gmail.com' && activeTimetableOwnerId && activeTimetableOwnerId !== currentUser.uid && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  User: {activeTimetableOwnerEmail || `${activeTimetableOwnerId.substring(0, 6)}...`}
+                </span>
+              )}
             </div>
 
             {/* Switcher & Create New */}
@@ -4207,7 +4368,7 @@ export default function App() {
                 ) : (
                   firebaseTimetables.map((name) => (
                     <option key={name} value={name}>
-                      {name}
+                      {getTimetableDisplayLabel(name)}
                     </option>
                   ))
                 )}
@@ -4343,6 +4504,12 @@ export default function App() {
                   <span className={`font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-blue-200/80 shadow-xs ${activeTimetableName ? 'text-blue-950' : 'text-slate-400 italic'}`}>
                     {activeTimetableName || 'None (Click + to Create)'}
                   </span>
+                  {currentUser?.email === 'sachinadi88@gmail.com' && activeTimetableOwnerId && activeTimetableOwnerId !== currentUser.uid && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                      <Users className="h-3 w-3 text-amber-700" />
+                      <span>User: {activeTimetableOwnerEmail || `${activeTimetableOwnerId.substring(0, 6)}...`}</span>
+                    </span>
+                  )}
                   {lastSyncedTime && (
                     <span className="text-slate-600 text-[10px] font-medium">
                       (Last synced: {lastSyncedTime})
@@ -4370,7 +4537,7 @@ export default function App() {
                   ) : (
                     firebaseTimetables.map((name) => (
                       <option key={name} value={name}>
-                        {name}
+                        {getTimetableDisplayLabel(name)}
                       </option>
                     ))
                   )}
@@ -8483,7 +8650,7 @@ service cloud.firestore {
                         ) : (
                           firebaseTimetables.map((name) => (
                             <option key={name} value={name}>
-                              {name} {name === activeTimetableName ? '(Active)' : ''}
+                              {getTimetableDisplayLabel(name)} {name === activeTimetableName ? '(Active)' : ''}
                             </option>
                           ))
                         )}
@@ -8627,12 +8794,24 @@ service cloud.firestore {
                     <div className="divide-y divide-slate-100">
                       {firebaseTimetables.map((name) => {
                         const isActive = activeTimetableName === name;
+                        const meta = timetableDocMapRef.current.get(name);
+                        const isOtherUser = currentUser?.email === 'sachinadi88@gmail.com' && meta && (meta.userId !== currentUser.uid && meta.userEmail !== currentUser.email);
+                        const accountLabel = meta?.userEmail || (meta?.userId ? `${meta.userId.substring(0, 6)}...` : 'Other User');
+
                         return (
                           <div key={name} className={`px-3 py-2.5 flex items-center justify-between gap-4 transition-colors ${isActive ? 'bg-blue-50/40' : 'hover:bg-slate-50'}`}>
                             <div className="min-w-0 flex-1">
-                              <p className={`text-xs font-bold truncate ${isActive ? 'text-blue-900' : 'text-slate-700'}`}>
-                                {name}
-                              </p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className={`text-xs font-bold truncate ${isActive ? 'text-blue-900' : 'text-slate-700'}`}>
+                                  {name}
+                                </p>
+                                {isOtherUser && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1">
+                                    <Users className="h-2.5 w-2.5 text-amber-700" />
+                                    <span>User: {accountLabel}</span>
+                                  </span>
+                                )}
+                              </div>
                               {isActive && (
                                 <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 mt-0.5 flex items-center space-x-1">
                                   <span>● Active Session</span>
