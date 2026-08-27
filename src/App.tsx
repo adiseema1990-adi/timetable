@@ -1032,7 +1032,8 @@ export default function App() {
   const AUTHORIZED_EMAILS = [
     'adiseema1990@gmail.com',
     'sachinadi88@gmail.com',
-    'adisachin1988@gmail.com'
+    'adisachin1988@gmail.com',
+    'smvcercv@gmail.com'
   ];
 
   // --- Firebase Google Auth State Listener ---
@@ -4697,7 +4698,8 @@ service cloud.firestore {
         && request.auth.token.email in [
              'adiseema1990@gmail.com', 
              'sachinadi88@gmail.com', 
-             'adisachin1988@gmail.com'
+             'adisachin1988@gmail.com',
+             'smvcercv@gmail.com'
            ];
     }
     match /mvce_timetables/{document} {
