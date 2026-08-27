@@ -849,7 +849,8 @@ export default function App() {
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [isCloudFetchingList, setIsCloudFetchingList] = useState(false);
   const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('mvce_auto_sync') === 'true';
+    const saved = localStorage.getItem('mvce_auto_sync');
+    return saved !== null ? saved === 'true' : true;
   });
   const [isAutoSyncing, setIsAutoSyncing] = useState<boolean>(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
@@ -2359,9 +2360,10 @@ export default function App() {
               const d = docSnap.data();
               const displayName = d.name || (docSnap.id.includes('___') ? docSnap.id.split('___').slice(1).join('___') : docSnap.id);
               const ownerId = d.userId || (docSnap.id.includes('___') ? docSnap.id.split('___')[0] : user.uid);
+              const ownerEmail = d.userEmail || '';
               if (displayName) {
-                timetableDocMapRef.current.set(displayName, { docId: docSnap.id, userId: ownerId, name: displayName });
-                timetableDocMapRef.current.set(docSnap.id, { docId: docSnap.id, userId: ownerId, name: displayName });
+                timetableDocMapRef.current.set(displayName, { docId: docSnap.id, userId: ownerId, userEmail: ownerEmail, name: displayName });
+                timetableDocMapRef.current.set(docSnap.id, { docId: docSnap.id, userId: ownerId, userEmail: ownerEmail, name: displayName });
                 if (!names.includes(displayName)) {
                   names.push(displayName);
                 }
@@ -2369,6 +2371,9 @@ export default function App() {
             });
           }
           setFirebaseTimetables(names);
+          // Ensure auto sync is active by default upon login
+          setIsAutoSyncEnabled(true);
+          localStorage.setItem('mvce_auto_sync', 'true');
 
           if (names.length === 0) {
             // NO timetables in cloud for this user: Do NOT create any "Main Timetable" automatically
