@@ -4057,8 +4057,13 @@ export default function App() {
         <div className="flex-1 flex flex-col items-center justify-center z-10 py-12">
           {/* Main Card */}
           <div className="bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl max-w-lg w-full p-8 md:p-10 shadow-2xl space-y-8 animate-fade-in relative">
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-blue-600 h-24 w-24 rounded-full flex items-center justify-center border-4 border-slate-900 shadow-xl shadow-blue-500/10">
-              <Lock className="h-10 w-10 text-white" />
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white h-24 w-24 rounded-full flex items-center justify-center border-4 border-slate-900 shadow-xl shadow-blue-500/20 p-2 overflow-hidden">
+              <img
+                src="/college_logo.png"
+                alt="SMVCE College Logo"
+                className="h-full w-full object-contain"
+                referrerPolicy="no-referrer"
+              />
             </div>
 
             {/* Title / Institution */}
