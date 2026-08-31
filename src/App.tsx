@@ -1007,6 +1007,36 @@ export default function App() {
   const [editSubColor, setEditSubColor] = useState('');
   const [editSubFormSubmitted, setEditSubFormSubmitted] = useState(false);
 
+  // Subject Department Filter State
+  const [subjectDeptFilter, setSubjectDeptFilter] = useState<string>('ALL');
+
+  // Available unique departments for filtering subjects
+  const availableSubjectDepartments = useMemo(() => {
+    const standardDepts = ['CSE', 'AIML', 'ECE', 'BS', 'CV', 'ME', 'MBA'];
+    const deptsSet = new Set<string>(standardDepts);
+    subjects.forEach((sub) => {
+      const norm = normalizeDepartment(sub.department);
+      if (norm && norm !== 'All / Inter-Dept') {
+        norm.split(',').map((d) => d.trim()).filter(Boolean).forEach((d) => deptsSet.add(d));
+      }
+    });
+    return Array.from(deptsSet);
+  }, [subjects]);
+
+  // Filtered subjects based on selected department filter
+  const filteredSubjects = useMemo(() => {
+    if (subjectDeptFilter === 'ALL' || !subjectDeptFilter) {
+      return subjects;
+    }
+    return subjects.filter((sub) => {
+      const norm = normalizeDepartment(sub.department);
+      if (!norm) return false;
+      if (norm === 'All / Inter-Dept' || norm === 'ALL') return true;
+      const parts = norm.split(',').map((d) => d.trim().toLowerCase());
+      return parts.includes(subjectDeptFilter.toLowerCase()) || norm.toLowerCase() === subjectDeptFilter.toLowerCase();
+    });
+  }, [subjects, subjectDeptFilter]);
+
   // Class Form
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [newClassName, setNewClassName] = useState('');
@@ -1021,6 +1051,17 @@ export default function App() {
   const [assignFacId, setAssignFacId] = useState('');
   const [assignFormSubmitted, setAssignFormSubmitted] = useState(false);
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
+
+  // Assignment Class Group Filter State
+  const [assignmentClassFilter, setAssignmentClassFilter] = useState<string>('ALL');
+
+  // Filtered assignments based on selected class group filter
+  const filteredAssignments = useMemo(() => {
+    if (assignmentClassFilter === 'ALL' || !assignmentClassFilter) {
+      return assignments;
+    }
+    return assignments.filter((assign) => assign.classId === assignmentClassFilter);
+  }, [assignments, assignmentClassFilter]);
 
   // Time Slot Form
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -7336,14 +7377,43 @@ service cloud.firestore {
 
               {/* Right List: Subjects */}
               <div className="lg:col-span-2 bg-white border border-slate-200 rounded p-4 shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-100 pb-2.5 mb-3">
                   <div>
                     <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Syllabus & Subjects</h3>
                     <p className="text-[10px] text-slate-500 mt-0.5">Registered courses with customizable background themes and lecture slots.</p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded">
-                      TOTAL: {subjects.length}
+                  <div className="flex items-center flex-wrap gap-2">
+                    {/* Department Filter Dropdown */}
+                    <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 shadow-2xs">
+                      <label htmlFor="subject-dept-filter-select" className="text-[10px] font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">
+                        Department:
+                      </label>
+                      <select
+                        id="subject-dept-filter-select"
+                        value={subjectDeptFilter}
+                        onChange={(e) => setSubjectDeptFilter(e.target.value)}
+                        className="bg-white border border-slate-300 text-xs font-bold text-blue-950 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer shadow-2xs"
+                      >
+                        <option value="ALL">All Departments ({subjects.length})</option>
+                        {availableSubjectDepartments.map((dept) => {
+                          const count = subjects.filter((sub) => {
+                            const norm = normalizeDepartment(sub.department);
+                            if (!norm) return false;
+                            if (norm === 'All / Inter-Dept' || norm === 'ALL') return true;
+                            const parts = norm.split(',').map((d) => d.trim().toLowerCase());
+                            return parts.includes(dept.toLowerCase()) || norm.toLowerCase() === dept.toLowerCase();
+                          }).length;
+                          return (
+                            <option key={dept} value={dept}>
+                              {dept} ({count})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded whitespace-nowrap shadow-2xs">
+                      {subjectDeptFilter === 'ALL' ? `TOTAL: ${subjects.length}` : `FILTERED: ${filteredSubjects.length} / ${subjects.length}`}
                     </span>
                   </div>
                 </div>
@@ -7362,8 +7432,8 @@ service cloud.firestore {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {subjects.length > 0 ? (
-                        subjects.map((sub) => {
+                      {filteredSubjects.length > 0 ? (
+                        filteredSubjects.map((sub) => {
                           const isLab = sub.isLab || isSubjectLab(sub);
                           const palette = getSubjectPalette(sub.id, sub.code, sub.color, isLab);
                           const displayColor = palette.isCustom ? palette.styles.bg : (sub.color || '#cbd5e1');
@@ -7476,7 +7546,22 @@ service cloud.firestore {
                       ) : (
                         <tr>
                           <td colSpan={7} className="p-8 text-center text-slate-400 font-medium italic">
-                            No subjects registered. Add course details using the form.
+                            {subjects.length === 0 ? (
+                              "No subjects registered. Add course details using the form."
+                            ) : (
+                              <div className="flex flex-col items-center justify-center space-y-2 py-4">
+                                <p className="text-slate-600 text-xs not-italic">
+                                  No subjects found registered under department <strong className="font-bold text-slate-800 font-mono">"{subjectDeptFilter}"</strong>.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => setSubjectDeptFilter('ALL')}
+                                  className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded border border-slate-300 transition cursor-pointer not-italic shadow-2xs"
+                                >
+                                  Show All Departments ({subjects.length})
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}
@@ -7867,14 +7952,40 @@ service cloud.firestore {
 
                 {/* Right List: Assignments */}
                 <div className="lg:col-span-2 bg-white border border-slate-200 rounded p-4 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-100 pb-2.5 mb-3">
                     <div>
                       <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Course Faculty Bindings</h3>
                       <p className="text-[10px] text-slate-500 mt-0.5">Faculty members assigned to deliver lectures in each section.</p>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded">
-                      TOTAL: {assignments.length}
-                    </span>
+                    <div className="flex items-center flex-wrap gap-2">
+                      {/* Class Group Filter Dropdown */}
+                      <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 shadow-2xs">
+                        <label htmlFor="assignment-class-filter-select" className="text-[10px] font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">
+                          Class Group:
+                        </label>
+                        <select
+                          id="assignment-class-filter-select"
+                          value={assignmentClassFilter}
+                          onChange={(e) => setAssignmentClassFilter(e.target.value)}
+                          className="bg-white border border-slate-300 text-xs font-bold text-blue-950 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-900 cursor-pointer shadow-2xs"
+                        >
+                          <option value="ALL">All Class Groups ({assignments.length})</option>
+                          {classes.map((cls) => {
+                            const count = assignments.filter((a) => a.classId === cls.id).length;
+                            return (
+                              <option key={cls.id} value={cls.id}>
+                                {cls.name} (Sec {cls.section}) ({count})
+                              </option>
+                            );
+                          })}
+                          <option value="ALL">All ({assignments.length})</option>
+                        </select>
+                      </div>
+
+                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded whitespace-nowrap shadow-2xs">
+                        {assignmentClassFilter === 'ALL' ? `TOTAL: ${assignments.length}` : `FILTERED: ${filteredAssignments.length} / ${assignments.length}`}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 rounded">
@@ -7889,8 +8000,8 @@ service cloud.firestore {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {assignments.length > 0 ? (
-                          assignments.map((assign) => {
+                        {filteredAssignments.length > 0 ? (
+                          filteredAssignments.map((assign) => {
                             const isEditing = editingAssignmentId === assign.id;
                             const cls = classes.find(c => c.id === (isEditing ? assignClassId : assign.classId));
                             const sub = subjects.find(s => s.id === (isEditing ? assignSubId : assign.subjectId));
@@ -8007,7 +8118,24 @@ service cloud.firestore {
                         ) : (
                           <tr>
                             <td colSpan={5} className="p-8 text-center text-slate-400 font-medium italic">
-                              No course subjects are currently assigned to any faculty members.
+                              {assignments.length === 0 ? (
+                                "No course subjects are currently assigned to any faculty members."
+                              ) : (
+                                <div className="flex flex-col items-center justify-center space-y-2 py-4">
+                                  <p className="text-slate-600 text-xs not-italic">
+                                    No faculty assignments found for class group <strong className="font-bold text-slate-800 font-mono">
+                                      "{classes.find(c => c.id === assignmentClassFilter)?.name} (Sec {classes.find(c => c.id === assignmentClassFilter)?.section})"
+                                    </strong>.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssignmentClassFilter('ALL')}
+                                    className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded border border-slate-300 transition cursor-pointer not-italic shadow-2xs"
+                                  >
+                                    Show All Class Groups ({assignments.length})
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )}
