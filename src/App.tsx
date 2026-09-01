@@ -5978,11 +5978,12 @@ service cloud.firestore {
                               const periodIdx = activePeriodCounter;
                               activePeriodCounter++;
 
-                              // Find if selected faculty is assigned to any class during this period on this day
-                              let matchDetails: { cls: ClassSection; assign: Assignment; sub: Subject | undefined; batchName?: string | null } | null = null;
-                              if (solverResult?.schedule) {
+                              // Find all classes/batches the selected faculty is assigned to during this period on this day
+                              const matchingEntries: Array<{ cls: ClassSection; assign: Assignment; sub: Subject | undefined; batchName?: string | null }> = [];
+                              const activeSchedule = solverResult?.schedule || customSchedule;
+                              if (activeSchedule) {
                                 for (const cls of classes) {
-                                  const classSched = solverResult.schedule[cls.id];
+                                  const classSched = activeSchedule[cls.id];
                                   if (classSched && classSched[day]) {
                                     const cellEntry = classSched[day][periodIdx];
                                     if (cellEntry) {
@@ -5990,21 +5991,17 @@ service cloud.firestore {
                                         const assign = assignments.find(a => a.id === cellEntry);
                                         if (assign && assign.facultyId === selectedFacultyId) {
                                           const sub = subjects.find(s => s.id === assign.subjectId);
-                                          matchDetails = { cls, assign, sub, batchName: null };
-                                          break;
+                                          matchingEntries.push({ cls, assign, sub, batchName: null });
                                         }
                                       } else {
                                         const batchItems = getBatchItemsFromCell(cellEntry);
                                         if (batchItems) {
-                                          const batchMatch = batchItems.find(b => {
-                                            const assign = assignments.find(a => a.id === b.assignmentId);
-                                            return assign?.facultyId === selectedFacultyId;
-                                          });
-                                          if (batchMatch) {
-                                            const assign = assignments.find(a => a.id === batchMatch.assignmentId);
-                                            const sub = assign ? subjects.find(s => s.id === assign.subjectId) : null;
-                                            matchDetails = { cls, assign, sub, batchName: batchMatch.batchName };
-                                            break;
+                                          for (const batchItem of batchItems) {
+                                            const assign = assignments.find(a => a.id === batchItem.assignmentId);
+                                            if (assign && assign.facultyId === selectedFacultyId) {
+                                              const sub = subjects.find(s => s.id === assign.subjectId);
+                                              matchingEntries.push({ cls, assign, sub, batchName: batchItem.batchName });
+                                            }
                                           }
                                         }
                                       }
@@ -6013,6 +6010,8 @@ service cloud.firestore {
                                 }
                               }
 
+                              const isOverlap = matchingEntries.length > 1;
+                              const matchDetails = matchingEntries.length === 1 ? matchingEntries[0] : null;
                               const palette = matchDetails?.sub ? getSubjectPalette(matchDetails.sub.id, matchDetails.sub.code, matchDetails.sub.color, matchDetails.sub.isLab || isSubjectLab(matchDetails.sub)) : null;
                               const currentClass = matchDetails?.cls;
                               const groupInfo = currentClass ? getClassGroupInfo(currentClass) : null;
@@ -6022,54 +6021,113 @@ service cloud.firestore {
                                 <div 
                                   key={slot.id} 
                                   className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20 relative cursor-pointer ${
-                                    matchDetails && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
-                                  } ${batchStr ? 'pl-3.5' : ''}`}
-                                  style={matchDetails && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
+                                    isOverlap
+                                      ? 'bg-rose-50/80 ring-1 ring-inset ring-rose-400 border-rose-300'
+                                      : matchDetails && palette
+                                        ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`)
+                                        : 'bg-slate-50/10 hover:bg-slate-50/40'
+                                  } ${batchStr && !isOverlap ? 'pl-3.5' : ''}`}
+                                  style={!isOverlap && matchDetails && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
                                 >
-                                  {batchStr && matchDetails && (
-                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                                      batchStr === 'A1' ? 'bg-amber-500' :
-                                      batchStr === 'A2' ? 'bg-blue-500' :
-                                      batchStr === 'B1' ? 'bg-emerald-500' :
-                                      batchStr === 'B2' ? 'bg-indigo-500' :
-                                      'bg-slate-500'
-                                    }`} />
-                                  )}
-                                  {batchStr && matchDetails && (
-                                    <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1.5 py-0.5 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 whitespace-nowrap inline-flex items-center ${
-                                      batchStr === 'A1' || batchStr.includes('A1') ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                                      batchStr === 'A2' || batchStr.includes('A2') ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                                      batchStr === 'B1' || batchStr.includes('B1') ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                                      batchStr === 'B2' || batchStr.includes('B2') ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
-                                      'bg-slate-100 text-slate-800 border-slate-300'
-                                    }`}>
-                                      {batchStr}
-                                    </span>
-                                  )}
-                                  {matchDetails && palette ? (
-                                    <>
-                                      <div>
-                                        <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={matchDetails.sub?.name}>
-                                          {matchDetails.sub?.name}
-                                        </div>
-                                        <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
-                                          {matchDetails.sub?.code}
-                                        </div>
-                                      </div>
-                                      <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
-                                        <span 
-                                          style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
-                                          className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
-                                          title={`${matchDetails.cls.name} (Sec ${matchDetails.cls.section})`}
-                                        >
-                                          {matchDetails.cls.name} (Sec {matchDetails.cls.section})
+                                  {isOverlap ? (
+                                    <div className="flex flex-col space-y-1.5 w-full">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[7.5px] font-extrabold px-1.5 py-0.5 rounded shadow-2xs select-none border tracking-wider uppercase leading-none z-10 whitespace-nowrap inline-flex items-center gap-0.5 bg-rose-600 text-white border-rose-700">
+                                          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                                          <span>Overlap ({matchingEntries.length})</span>
                                         </span>
                                       </div>
-                                    </>
-                                  ) : (
-                                    <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-300 bg-slate-50/20 rounded p-1">
-                                      -- Available --
+                                      <div className="space-y-1.5">
+                                        {matchingEntries.map((m, mIdx) => {
+                                          const p = m.sub ? getSubjectPalette(m.sub.id, m.sub.code, m.sub.color, m.sub.isLab || isSubjectLab(m.sub)) : null;
+                                          const grp = m.cls ? getClassGroupInfo(m.cls) : null;
+                                          const bStr = m.batchName ? `Batch ${m.batchName}` : (grp && grp.batch ? `${grp.baseSection}${grp.batch}` : null);
+                                          
+                                          return (
+                                            <div 
+                                              key={mIdx} 
+                                              className={`p-1.5 rounded border ${p && !p.isCustom ? `${p.bg} ${p.border}` : 'bg-white border-rose-200'} shadow-2xs relative`}
+                                              style={p && p.isCustom ? { backgroundColor: p.styles?.bg, borderColor: p.styles?.border } : undefined}
+                                            >
+                                              {bStr && (
+                                                <span className={`float-right text-[7px] font-extrabold px-1 py-0.2 rounded border uppercase font-mono ${
+                                                  bStr === 'A1' || bStr.includes('A1') ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                                  bStr === 'A2' || bStr.includes('A2') ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                                  bStr === 'B1' || bStr.includes('B1') ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                                  bStr === 'B2' || bStr.includes('B2') ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                                  'bg-slate-100 text-slate-800 border-slate-300'
+                                                }`}>
+                                                  {bStr}
+                                                </span>
+                                              )}
+                                              <div className={`font-extrabold ${p && !p.isCustom ? p.text : 'text-slate-900'} text-[9.5px] leading-tight uppercase tracking-tight break-words`} style={p && p.isCustom ? { color: p.styles?.text } : undefined} title={m.sub?.name}>
+                                                {m.sub?.name}
+                                              </div>
+                                              <div className="flex items-center justify-between gap-1 mt-1">
+                                                <span className={`text-[8.5px] opacity-80 font-semibold font-mono ${p && !p.isCustom ? p.text : 'text-slate-600'}`} style={p && p.isCustom ? { color: p.styles?.text } : undefined}>
+                                                  {m.sub?.code}
+                                                </span>
+                                                <span 
+                                                  style={p && p.isCustom ? { backgroundColor: p.styles.badgeBg, color: p.styles.badgeText, borderColor: p.styles.badgeBorder } : undefined}
+                                                  className={`font-bold text-[8px] ${p && !p.isCustom ? `${p.badgeBg} ${p.badgeText} border ${p.badgeBorder}` : 'bg-slate-100 text-slate-800 border-slate-300 border'} px-1 py-0.2 rounded font-mono inline-block`} 
+                                                  title={`${m.cls.name} (Sec ${m.cls.section})`}
+                                                >
+                                                  {m.cls.name} ({m.cls.section})
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
+                                  ) : (
+                                    <>
+                                      {batchStr && matchDetails && (
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                                          batchStr === 'A1' ? 'bg-amber-500' :
+                                          batchStr === 'A2' ? 'bg-blue-500' :
+                                          batchStr === 'B1' ? 'bg-emerald-500' :
+                                          batchStr === 'B2' ? 'bg-indigo-500' :
+                                          'bg-slate-500'
+                                        }`} />
+                                      )}
+                                      {batchStr && matchDetails && (
+                                        <span className={`absolute top-1 right-1 text-[7px] font-extrabold px-1.5 py-0.5 rounded shadow-sm select-none border tracking-wider uppercase leading-none z-10 whitespace-nowrap inline-flex items-center ${
+                                          batchStr === 'A1' || batchStr.includes('A1') ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                          batchStr === 'A2' || batchStr.includes('A2') ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                          batchStr === 'B1' || batchStr.includes('B1') ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                          batchStr === 'B2' || batchStr.includes('B2') ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                          'bg-slate-100 text-slate-800 border-slate-300'
+                                        }`}>
+                                          {batchStr}
+                                        </span>
+                                      )}
+                                      {matchDetails && palette ? (
+                                        <>
+                                          <div>
+                                            <div className={`font-extrabold ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} text-[10px] leading-tight uppercase tracking-tight break-words`} title={matchDetails.sub?.name}>
+                                              {matchDetails.sub?.name}
+                                            </div>
+                                            <div className={`text-[9px] ${palette.isCustom ? 'text-[var(--custom-text)]' : palette.text} opacity-75 font-semibold leading-none mt-0.5`}>
+                                              {matchDetails.sub?.code}
+                                            </div>
+                                          </div>
+                                          <div className={`mt-1.5 pt-1 border-t ${palette.isCustom ? 'border-[var(--custom-border)]' : palette.border} flex items-end justify-between gap-1.5`}>
+                                            <span 
+                                              style={palette.isCustom ? { backgroundColor: palette.styles.badgeBg, color: palette.styles.badgeText, borderColor: palette.styles.badgeBorder } : undefined}
+                                              className={`font-bold text-[9px] ${palette.isCustom ? '' : `${palette.badgeBg} ${palette.badgeText} border ${palette.badgeBorder}`} px-1.5 py-0.5 rounded font-mono inline-block break-words leading-tight`} 
+                                              title={`${matchDetails.cls.name} (Sec ${matchDetails.cls.section})`}
+                                            >
+                                              {matchDetails.cls.name} (Sec {matchDetails.cls.section})
+                                            </span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="flex-1 flex items-center justify-center text-slate-400 font-mono text-[9px] border border-dashed border-slate-300 bg-slate-50/20 rounded p-1">
+                                          -- Available --
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               );
