@@ -221,7 +221,7 @@ export function preValidateConstraints(
       );
     }
 
-    // AICTE Activity check (assigned or unassigned)
+    // AICTE Activity check
     let totalAictePeriodsRequested = 0;
     for (const assign of classAssignments) {
       const sub = subjects.find(s => s.id === assign.subjectId);
@@ -234,16 +234,6 @@ export function preValidateConstraints(
         totalAictePeriodsRequested += sub.weeklyPeriods;
       }
     }
-    // Also check unassigned AICTE Activity subjects
-    const unassignedAicteSubs = subjects.filter(s => s.isAicteActivity && !classAssignments.some(a => a.subjectId === s.id));
-    for (const sub of unassignedAicteSubs) {
-      if (!days.includes('Saturday' as DayOfWeek)) {
-        errors.push(
-          `Class "${cls.name} (Sec ${cls.section})" requires AICTE Activity subject "${sub.name} (${sub.code})", but Saturday is not included in active days.`
-        );
-      }
-      totalAictePeriodsRequested += sub.weeklyPeriods;
-    }
 
     if (days.includes('Saturday' as DayOfWeek) && totalAictePeriodsRequested > activeSlotsCount) {
       errors.push(
@@ -251,17 +241,13 @@ export function preValidateConstraints(
       );
     }
 
-    // Student Activity / Mentoring check (assigned or unassigned - must be after lunch)
+    // Student Activity / Mentoring check (must be after lunch)
     let totalMentoringPeriodsRequested = 0;
     for (const assign of classAssignments) {
       const sub = subjects.find(s => s.id === assign.subjectId);
       if (sub && sub.isStudentActivity) {
         totalMentoringPeriodsRequested += sub.weeklyPeriods;
       }
-    }
-    const unassignedMentoringSubs = subjects.filter(s => s.isStudentActivity && !classAssignments.some(a => a.subjectId === s.id));
-    for (const sub of unassignedMentoringSubs) {
-      totalMentoringPeriodsRequested += sub.weeklyPeriods;
     }
     if (lunchBreakIdx !== -1 && totalMentoringPeriodsRequested > totalSlotsAfterLunchPerClass) {
       errors.push(
@@ -344,19 +330,7 @@ function buildLectureUnits(
   const lectureUnits: SolverUnit[] = [];
 
   for (const cls of classes) {
-    const classAssigns = [...assignments.filter(a => a.classId === cls.id)];
-
-    // Auto-include unassigned AICTE Activity / Student Activity subjects if no assignment exists for this class
-    const existingSubIds = new Set(classAssigns.map(a => a.subjectId));
-    const unassignedSpecialSubs = subjects.filter(s => (s.isAicteActivity || s.isStudentActivity) && !existingSubIds.has(s.id));
-    for (const specSub of unassignedSpecialSubs) {
-      classAssigns.push({
-        id: `auto_${cls.id}_${specSub.id}`,
-        classId: cls.id,
-        subjectId: specSub.id,
-        facultyId: ''
-      });
-    }
+    const classAssigns = assignments.filter(a => a.classId === cls.id);
 
     const numBatches = (cls.labBatches !== undefined && cls.labBatches !== null && cls.labBatches > 1) ? cls.labBatches : 1;
     if (numBatches > 1) {

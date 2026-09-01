@@ -678,6 +678,22 @@ export const isFacultyInDepartment = (facDept?: string, targetDept?: string): bo
   return list.includes(normTarget);
 };
 
+export const deduplicateAssignments = (assigns: Assignment[]): Assignment[] => {
+  if (!Array.isArray(assigns)) return [];
+  const seenIds = new Set<string>();
+  const result: Assignment[] = [];
+  for (const a of assigns) {
+    if (!a || !a.classId || !a.subjectId) continue;
+    let finalId = a.id;
+    if (!finalId || seenIds.has(finalId)) {
+      finalId = `assign_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+    seenIds.add(finalId);
+    result.push({ ...a, id: finalId });
+  }
+  return result;
+};
+
 export const format12HourTime = (date: Date = new Date()): string => {
   return date.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -804,6 +820,20 @@ export default function App() {
     setSelectedCell(null);
   }, [selectedClassId, activeTab]);
 
+  // --- Slot Customization / Assignment Modal State ---
+  interface SlotEditModalState {
+    isOpen: boolean;
+    classId: string;
+    day: string;
+    slotIdx: number;
+    slotLabel: string;
+    timeRange: string;
+    currentAssignmentId: string | null;
+    selectedSubjectId: string; // 'TUTORIAL' or subject.id
+    selectedFacultyId: string;
+  }
+  const [slotEditModal, setSlotEditModal] = useState<SlotEditModalState | null>(null);
+
   // --- Mock Auth Notification ---
   const [authNotification, setAuthNotification] = useState<string | null>(null);
 
@@ -885,6 +915,23 @@ export default function App() {
   const [unlockClassId, setUnlockClassId] = useState<string | null>(null);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlockPasswordError, setUnlockPasswordError] = useState<string | null>(null);
+  const [showMobileUserPill, setShowMobileUserPill] = useState(false);
+  const mobilePillRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showMobileUserPill) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (mobilePillRef.current && !mobilePillRef.current.contains(e.target as Node)) {
+        setShowMobileUserPill(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showMobileUserPill]);
 
   // --- W.E.F. Date State ---
   const [wefDate, setWefDate] = useState<string>(() => {
@@ -1276,7 +1323,7 @@ export default function App() {
       setSubjects(subjectsWithColors);
       const parsedClasses = JSON.parse(savedClasses).map((c: any) => ({ ...c, labBatches: c.labBatches ?? 1 }));
       setClasses(parsedClasses);
-      setAssignments(JSON.parse(savedAssignments));
+      setAssignments(deduplicateAssignments(JSON.parse(savedAssignments)));
       setTimeSlots(normalizeTimeSlotsWithDefaults(JSON.parse(savedTimeSlots)));
       setDays(JSON.parse(savedDays));
       
@@ -1327,35 +1374,6 @@ export default function App() {
       localStorage.setItem('mvce_timeSlots', JSON.stringify(normalized));
     }
   }, [isInitialized, timeSlots]);
-
-  // Auto-sync assignments for special subjects (AICTE Activity / Student Activity) across all classes
-  useEffect(() => {
-    if (!isInitialized || classes.length === 0 || subjects.length === 0) return;
-    const specialSubs = subjects.filter(s => s.isAicteActivity || s.isStudentActivity);
-    if (specialSubs.length === 0) return;
-
-    let changed = false;
-    const updatedAssigns = [...assignments];
-
-    for (const cls of classes) {
-      for (const specSub of specialSubs) {
-        const exists = updatedAssigns.some(a => a.classId === cls.id && a.subjectId === specSub.id);
-        if (!exists) {
-          changed = true;
-          updatedAssigns.push({
-            id: `a_spec_${cls.id}_${specSub.id}`,
-            classId: cls.id,
-            subjectId: specSub.id,
-            facultyId: ''
-          });
-        }
-      }
-    }
-
-    if (changed) {
-      setAssignments(updatedAssigns);
-    }
-  }, [isInitialized, classes, subjects, assignments]);
 
   // Ensure Saturday is in active days if AICTE Activity subjects exist
   useEffect(() => {
@@ -1569,6 +1587,120 @@ export default function App() {
     localStorage.setItem('mvce_customSchedule', JSON.stringify(updated));
     localStorage.setItem('mvce_solverResult', JSON.stringify(updatedSolverResult));
     showAuthNotice(`Swapped slot of ${srcDay} with ${destDay}. Saved & synchronized.`);
+  };
+
+  const openSlotEditor = (
+    classId: string,
+    day: string,
+    slotIdx: number,
+    slotLabel: string,
+    timeRange: string,
+    currentAssignmentId: string | null
+  ) => {
+    if (!classId) return;
+    if (lockedClassIds.includes(classId)) {
+      showAuthNotice("🔒 This class section timetable is locked. Please unlock it first to customize periods.");
+      return;
+    }
+    const currentAssign = assignments.find(a => a.id === currentAssignmentId);
+    const initialSubId = currentAssign ? currentAssign.subjectId : 'TUTORIAL';
+    const initialFacId = currentAssign ? (currentAssign.facultyId || '') : '';
+
+    setSlotEditModal({
+      isOpen: true,
+      classId,
+      day,
+      slotIdx,
+      slotLabel,
+      timeRange,
+      currentAssignmentId,
+      selectedSubjectId: initialSubId,
+      selectedFacultyId: initialFacId
+    });
+  };
+
+  const handleSaveSlotAssignment = () => {
+    if (!slotEditModal) return;
+    const { classId, day, slotIdx, selectedSubjectId, selectedFacultyId } = slotEditModal;
+
+    if (lockedClassIds.includes(classId)) {
+      showAuthNotice("🔒 This class section timetable is locked. Please unlock it using the lock button to make adjustments.");
+      return;
+    }
+
+    let targetAssignId: string | null = null;
+
+    if (selectedSubjectId && selectedSubjectId !== 'TUTORIAL') {
+      let existing = assignments.find(a => a.classId === classId && a.subjectId === selectedSubjectId && (!selectedFacultyId || a.facultyId === selectedFacultyId));
+      if (!existing) {
+        existing = assignments.find(a => a.classId === classId && a.subjectId === selectedSubjectId);
+      }
+
+      if (existing) {
+        if (selectedFacultyId && existing.facultyId !== selectedFacultyId) {
+          setAssignments(prev => prev.map(a => a.id === existing!.id ? { ...a, facultyId: selectedFacultyId } : a));
+        }
+        targetAssignId = existing.id;
+      } else {
+        const newAssignId = `assign_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const newAssign: Assignment = {
+          id: newAssignId,
+          classId: classId,
+          subjectId: selectedSubjectId,
+          facultyId: selectedFacultyId || ''
+        };
+        setAssignments(prev => [...prev, newAssign]);
+        targetAssignId = newAssignId;
+      }
+    }
+
+    // Ensure customSchedule
+    const baseSchedule: TimetableSchedule = customSchedule 
+      ? JSON.parse(JSON.stringify(customSchedule)) 
+      : (solverResult?.schedule ? JSON.parse(JSON.stringify(solverResult.schedule)) : {});
+
+    const totalActSlots = timeSlots.filter(s => !s.isBreak).length;
+
+    if (!baseSchedule[classId]) {
+      baseSchedule[classId] = {};
+      for (const d of days) {
+        baseSchedule[classId][d] = new Array(totalActSlots).fill(null);
+      }
+    }
+    if (!baseSchedule[classId][day]) {
+      baseSchedule[classId][day] = new Array(totalActSlots).fill(null);
+    }
+
+    // Push previous schedule for undo
+    if (customSchedule) {
+      setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(customSchedule))]);
+      setRedoStack([]);
+    }
+
+    baseSchedule[classId][day][slotIdx] = targetAssignId;
+
+    const updatedSolverResult: SolverResult = {
+      success: true,
+      schedule: baseSchedule,
+      message: "Optimized (Manual changes applied)"
+    };
+
+    setCustomSchedule(baseSchedule);
+    setSolverResult(updatedSolverResult);
+    localStorage.setItem('mvce_customSchedule', JSON.stringify(baseSchedule));
+    localStorage.setItem('mvce_solverResult', JSON.stringify(updatedSolverResult));
+
+    const sub = subjects.find(s => s.id === selectedSubjectId);
+    const cls = classes.find(c => c.id === classId);
+    const clsName = cls ? `${cls.name} (Sec ${cls.section})` : '';
+
+    if (targetAssignId && sub) {
+      showAuthNotice(`Assigned "${sub.name} (${sub.code})" to ${clsName} on ${day} Slot ${slotIdx + 1}.`);
+    } else {
+      showAuthNotice(`Set ${clsName} on ${day} Slot ${slotIdx + 1} to Tutorial (Empty Slot).`);
+    }
+
+    setSlotEditModal(null);
   };
 
   const handleUndo = () => {
@@ -2053,7 +2185,7 @@ export default function App() {
             setSelectedClassId(updatedClasses[0].id);
           }
         }
-        if (data.assignments) setAssignments(data.assignments);
+        if (data.assignments) setAssignments(deduplicateAssignments(data.assignments));
         if (data.timeSlots) setTimeSlots(normalizeTimeSlotsWithDefaults(data.timeSlots));
         if (data.days) setDays(data.days);
         if (data.lockedClassIds && Array.isArray(data.lockedClassIds)) {
@@ -2351,7 +2483,7 @@ export default function App() {
           setSelectedClassId(updatedClasses[0].id);
         }
       }
-      if (data.assignments) setAssignments(data.assignments);
+      if (data.assignments) setAssignments(deduplicateAssignments(data.assignments));
       if (data.timeSlots) setTimeSlots(normalizeTimeSlotsWithDefaults(data.timeSlots));
       if (data.days) setDays(data.days);
       if (data.lockedClassIds && Array.isArray(data.lockedClassIds)) {
@@ -4213,19 +4345,39 @@ export default function App() {
 
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {currentUser && (
-            <div className="flex items-center space-x-2 border-r border-slate-200 pr-2 sm:pr-3 mr-0.5 sm:mr-1 shrink-0">
-              {currentUser.photoURL ? (
-                <img 
-                  src={currentUser.photoURL} 
-                  alt={currentUser.displayName || "User"} 
-                  className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0 aspect-square"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200 shrink-0 aspect-square">
-                  {currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
+            <div ref={mobilePillRef} className="relative flex items-center space-x-2 border-r border-slate-200 pr-2 sm:pr-3 mr-0.5 sm:mr-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowMobileUserPill(prev => !prev)}
+                className="relative flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:focus:ring-0 cursor-pointer sm:cursor-default"
+                title={currentUser.email || currentUser.displayName || "User Profile"}
+                aria-label="Toggle user email"
+              >
+                {currentUser.photoURL ? (
+                  <img 
+                    src={currentUser.photoURL} 
+                    alt={currentUser.displayName || "User"} 
+                    className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0 aspect-square hover:opacity-90 transition"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200 shrink-0 aspect-square hover:bg-blue-200 transition">
+                    {currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
+                  </div>
+                )}
+              </button>
+
+              {/* Mobile View Only: Small Pill Display when profile picture is clicked */}
+              {showMobileUserPill && currentUser.email && (
+                <div 
+                  id="mobile-user-email-pill"
+                  className="sm:hidden absolute top-full mt-2 right-0 z-50 bg-slate-900/95 backdrop-blur-md text-white text-[11px] font-mono px-3 py-1 rounded-full shadow-xl border border-slate-700/80 flex items-center space-x-1.5 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
+                >
+                  <Mail className="h-3 w-3 text-blue-400 shrink-0" />
+                  <span className="truncate max-w-[210px]">{currentUser.email}</span>
                 </div>
               )}
+
               <div className="flex flex-col text-left leading-none">
                 <span className="text-xs font-bold text-slate-800 hidden sm:inline-block">
                   {currentUser.displayName || 'Authorized User'}
@@ -5211,6 +5363,7 @@ service cloud.firestore {
                       (() => {
                         const classSched = solverResult?.schedule?.[selectedClassId];
                         const hasConflict = checkContinuityConflict(selectedClassId, solverResult?.schedule);
+                        const isCurrentLocked = selectedClassId ? lockedClassIds.includes(selectedClassId) : false;
 
                         return (
                           <div className="min-w-[800px] bg-white text-xs">
@@ -5274,7 +5427,8 @@ service cloud.firestore {
                                       );
                                     }
 
-                                    const cellEntry = slotsForDay[activePeriodCounter];
+                                    const currentActiveIdx = activePeriodCounter;
+                                    const cellEntry = slotsForDay[currentActiveIdx];
                                     activePeriodCounter++;
 
                                     const batchItems = getBatchItemsFromCell(cellEntry);
@@ -5470,11 +5624,29 @@ service cloud.firestore {
                                     return (
                                       <div 
                                         key={slot.id} 
-                                        className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20 relative cursor-pointer ${
+                                        onClick={() => {
+                                          if (!isCurrentLocked) {
+                                            openSlotEditor(selectedClassId, day, currentActiveIdx, slot.label, formatTimeRange12(slot.startTime, slot.endTime), assignmentId);
+                                          }
+                                        }}
+                                        className={`p-2 border-r border-slate-400 last:border-r-0 flex flex-col justify-between min-h-[64px] group transition-all duration-300 ${!isCurrentLocked ? 'transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20 cursor-pointer' : 'cursor-default'} relative ${
                                           assign && palette ? (palette.isCustom ? 'bg-[var(--custom-bg)] hover:bg-[var(--custom-hover-bg)] text-[var(--custom-text)] border-[var(--custom-border)]' : `${palette.bg} ${palette.hoverBg}`) : 'bg-slate-50/10 hover:bg-slate-50/40'
                                         } ${batchStr ? 'pl-3.5' : ''}`}
                                         style={assign && palette && palette.isCustom ? { '--custom-bg': palette.styles?.bg, '--custom-hover-bg': palette.styles?.hoverBg, '--custom-text': palette.styles?.text, '--custom-border': palette.styles?.border } as CSSProperties : undefined}
                                       >
+                                        {!isCurrentLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openSlotEditor(selectedClassId, day, currentActiveIdx, slot.label, formatTimeRange12(slot.startTime, slot.endTime), assignmentId);
+                                            }}
+                                            className="absolute top-1 right-1 p-1 bg-white/90 hover:bg-white text-slate-700 hover:text-blue-600 rounded shadow-xs opacity-0 group-hover:opacity-100 transition-all z-20 hover:scale-110 cursor-pointer"
+                                            title="Customize / Edit this slot"
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </button>
+                                        )}
                                         {batchStr && assign && (
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${
                                             batchStr === 'A1' ? 'bg-amber-500' :
@@ -5521,9 +5693,12 @@ service cloud.firestore {
                                             </div>
                                           </>
                                         ) : (
-                                          <div className="flex-1 flex items-center justify-center font-bold text-[10px] text-orange-900 bg-orange-100/90 border border-orange-300 rounded p-1 shadow-2xs">
-                                             Tutorial
-                                           </div>
+                                          <div 
+                                            className="flex-1 flex items-center justify-center font-bold text-[10px] text-orange-900 bg-orange-100/90 border border-orange-300 rounded p-1 shadow-2xs select-none"
+                                            title="Tutorial period"
+                                          >
+                                            Tutorial
+                                          </div>
                                         )}
                                       </div>
                                     );
@@ -6202,6 +6377,7 @@ service cloud.firestore {
                     {selectedClassId ? (
                       (() => {
                         const classSched = customSchedule?.[selectedClassId];
+                        const isCurrentLocked = selectedClassId ? lockedClassIds.includes(selectedClassId) : false;
                         return (
                           <div className="min-w-[1000px] select-none">
                             {/* Schedule Header / Timeslots */}
@@ -6352,6 +6528,19 @@ service cloud.firestore {
                                         } ${!isSelectedForSwap ? 'transform hover:-translate-y-1 hover:shadow-lg hover:scale-[1.03] hover:z-20' : ''} ${hasCellWarning && !isSelectedForSwap ? `ring-2 ring-inset ${isClash ? 'ring-rose-500 border-rose-500' : 'ring-amber-500 border-amber-500'}` : ''} ${batchStr ? 'pl-3.5' : ''}`}
                                         style={assign && sub && getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).isCustom ? { '--custom-bg': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.bg, '--custom-hover-bg': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.hoverBg, '--custom-text': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.text, '--custom-border': getSubjectPalette(sub.id, sub.code, sub.color, sub.isLab || isSubjectLab(sub)).styles?.border } as CSSProperties : undefined}
                                       >
+                                        {!isCurrentLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openSlotEditor(selectedClassId, day, currentActiveIdx, slot.label, formatTimeRange12(slot.startTime, slot.endTime), assignmentId);
+                                            }}
+                                            className="absolute top-1 right-1 p-1 bg-white/90 hover:bg-white text-slate-700 hover:text-blue-600 rounded shadow-xs opacity-0 group-hover:opacity-100 transition-all z-20 hover:scale-110 cursor-pointer"
+                                            title="Customize / Edit this slot"
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </button>
+                                        )}
                                         {batchStr && assign && (
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${
                                             batchStr === 'A1' ? 'bg-amber-500' :
@@ -6585,9 +6774,12 @@ service cloud.firestore {
                                             );
                                           })()
                                         ) : (
-                                          <div className="flex-1 flex items-center justify-center font-bold text-[10px] text-orange-900 bg-orange-100/90 border border-orange-300 rounded p-1 shadow-2xs">
-                                             Tutorial
-                                           </div>
+                                          <div 
+                                            className="flex-1 flex items-center justify-center font-bold text-[10px] text-orange-900 bg-orange-100/90 border border-orange-300 rounded p-1 shadow-2xs select-none"
+                                            title="Tutorial period"
+                                          >
+                                            Tutorial
+                                          </div>
                                         )}
                                       </div>
                                     );
@@ -7978,7 +8170,6 @@ service cloud.firestore {
                               </option>
                             );
                           })}
-                          <option value="ALL">All ({assignments.length})</option>
                         </select>
                       </div>
 
@@ -8001,14 +8192,14 @@ service cloud.firestore {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {filteredAssignments.length > 0 ? (
-                          filteredAssignments.map((assign) => {
+                          filteredAssignments.map((assign, index) => {
                             const isEditing = editingAssignmentId === assign.id;
                             const cls = classes.find(c => c.id === (isEditing ? assignClassId : assign.classId));
                             const sub = subjects.find(s => s.id === (isEditing ? assignSubId : assign.subjectId));
                             const fac = faculties.find(f => f.id === (isEditing ? assignFacId : assign.facultyId));
 
                             return (
-                              <tr key={assign.id} className={`${isEditing ? 'bg-amber-50/70 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'} transition`}>
+                              <tr key={`${assign.id || 'assign'}-${index}`} className={`${isEditing ? 'bg-amber-50/70 border-l-2 border-amber-500' : 'hover:bg-slate-50/50'} transition`}>
                                 <td className="p-2.5 font-bold text-slate-900">
                                   {isEditing ? (
                                     <select
@@ -9545,6 +9736,192 @@ service cloud.firestore {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Slot Customization / Tutorial Edit Modal */}
+      {slotEditModal && (
+        <div id="slot-editor-modal-backdrop" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div id="slot-editor-modal-card" className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            {/* Header */}
+            <div className="bg-blue-900 text-white px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-1.5 bg-blue-800 rounded-lg border border-blue-700">
+                  <Sliders className="h-4 w-4 text-blue-200" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm tracking-wide">Customize Period Slot</h3>
+                  <p className="text-[11px] text-blue-200 mt-0.5">
+                    {(() => {
+                      const cls = classes.find(c => c.id === slotEditModal.classId);
+                      return cls ? `${cls.name} (Sec ${cls.section}) • ${slotEditModal.day} • ${slotEditModal.slotLabel} (${slotEditModal.timeRange})` : `${slotEditModal.day} • ${slotEditModal.slotLabel}`;
+                    })()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSlotEditModal(null)}
+                className="text-blue-200 hover:text-white p-1 rounded-lg hover:bg-blue-800/60 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              {/* Type Selection */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">
+                  Slot Type
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstSub = subjects[0]?.id || 'TUTORIAL';
+                      setSlotEditModal(prev => prev ? ({ ...prev, selectedSubjectId: firstSub }) : null);
+                    }}
+                    className={`p-3 rounded-lg border text-left flex items-start space-x-2.5 transition cursor-pointer ${
+                      slotEditModal.selectedSubjectId !== 'TUTORIAL' && slotEditModal.selectedSubjectId !== ''
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                    }`}
+                  >
+                    <BookOpen className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Subject Class</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Assign a regular lecture or lab subject</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlotEditModal(prev => prev ? ({ ...prev, selectedSubjectId: 'TUTORIAL', selectedFacultyId: '' }) : null);
+                    }}
+                    className={`p-3 rounded-lg border text-left flex items-start space-x-2.5 transition cursor-pointer ${
+                      slotEditModal.selectedSubjectId === 'TUTORIAL' || !slotEditModal.selectedSubjectId
+                        ? 'border-orange-500 bg-orange-50/70 text-orange-900 ring-2 ring-orange-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                    }`}
+                  >
+                    <Clock className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Tutorial / Free Period</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Self-study or mentorship tutorial slot</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Subject & Faculty Selector if Subject Class selected */}
+              {slotEditModal.selectedSubjectId !== 'TUTORIAL' && slotEditModal.selectedSubjectId !== '' ? (
+                <div className="space-y-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Select Subject <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={slotEditModal.selectedSubjectId}
+                      onChange={(e) => {
+                        const newSubId = e.target.value;
+                        const existingAssign = assignments.find(a => a.classId === slotEditModal.classId && a.subjectId === newSubId);
+                        setSlotEditModal(prev => prev ? ({
+                          ...prev,
+                          selectedSubjectId: newSubId,
+                          selectedFacultyId: existingAssign?.facultyId || prev.selectedFacultyId
+                        }) : null);
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+                    >
+                      <optgroup label="Class Assigned Subjects">
+                        {subjects
+                          .filter(s => assignments.some(a => a.classId === slotEditModal.classId && a.subjectId === s.id))
+                          .map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.code}) — {s.hoursPerWeek} hrs/wk
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="All Other Subjects">
+                        {subjects
+                          .filter(s => !assignments.some(a => a.classId === slotEditModal.classId && a.subjectId === s.id))
+                          .map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.code}) — {s.department || 'General'}
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Faculty In-Charge
+                    </label>
+                    <select
+                      value={slotEditModal.selectedFacultyId}
+                      onChange={(e) => {
+                        const newFacId = e.target.value;
+                        setSlotEditModal(prev => prev ? ({ ...prev, selectedFacultyId: newFacId }) : null);
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+                    >
+                      <option value="">No Faculty / Self-Guided</option>
+                      {faculties.map(f => (
+                        <option key={f.id} value={f.id}>
+                          {cleanFacultyName(f.name)} ({normalizeDepartment(f.department)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800 leading-relaxed flex items-start space-x-2">
+                  <Info className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span>
+                    This slot will be designated as a <strong>Tutorial</strong> period. It will be displayed clearly in the timetable with the tutorial badge and can be customized or assigned a subject at any time.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div>
+                {slotEditModal.selectedSubjectId !== 'TUTORIAL' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlotEditModal(prev => prev ? ({ ...prev, selectedSubjectId: 'TUTORIAL', selectedFacultyId: '' }) : null);
+                    }}
+                    className="text-[11px] text-orange-700 hover:text-orange-900 font-bold hover:underline cursor-pointer"
+                  >
+                    Reset to Tutorial
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSlotEditModal(null)}
+                  className="px-3.5 py-1.5 text-slate-600 hover:bg-slate-200 font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveSlotAssignment}
+                  className="px-4 py-1.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Apply & Save Slot</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
